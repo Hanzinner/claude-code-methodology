@@ -5,7 +5,8 @@
 ```
 CLAUDE.md         Behavioral rules loaded into every conversation.
 hooks/            Shell scripts run by the harness at lifecycle events.
-scripts/          Utilities called from hooks or directly.
+scripts/          Utilities called from hooks, skills, or directly.
+skills/           Slash commands (/recap, /audit).
 memory/           Per-topic markdown files + MEMORY.md trigger index.
 mcp/              MCP server config (Tavily, etc).
 addons/           Optional extensions (mobile-bot).
@@ -37,5 +38,6 @@ Hooks read JSON from stdin, exit 0 (pass) or 2 (block with stderr message to age
 | A rule that should always apply | `CLAUDE.md` |
 | Enforcement that can't depend on agent memory | `hooks/` |
 | A reusable utility | `scripts/` |
+| A multi-step workflow invoked on demand | `skills/` |
 | A fact about the user / project / external system | `memory/` |
 | A fact about the codebase | nowhere — read the code |

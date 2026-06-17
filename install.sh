@@ -2,7 +2,7 @@
 # Bootstrap installer for claude-code-methodology.
 #
 # Detects Claude Code, asks where to install (user vs project scope),
-# copies hooks/scripts with path-rewriting, generates settings.json,
+# copies hooks/scripts/skills with path-rewriting, generates settings.json,
 # offers optional Python deps, offers optional addons (mobile-bot).
 #
 # Usage:
@@ -90,7 +90,7 @@ elif [[ "$SCOPE" == "project" ]]; then
 fi
 
 say "Installing to: $TARGET"
-do_or_show "mkdir -p '$TARGET'/{hooks,scripts,memory}"
+do_or_show "mkdir -p '$TARGET'/{hooks,scripts,skills,memory}"
 
 # ---- backup existing -----------------------------------------------------
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -123,6 +123,14 @@ for f in "$REPO_DIR"/scripts/*; do
   backup_if_exists "$TARGET/scripts/$name"
   do_or_show "cp '$f' '$TARGET/scripts/$name'"
   case "$name" in *.sh|*.py) do_or_show "chmod +x '$TARGET/scripts/$name'" ;; esac
+done
+
+say "Copying skills…"
+for d in "$REPO_DIR"/skills/*/; do
+  [[ -d "$d" ]] || continue
+  name=$(basename "$d")
+  backup_if_exists "$TARGET/skills/$name"
+  do_or_show "cp -r '$d' '$TARGET/skills/$name'"
 done
 
 say "Copying memory template…"
