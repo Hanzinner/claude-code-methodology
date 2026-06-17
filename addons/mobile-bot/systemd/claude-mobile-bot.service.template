@@ -1,0 +1,19 @@
+[Unit]
+Description=Claude Code mobile bridge (Telegram bot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Replace these placeholders for your install:
+User=__USER__
+WorkingDirectory=__INSTALL_DIR__
+EnvironmentFile=__INSTALL_DIR__/.env
+ExecStart=/usr/bin/python3 __INSTALL_DIR__/bot.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/claude-mobile-bot.log
+StandardError=append:/var/log/claude-mobile-bot.log
+
+[Install]
+WantedBy=multi-user.target
