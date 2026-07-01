@@ -12,12 +12,6 @@ Utilities called from hooks or directly. All idempotent. Resolve install path vi
 
 System deps: `poppler-utils`, `lynx`, `pandoc`.
 
-## Location
-
-| Script | Action |
-|--------|--------|
-| `osm-nearby.sh <lat> <lng> [radius_km] [amenity] [name_regex]` | OSM Overpass nearby search. Free, no signup. |
-
 ## Memory & persistence
 
 | Script | Action |

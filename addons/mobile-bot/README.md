@@ -19,10 +19,15 @@ addons/mobile-bot/
 ├── bot.py.stub                    # minimal reference (text-only)
 ├── systemd/
 │   └── claude-mobile-bot.service.template
-└── hooks/
-    ├── mobile-restrict.sh         # PreToolUse, allowlist writes
-    └── mobile-audit.sh            # PostToolUse, log + git commit
+├── hooks/
+│   ├── mobile-restrict.sh         # PreToolUse, allowlist writes
+│   └── mobile-audit.sh            # PostToolUse, log + git commit
+└── scripts/
+    ├── osm-nearby.sh              # OSM Overpass nearby search
+    └── osm_nearby.py              # (called by osm-nearby.sh)
 ```
+
+The `scripts/osm-nearby.sh` is called from the bot when the user shares a location (sticky for 2h). It queries OSM Overpass for nearby amenities (restaurants, pharmacies, etc). Free, no signup.
 
 `bot.py.stub` is text-only. Voice/video/location features are documented above but not implemented in the stub.
 

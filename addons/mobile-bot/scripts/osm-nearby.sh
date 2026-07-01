@@ -15,11 +15,11 @@
 
 set -euo pipefail
 
-CLAUDE_DIR="${CLAUDE_METHODOLOGY_DIR:-$HOME/.claude}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ $# -lt 2 ]]; then
   echo "usage: osm-nearby.sh <lat> <lng> [radius_km=3] [amenity=restaurant] [name_regex]" >&2
   exit 2
 fi
 
-exec python3 "$CLAUDE_DIR/scripts/osm_nearby.py" "$@"
+exec python3 "$SCRIPT_DIR/osm_nearby.py" "$@"

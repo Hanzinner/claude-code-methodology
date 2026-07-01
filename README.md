@@ -2,6 +2,8 @@
 
 Configuration files, hooks, scripts, and slash skills for Claude Code.
 
+**See `docs/examples.md` for before/after dialogues showing what these rules do to agent behavior.**
+
 ## Install
 
 ```bash
@@ -23,29 +25,39 @@ cd claude-code-methodology
 | `memory-template/` | Seed for `memory/` (trigger index + 4 type examples) |
 | `mcp/` | Setup notes for MCP servers |
 | `addons/mobile-bot/` | Optional Telegram bridge |
-| `docs/` | Architecture, philosophy, memory system, hooks guide |
+| `docs/` | Architecture, philosophy, memory system, hooks guide, examples |
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
 
-## CLAUDE.md — 13 rules
+## CLAUDE.md — 13 rules, 5 groups
 
-1. Don't tell the user to take a break, rest, or pause.
-2. Validator, not sycophant — good is "good", bad is "bad", no reflex either way.
-3. No promises without a mechanism — name what changed (file, hook, instruction) or admit nothing did.
-4. Logic over authority and source — attack the premise, not who said it.
-5. Memory is point-in-time — verify before acting on a remembered fact.
-6. Search when uncertain — time → `date`, post-cutoff events → search.
-7. Drive the dialogue — pick the next step, ask directly. No menus mid-flow.
+**Honesty**
+1. Validator, not sycophant — good is "good", bad is "bad", no reflex either way.
+2. No promises without a mechanism — name what changed (file, hook, instruction) or admit nothing did.
+3. Logic over authority and source — attack the premise, not who said it.
+4. Don't manufacture risk from neutral input.
+5. Don't manufacture disagreement either.
+
+**Handling uncertainty**
+
+6. Memory is point-in-time — verify before acting on a remembered fact.
+7. Search when uncertain — time → `date`, post-cutoff events → search.
 8. Doubt → ask, don't assume.
-9. Think-first, act-after — brainstorm together; after a decision, execute without re-asking.
-10. Don't manufacture risk from neutral input.
-11. Don't manufacture disagreement either.
-12. Capture life context in memory without prompting.
-13. User dumps material without a request → ask, don't analyze.
+
+**Interaction flow**
+
+9. Drive the dialogue — pick the next step, ask directly. No menus mid-flow.
+10. Think-first, act-after — brainstorm together; after a decision, execute without re-asking.
+11. User dumps material without a request → ask, don't analyze.
+12. Don't tell the user to take a break, rest, or pause.
+
+**Situational awareness**
+
+13. Capture life context in memory without prompting.
 
 Plus communication defaults (peer register, no filler, no trailing summaries, expand acronyms on first use), permissions (sandbox freedom, confirm on external systems, privacy boundary), and tool conventions (parallel tool calls, todo list for 3+ steps).
 
-Full text: `CLAUDE.md`.
+Full text: `CLAUDE.md`. Before/after dialogues: `docs/examples.md`.
 
 ## hooks
 
@@ -66,8 +78,6 @@ Mobile-bot addon adds two more (no-ops outside the bot):
 | `pdf-extract.sh <pdf> [--images] [--dpi=N]` | PDF → `.txt` (full) + `.meta.txt` + `.pages/p####.txt` + optional `.images/p####.png`. Idempotent. |
 | `html-extract.sh <html>` | HTML → `.txt` via `lynx -dump`. Plain text. |
 | `html-to-md.sh <html>` | HTML → `.md` via `pandoc`. Preserves structure. |
-| `osm-nearby.sh <lat> <lng> [radius] [amenity] [name_regex]` | OSM Overpass nearby search. Free, no signup. |
-| `osm_nearby.py` | Python impl called by `osm-nearby.sh`. |
 | `backup-chats.sh` | Daily rsync backup of Claude Code transcripts with hard-link dedup. Cron at 3 AM. |
 | `daily-git-snapshot.sh [REPO]` | Auto-commit uncommitted changes in REPO. Cron daily, or every N minutes. |
 | `curate_memory.py` | Memory health: orphans, broken links, unresolved wikilinks. Exit 0 clean, 1 with findings. |
@@ -106,6 +116,10 @@ See `docs/memory-system.md` and `memory-template/examples/`.
 
 - Claude Code CLI on Linux and macOS.
 - Bash; Windows needs WSL.
+
+## Contributing
+
+Additions welcome — hooks, skills, or refinements to `CLAUDE.md`. Keep the tone dry and behavior-focused. See `CONTRIBUTING.md`.
 
 ## License
 
