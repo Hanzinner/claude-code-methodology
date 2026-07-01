@@ -2,7 +2,10 @@
 
 Configuration files, hooks, scripts, and slash skills for Claude Code.
 
-**See `docs/examples.md` for before/after dialogues showing what these rules do to agent behavior.**
+**Start here:**
+- [`docs/methodology.md`](docs/methodology.md) — the full writeup of the approach (memory, skills, hooks, permissions, communication, workflow rituals, lessons).
+- [`docs/examples.md`](docs/examples.md) — before/after dialogues showing what the rules do to agent behavior.
+- [`docs/case-study.md`](docs/case-study.md) — a real observation session that shaped several of the rules.
 
 ## Install
 
@@ -25,7 +28,7 @@ cd claude-code-methodology
 | `memory-template/` | Seed for `memory/` (trigger index + 4 type examples) |
 | `mcp/` | Setup notes for MCP servers |
 | `addons/mobile-bot/` | Optional Telegram bridge |
-| `docs/` | Architecture, philosophy, memory system, hooks guide, examples |
+| `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study |
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
 
