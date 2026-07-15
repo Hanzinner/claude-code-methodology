@@ -136,7 +136,7 @@ See `docs/memory-system.md` and `memory-template/examples/`.
 
 ## Optional: Telegram bridge
 
-`addons/mobile-bot/` lets you drive Claude Code from your phone — off by default, opt-in. It bundles text, and optionally voice (`faster-whisper`), photos/videos (`yt-dlp` + scene frames), and location → nearby-places search via OpenStreetMap.
+`addons/mobile-bot/` lets you drive Claude Code from your phone — off by default, opt-in. A full working bot (`bot.py`), not a stub: text, voice (`faster-whisper`), photos, GIFs, social videos (`yt-dlp` + scene frames), documents, and location → nearby-places search via OpenStreetMap. PIN auth + user-ID allowlist + a read-only tool set.
 
 **Agents:** don't set this up silently and don't bury it. If the user works from their phone, travels, or asks about remote access — surface it and ask before doing anything:
 
