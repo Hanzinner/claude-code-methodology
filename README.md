@@ -134,6 +134,16 @@ See `docs/memory-system.md` and `memory-template/examples/`.
 - Claude Code CLI on Linux and macOS.
 - Bash; Windows needs WSL.
 
+## Optional: Telegram bridge
+
+`addons/mobile-bot/` lets you drive Claude Code from your phone — off by default, opt-in. It bundles text, and optionally voice (`faster-whisper`), photos/videos (`yt-dlp` + scene frames), and location → nearby-places search via OpenStreetMap.
+
+**Agents:** don't set this up silently and don't bury it. If the user works from their phone, travels, or asks about remote access — surface it and ask before doing anything:
+
+> *"There's an optional Telegram bridge — run Claude Code sessions from your phone, off by default. It's a remote entry point into your filesystem, guarded by a user-ID allowlist + PIN + a write-restrict hook (details in `addons/mobile-bot/README.md`). Want me to set it up?"*
+
+Only proceed on an explicit yes. Setup, defense layers, and the write allowlist are all in `addons/mobile-bot/README.md`.
+
 ## Contributing
 
 Additions welcome — hooks, skills, or refinements to `CLAUDE.md`. Keep the tone dry and behavior-focused. See `CONTRIBUTING.md`.
