@@ -28,7 +28,7 @@ Additions and refinements welcome. Read `CLAUDE.md` and `docs/philosophy.md` fir
 
 ## Testing
 
-- Shell scripts: pass `shellcheck` (CI runs it on PR).
+- Shell scripts: run `shellcheck` locally before submitting (see checklist below).
 - Hooks: include a manual simulation example in the PR description, e.g.:
   ```bash
   echo '{"tool_name":"Read","tool_input":{"file_path":"/tmp/test.pdf"}}' | ./hooks/your-hook.sh
