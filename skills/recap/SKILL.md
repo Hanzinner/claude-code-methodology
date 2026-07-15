@@ -5,7 +5,7 @@ description: Re-read the current session and save what's worth remembering to lo
 
 # recap
 
-Periodic memory commit. Reads the post-compaction transcript of the current session, finds things worth remembering, writes them to the right place in `memory/`, and reports what was saved.
+Deliberate memory commit. The native `/compact` is lossy **by design** — it compresses the transcript for conversational continuity, not to preserve what matters (new rules, decisions, background that surfaced mid-session). Those get flattened and lost. `/recap` runs a deliberate pass **before** compaction — or any time something worth keeping surfaced — reading the dialogue since the last compaction boundary, finding what's worth remembering, writing it to the right place in `memory/`, and reporting what was saved.
 
 ## How to run
 

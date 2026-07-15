@@ -82,7 +82,7 @@ Body:
 Instead of one monolithic "assistant" — separate skills for separate tasks:
 - `/grill` — stress-test a plan / decision (attack assumptions)
 - `/audit` — check instruction corpus for contradictions / drift
-- `/recap` — compress a session into memory before `/compact`
+- `/recap` — commit a session's important parts to memory before `/compact` flattens them
 - `/pulse` — multi-source recency snapshot on a topic
 
 The agent sees all skill descriptions and picks the right one. User says "stress-test this plan" → triggers `/grill` without an explicit call.
@@ -176,11 +176,13 @@ Situational, role, environment details — capture and record **without promptin
 
 ### /recap → /compact pattern
 
-When context approaches the limit (visible on status indicator):
-1. Run `/recap` — agent re-reads session, writes important parts to memory + episodic
+The native `/compact` is lossy **by design**: it summarizes the transcript to keep the conversation going, not to retain what matters. Rules, decisions, and background that emerged mid-session get flattened into a summary and are gone for good. `/recap` is the fix — a deliberate memory-commit of those parts *before* compaction runs.
+
+Run it when context approaches the limit (visible on status indicator), **or any time important things surfaced in the chat that must outlive the session** — don't wait for the limit:
+1. Run `/recap` — agent re-reads the session, writes important parts to memory + episodic
 2. Then `/compact` — harness compresses into summary
 
-Without `/recap`, important context that emerged during the session (new rules, decisions, background) — gets lost in compaction.
+The mechanism saves the model from forgetting, but running it is still a human ritual — pair it with the status indicator so it isn't missed.
 
 ### /audit for drift control
 
