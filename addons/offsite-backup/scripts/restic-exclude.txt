@@ -1,0 +1,43 @@
+# Excluded from restic backups — regenerable, big, or noise.
+# Docs corpus (7 GB), rebuildable via git clone
+**/msdocs
+**/msdocs.old
+# Language toolchains
+**/.rustup
+**/.cargo
+# VS Code Remote install (~500 MB, per-user, auto-installs)
+**/.vscode-server
+**/.vscode-server-insiders
+# Docker layers, node cache
+**/docker
+**/node_modules
+# Build & release output — sources are enough. Adjust to your own projects.
+# Use trailing-name patterns (no leading anchor) so nested target/ dirs like
+# myproject/subcrate/target/ get caught. Restic matches these as path segments.
+target
+**/build
+**/dist
+# e.g. **/YourProject/releases
+# ML model weights (regenerable via HF download)
+**/huggingface
+**/.cache/huggingface
+**/.cache/pip
+**/.cache/uv
+# Trash + user-scoped tmp (NOT global /tmp — we DO back up /tmp/system-manifest)
+**/.Trash
+/home/<user>/tmp
+/root/tmp
+# .git/objects INCLUDED for local-only repos (a repo with no remote —
+# losing objects/ = losing all commit history). Trade-off: +1-3 GB. If your
+# repo holds sensitive commits you don't want on GitHub even privately,
+# restic passphrase-encryption is a safer store than a private remote.
+# LFS is still excluded (big binary blobs; add back if you don't use LFS).
+**/.git/lfs
+# Large regenerable XML/asset files — add your own if applicable
+# **/SomeLargeGenerated.xml
+# Obsidian plugin build artifacts (regenerable via reinstall)
+**/.obsidian/plugins/*/main.js.map
+# Backup script's own staging (would create recursion)
+/tmp/recovery-staging
+# The passphrase file itself — chicken-and-egg
+/home/<user>/.claude/secrets/backup-passphrase.txt

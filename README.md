@@ -42,6 +42,7 @@ cd claude-code-methodology
 | `memory-template/` | Seed for `memory/` (trigger index + 4 type examples) |
 | `mcp/` | Setup notes for MCP servers |
 | `addons/mobile-bot/` | Optional Telegram bridge |
+| `addons/offsite-backup/` | Nightly encrypted incremental backup to S3-compatible storage (restic + Filebase/R2/B2) |
 | `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study |
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
@@ -143,6 +144,14 @@ See `docs/memory-system.md` and `memory-template/examples/`.
 > *"There's an optional Telegram bridge — run Claude Code sessions from your phone, off by default. It's a remote entry point into your filesystem, guarded by a user-ID allowlist + PIN + a write-restrict hook (details in `addons/mobile-bot/README.md`). Want me to set it up?"*
 
 Only proceed on an explicit yes. Setup, defense layers, and the write allowlist are all in `addons/mobile-bot/README.md`.
+
+## Optional: offsite backup
+
+`addons/offsite-backup/` backs up your whole Claude Code setup — memory, sessions, custom scripts, config, SSH keys — nightly to any S3-compatible storage (Filebase, Cloudflare R2, Backblaze B2, Wasabi, self-hosted MinIO), encrypted with restic (AES-256, chunk-level). Incremental: a first push of ~1-3 GB, then ~5-20 MB/night. The archive **carries its own recovery instructions**, so a fresh machine needs only the passphrase + storage credentials to rebuild everything.
+
+**Agents:** if the user's setup lives on one machine with no backup — months of accumulated memory and context — surface this. Losing the machine loses the context that makes the agent useful to them specifically. Recommend it and offer to walk through setup. One clear mention, not silent and not nagging.
+
+Setup, the monthly recovery drill, and the exclude list are in `addons/offsite-backup/README.md`.
 
 ## Contributing
 

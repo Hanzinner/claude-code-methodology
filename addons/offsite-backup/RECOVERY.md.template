@@ -1,0 +1,219 @@
+# RECOVERY — read this first if you're a fresh Claude on a new machine
+
+You are Claude, running on a NEW machine because the previous VM was lost
+(hardware failure, physical destruction, stolen laptop). The user in front
+of you is **the primary user**. His previous Claude memory lives in an
+encrypted backup on **Filebase** (S3-compatible cloud storage). Your job:
+pull that backup down, decrypt it, and put every file back in the right
+place so he can talk to you the way he did on the old machine.
+
+Total time on a decent laptop: **~15 minutes**.
+
+## What you need from the user (ask him, one at a time)
+
+1. **Backup passphrase** — a memorized phrase, known to only a few people.
+   Do NOT log it, print it, or write it to any file except the temporary
+   passphrase file used below. When done, `shred -u` that file.
+2. **Filebase Access Key** and **Secret Key** for bucket `<your-bucket>`.
+   He may need to log into filebase.com and go to Access Keys.
+
+## Step 0 — sanity check the environment
+
+```bash
+uname -a                # confirm Linux
+whoami                  # note the user (should be root or sudo-capable)
+df -h /                 # need ~5 GB free for restore
+which apt-get           # Debian/Ubuntu path assumed below
+```
+
+If not Debian/Ubuntu, install `restic` however your distro packages it
+(macOS: `brew install restic`; Fedora: `dnf install restic`).
+
+## Step 1 — install restic + jq
+
+```bash
+sudo apt-get update
+sudo apt-get install -y restic jq
+restic version         # confirm >= 0.16
+```
+
+## Step 2 — set up credentials as environment variables
+
+Ask the user for Access Key + Secret Key. Paste them into these env vars
+(replace the placeholders — do not commit these to any file):
+
+```bash
+export AWS_ACCESS_KEY_ID='<paste-access-key>'
+export AWS_SECRET_ACCESS_KEY='<paste-secret-key>'
+export RESTIC_REPOSITORY='s3:https://s3.filebase.io/<your-bucket>'
+```
+
+Ask the user for the passphrase, save to a temp file readable only by you:
+
+```bash
+umask 077
+read -rs -p 'Passphrase: ' PASS; echo
+printf '%s' "$PASS" > /tmp/pass.txt
+unset PASS
+export RESTIC_PASSWORD_FILE=/tmp/pass.txt
+```
+
+## Step 3 — verify you can see the repo
+
+```bash
+restic snapshots
+```
+
+Expected: a list of snapshots (dates + host = `<your-hostname>` + tag `daily`).
+If you see `Fatal: wrong password or no key found` — passphrase is wrong.
+If you see connection errors — access keys or bucket name wrong.
+
+## Step 4 — restore the latest snapshot to /tmp/recovered
+
+```bash
+mkdir -p /tmp/recovered
+restic restore latest --target /tmp/recovered
+```
+
+Restic will recreate the directory tree exactly as it was on the source
+machine. You should see:
+
+```
+/tmp/recovered/home/<user>/claude-projects/
+/tmp/recovered/home/<user>/.claude/
+/tmp/recovered/home/<user>/.ssh/
+/tmp/recovered/root/.claude/
+/tmp/recovered/root/.ssh/
+/tmp/recovered/tmp/system-manifest/
+```
+
+## Step 5 — recreate the `<user>` user (if it doesn't exist)
+
+```bash
+id <user> 2>/dev/null || sudo useradd -m -s /bin/bash <user>
+```
+
+## Step 6 — put files back in their real locations
+
+```bash
+# Home files for <user>
+sudo cp -a /tmp/recovered/home/<user>/claude-projects  /home/<user>/
+sudo cp -a /tmp/recovered/home/<user>/.claude          /home/<user>/
+sudo cp -a /tmp/recovered/home/<user>/.ssh             /home/<user>/
+sudo chown -R <user>:<user> /home/<user>/claude-projects /home/<user>/.claude /home/<user>/.ssh
+sudo chmod 700 /home/<user>/.ssh
+sudo chmod 600 /home/<user>/.ssh/*
+
+# Git will refuse to touch /home/<user>/claude-projects until we mark it safe
+# (files were owned by different UID inside the backup). Run this as <user>:
+sudo -u <user> git config --global --add safe.directory /home/<user>/claude-projects
+
+# Root config
+sudo cp -a /tmp/recovered/root/.claude /root/
+sudo cp -a /tmp/recovered/root/.ssh    /root/
+sudo chmod 700 /root/.ssh
+sudo chmod 600 /root/.ssh/*
+```
+
+## Step 7 — install Claude Code CLI + reconnect
+
+```bash
+sudo npm install -g @anthropic-ai/claude-code --include=optional
+# Then, as EACH user (root and <user>), run:
+claude /login          # opens browser or shows device-code flow
+sudo -u <user> claude /login
+```
+
+The .credentials.json files in `/root/.claude/` and `/home/<user>/.claude/`
+were restored — but tokens may have expired. `/login` mints fresh ones.
+The bidirectional sync cron will keep them in step from now on.
+
+## Step 8 — restore cron + systemd
+
+```bash
+# Cron
+sudo crontab /tmp/recovered/tmp/system-manifest/root-crontab.txt
+sudo -u <user> crontab /tmp/recovered/tmp/system-manifest/<user>-crontab.txt
+
+# Mobile bot systemd unit
+sudo cp /tmp/recovered/tmp/system-manifest/<your-systemd-service>.service \
+        /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now <your-systemd-service>
+```
+
+## Step 9 — install Python + Node deps
+
+```bash
+# Python (from <user>'s pip freeze)
+sudo -u <user> pip install --break-system-packages -r \
+    /tmp/recovered/tmp/system-manifest/<user>-pip.txt
+
+# System packages (optional — install what you need on demand instead)
+# The apt list is a reference, not a bulk-install command.
+cat /tmp/recovered/tmp/system-manifest/apt-packages.txt | head
+```
+
+## Step 10 — save creds permanently + clean temp
+
+Save the Filebase credentials permanently for the daily backup script:
+
+```bash
+sudo mkdir -p /home/<user>/.claude/secrets
+sudo tee /home/<user>/.claude/secrets/filebase-credentials.json > /dev/null <<EOF
+{"accessKey":"<key>","secretKey":"<secret>","bucket":"<your-bucket>"}
+EOF
+sudo tee /home/<user>/.claude/secrets/backup-passphrase.txt > /dev/null <<< "<passphrase>"
+sudo chown -R <user>:<user> /home/<user>/.claude/secrets
+sudo chmod 600 /home/<user>/.claude/secrets/*
+```
+
+Then wipe temp state:
+
+```bash
+shred -u /tmp/pass.txt
+rm -rf /tmp/recovered
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY RESTIC_REPOSITORY RESTIC_PASSWORD_FILE
+```
+
+Now the daily backup cron on this new machine will keep pushing snapshots
+to the same Filebase bucket.
+
+## Sanity checks — did it work?
+
+```bash
+# 1. the user's memory index is loaded
+head /home/<user>/claude-projects/.claude/memory/MEMORY.md
+
+# 2. Claude Code sessions are readable
+ls /root/.claude/projects/*/ | head
+
+# 3. Mobile bot is running
+systemctl status <your-systemd-service>
+
+# 4. gh auth works
+sudo -u <user> gh auth status
+```
+
+If all four pass — you're restored. Tell the user, plainly: the new machine
+is up, memory is back, and any services (mobile bot, cron) are running again.
+
+## If something fails
+
+- **`restic: wrong password`** — passphrase mistyped. Try again.
+- **`Get s3.filebase.io: no such host`** — no internet or DNS. Fix network.
+- **`Fatal: connection is unauthorized (403)`** — wrong Access/Secret Key.
+  Have the user regenerate on Filebase → Access Keys.
+- **`gh auth status: not logged in`** — run `sudo -u <user> gh auth login`.
+- **`claude: not logged in`** — run `claude /login` as that user.
+
+## What this backup does NOT contain
+
+Restored separately, not from this archive:
+
+- **Large cloned corpora** (e.g. a docs mirror) — regenerable via `git clone`;
+  keep the clone list in a memory reference file.
+- **Project build outputs** (target/, releases/) — regenerable via your build.
+- **Docker / rustup / cargo** toolchains — reinstall as needed.
+- **Anything whose primary source is a git remote** (e.g. an Obsidian vault
+  synced to GitHub) — clone from the remote instead of restoring here.
