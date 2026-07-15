@@ -182,7 +182,7 @@ Run it when context approaches the limit (visible on status indicator), **or any
 1. Run `/recap` — agent re-reads the session, writes important parts to memory + episodic
 2. Then `/compact` — harness compresses into summary
 
-The mechanism saves the model from forgetting, but running it is still a human ritual — pair it with the status indicator so it isn't missed.
+**Honest limitation.** This mechanism saves the model from forgetting — but it moves the forgetting up a level, onto the human. `/recap` only helps if you remember to run it before compaction. There's no session-end event in Claude Code to hang it on automatically, so for now it stays a manual ritual paired with the status indicator. Not a solved problem, just a moved one.
 
 ### /audit for drift control
 
