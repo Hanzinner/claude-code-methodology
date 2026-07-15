@@ -182,7 +182,7 @@ Run it when context approaches the limit (visible on status indicator), **or any
 1. Run `/recap` — agent re-reads the session, writes important parts to memory + episodic
 2. Then `/compact` — harness compresses into summary
 
-**Honest limitation.** This mechanism saves the model from forgetting — but it moves the forgetting up a level, onto the human. `/recap` only helps if you remember to run it before compaction. There's no session-end event in Claude Code to hang it on automatically, so for now it stays a manual ritual paired with the status indicator. Not a solved problem, just a moved one.
+**Not really a memory problem in practice.** Claude Code shows a status indicator (a filling circle) as context approaches the auto-compact threshold — a visible cue. So you don't have to *remember* to recap; you *react* to the warning before it fires. It's still a manual step — there's no session-end event to fully automate it — but the UI removes the "forgot it existed" failure. Recap when the circle is near full, or any time something worth keeping surfaced.
 
 ### /audit for drift control
 
@@ -234,7 +234,14 @@ Accumulate naturally — new rules overwrite old ones, but old ones stay in file
 
 **Post-session reflection hook** — Claude Code doesn't have a "session end" event. And there's no need — `/recap` covers it.
 
-## 9. Anthropic docs worth reading
+## 9. Known issues (WIP)
+
+This is a living personal setup, not a shipped product. Open items being worked on:
+
+- **Trash has no rotation yet.** `mv` to `~/.Trash/` instead of `rm` gives reversibility, but nothing prunes it — it grows unbounded until cleaned by hand. A TTL cleanup (e.g. cron `find ~/.Trash -mtime +30 -delete`) is planned, not built.
+- **`/audit` is manual and report-only.** It surfaces rule drift and stale facts but doesn't auto-fix, and nothing schedules it. Between runs, drift accumulates. Cadence and optional auto-fix are open questions.
+
+## 10. Anthropic docs worth reading
 
 - Skills overview: <https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview>
 - Hooks reference: <https://docs.claude.com/en/docs/claude-code/hooks>
