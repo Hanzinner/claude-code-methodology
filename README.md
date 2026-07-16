@@ -23,7 +23,7 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 ## Install
 
 ```bash
-git clone https://github.com/<you>/claude-code-methodology
+git clone https://github.com/Hanzinner/claude-code-methodology
 cd claude-code-methodology
 ./install.sh
 ```
