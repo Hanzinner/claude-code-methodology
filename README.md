@@ -19,6 +19,7 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/methodology.md`](docs/methodology.md) — the full writeup of the approach (memory, skills, hooks, permissions, communication, workflow rituals, lessons).
 - [`docs/examples.md`](docs/examples.md) — before/after dialogues showing what the rules do to agent behavior.
 - [`docs/case-study.md`](docs/case-study.md) — a real observation session that shaped several of the rules.
+- [`docs/multi-agent.md`](docs/multi-agent.md) — running a swarm of ~28 long-lived agents: delivery, coordination, and the failures that cost more than the design.
 
 ## Install
 
@@ -42,7 +43,7 @@ cd claude-code-methodology
 | `mcp/` | Setup notes for MCP servers |
 | `addons/mobile-bot/` | Optional Telegram bridge |
 | `addons/offsite-backup/` | Nightly encrypted incremental backup to S3-compatible storage (restic + Filebase/R2/B2) |
-| `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study |
+| `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study, multi-agent |
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
 
