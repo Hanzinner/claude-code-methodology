@@ -10,8 +10,9 @@ addresses, and port the idea.
 | File | Type | Addresses |
 |------|------|-----------|
 | `git-guard` | PATH wrapper for `git` | Agents run as root, repo owned by a user → destructive git wiped shared history. Redirects to the owner; blocks destructive verbs in the shared repo. |
+| `briefing-watchman.sh` | `UserPromptSubmit` hook | A briefing nobody re-reads goes stale; an inbox nobody is told to read is not a channel. Resolves the agent by name, injects a changed briefing, pings only hanging inbox items every turn, and shows deltas of shared files. |
 
-More mechanisms (living-briefing hook, atomic inbox writer, tool-output trimmer, tool-policy redirect)
+More mechanisms (atomic inbox writer, tool-output trimmer, tool-policy redirect)
 are being added here as they're sanitized.
 
 ## A note on trust
