@@ -11,9 +11,9 @@ addresses, and port the idea.
 |------|------|-----------|
 | `git-guard` | PATH wrapper for `git` | Agents run as root, repo owned by a user → destructive git wiped shared history. Redirects to the owner; blocks destructive verbs in the shared repo. |
 | `briefing-watchman.sh` | `UserPromptSubmit` hook | A briefing nobody re-reads goes stale; an inbox nobody is told to read is not a channel. Resolves the agent by name, injects a changed briefing, pings only hanging inbox items every turn, and shows deltas of shared files. |
-
-More mechanisms (atomic inbox writer, tool-output trimmer, tool-policy redirect)
-are being added here as they're sanitized.
+| `inbox-post.sh` | CLI writer | Parallel read-modify-write on shared markdown inboxes tore files (lost headers, a vanished section). flock on a separate `.lock`, insert after the anchor, and post-validate from disk — proof of delivery, not just "assembled the file". |
+| `session-hygiene.py` | cron | Long chats bloat. Trims old tool outputs from large, inactive session files (cutting *both* copies the harness stores), atomic with a `-cut.jsonl` rollback and a zero-trust "no fresh backup → refuse" interlock. |
+| `tool-redirect.sh` | `PreToolUse` hook | Move the whole fleet from one tool to another with no briefing edits: deny the tool and put the instruction to use the right one in the denial reason. The agent reads it and retries correctly. |
 
 ## A note on trust
 
