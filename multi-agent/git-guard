@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Transparent git wrapper — removes the chronic root/owner split and blocks
+# destructive git in a shared repo. Install as an earlier-in-PATH `git`
+# (e.g. /usr/local/bin/git) so every caller goes through it.
+#
+# Why it exists: agents run as root, but the repo is owned by a normal user.
+# A history-rewriting command run under root once wiped most of a shared repo's
+# commit history (recovered from a backup taken minutes earlier). The rule
+# "always run git as the owning user" had been written down for months and
+# still failed — a rule everyone must remember forever is a deferred outage.
+# So: remove the gap instead of guarding it. See docs/multi-agent.md §2.
+#
+#   1. root + target inside the shared repo (or its worktrees, which share
+#      one .git) -> exec `sudo -u <owner> git`, so .git files are always owned
+#      by the repo owner and nobody has to remember anything.
+#   2. Destructive verbs (filter-repo / reset --hard / gc --prune / branch -D /
+#      push --force / clean -f) IN THE SHARED REPO -> blocked for everyone,
+#      the owner included. filter-repo is blocked in worktrees too (shared history).
+#   3. Anything else, and any git outside the shared repo -> plain git.
+#
+# Configure via env (guard is inactive until MAIN_REPO is set, so a plain
+# install is a no-op until you point it at your repo):
+#   GIT_GUARD_MAIN    absolute path to the shared repo        (required to arm)
+#   GIT_GUARD_WT      absolute path to its worktrees dir       (optional)
+#   GIT_GUARD_OWNER   owning username (default: auto-detected from the repo)
+
+set -uo pipefail
+
+REAL_GIT=/usr/bin/git
+MAIN_REPO="${GIT_GUARD_MAIN:-}"
+WORKTREES="${GIT_GUARD_WT:-}"
+OWNER="${GIT_GUARD_OWNER:-}"
+[[ -z "$OWNER" && -n "$MAIN_REPO" ]] && OWNER=$(stat -c %U "$MAIN_REPO" 2>/dev/null || echo "")
+
+# --- parse global options before the subcommand: -C / --git-dir change target -
+target="$PWD"
+gitdir=""
+subcmd=""
+sub_args=()
+args=("$@")
+i=0
+n=${#args[@]}
+while [[ $i -lt $n ]]; do
+    a="${args[$i]}"
+    case "$a" in
+        -C) i=$((i+1)); t="${args[$i]:-}"
+            [[ "$t" == /* ]] && target="$t" || target="$target/$t" ;;
+        --git-dir=*)   gitdir="${a#--git-dir=}" ;;
+        --git-dir)     i=$((i+1)); gitdir="${args[$i]:-}" ;;
+        --work-tree=*) t="${a#--work-tree=}"
+                       [[ "$t" == /* ]] && target="$t" || target="$target/$t" ;;
+        --work-tree)   i=$((i+1)); t="${args[$i]:-}"
+                       [[ "$t" == /* ]] && target="$t" || target="$target/$t" ;;
+        -c|--namespace|--exec-path) i=$((i+1)) ;;   # value-taking options — skip
+        --*|-*) : ;;                                 # other global flags
+        *) subcmd="$a"; sub_args=("${args[@]:$((i+1))}"); break ;;
+    esac
+    i=$((i+1))
+done
+
+resolve() { readlink -f -- "$1" 2>/dev/null || printf '%s' "$1"; }
+real_target=$(resolve "$target")
+[[ -n "$gitdir" ]] && real_target=$(resolve "$gitdir")
+
+in_main=false; in_wt=false
+[[ -n "$MAIN_REPO" && ( "$real_target" == "$MAIN_REPO" || "$real_target" == "$MAIN_REPO"/* ) ]] && in_main=true
+[[ -n "$WORKTREES" && ( "$real_target" == "$WORKTREES" || "$real_target" == "$WORKTREES"/* ) ]] && in_wt=true
+
+# --- 2: block destructive verbs ---------------------------------------------
+block() {
+    cat >&2 <<EOF
+[git-guard] BLOCKED: "git $subcmd ${sub_args[*]:-}" in the shared repo.
+Why: this class of command irreversibly destroys history/files of a SHARED repo —
+exactly how a history rewrite under root once wiped most of this repo's commits
+(only a fresh .git backup saved it).
+Do instead: make a one-off clone OUTSIDE the shared repo, confirm the clone was
+created (set -euo pipefail), and run the destructive command there.
+See docs/multi-agent.md §2.
+EOF
+    exit 88
+}
+
+has_flag() { local f; for f in "${sub_args[@]:-}"; do [[ "$f" == "$1" ]] && return 0; done; return 1; }
+
+if $in_main || $in_wt; then
+    [[ "$subcmd" == "filter-repo" ]] && block
+fi
+if $in_main; then
+    case "$subcmd" in
+        reset)  has_flag --hard && block ;;
+        gc)     for f in "${sub_args[@]:-}"; do [[ "$f" == --prune* ]] && block; done ;;
+        branch) has_flag -D && block ;;
+        push)   for f in "${sub_args[@]:-}"; do
+                    [[ "$f" == -f || "$f" == --force || "$f" == --force-with-lease* ]] && block
+                done ;;
+        clean)  for f in "${sub_args[@]:-}"; do [[ "$f" == -*f* && "$f" != --* ]] && block; done
+                has_flag --force && block ;;
+    esac
+fi
+
+# --- 1: root inside the owner's repo -> run as the owner, preserving GIT_*/EDITOR
+if [[ "$(id -u)" == "0" ]] && { $in_main || $in_wt; } && [[ -n "$OWNER" ]]; then
+    if sudo -n -u "$OWNER" true 2>/dev/null; then
+        env_pass=()
+        while IFS='=' read -r k v; do
+            case "$k" in GIT_*|EDITOR|VISUAL|PAGER) env_pass+=("$k=$v") ;; esac
+        done < <(env)
+        exec sudo -n -u "$OWNER" env "${env_pass[@]}" "$REAL_GIT" "$@"
+    fi
+    # sudo unavailable -> don't block work; warn honestly and run as-is
+    echo "[git-guard] warning: sudo -u $OWNER unavailable, running as root — may create root-owned files in .git" >&2
+fi
+
+exec "$REAL_GIT" "$@"
