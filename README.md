@@ -2,6 +2,8 @@
 
 Configuration files, hooks, scripts, and slash skills for Claude Code.
 
+One person's setup, generalized over months of daily use. The mechanisms (hooks, memory layout, gates) are portable; the communication and output rules are personal taste — `CLAUDE.md` marks which is which. Take the pieces that fit; rewrite the rest.
+
 ## Why each piece exists
 
 Each component addresses a specific failure mode, not a convenience. Worth knowing before you keep, drop, or adapt one:
@@ -15,14 +17,18 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 | `MEMORY.md` as trigger-index | Without splitting index from content, one memory file bloats until it's truncated out of context. |
 | `curate_memory.py` | Broken wikilinks and orphaned memory files pile up unnoticed. |
 
-**Start here:**
+**Start here** (a single agent — most readers):
 - [`docs/methodology.md`](docs/methodology.md) — the full writeup of the approach (memory, skills, hooks, permissions, communication, workflow rituals, lessons).
 - [`docs/examples.md`](docs/examples.md) — before/after dialogues showing what the rules do to agent behavior.
 - [`docs/case-study.md`](docs/case-study.md) — a real observation session that shaped several of the rules.
-- [`docs/multi-agent.md`](docs/multi-agent.md) — running a swarm of ~28 long-lived agents: delivery, coordination, and the failures that cost more than the design.
+
+**Going deeper** (long sessions, verification, self-correction):
 - [`docs/context-management.md`](docs/context-management.md) — keeping a months-long agent chat alive: hygiene layers, the hybrid lifecycle, and why mechanisms beat remembering.
 - [`docs/measurement-and-proof.md`](docs/measurement-and-proof.md) — when the instrument lies: what counts as proof a mechanism ran, why gates measure what they can see (not what is), and where no mechanism exists.
 - [`docs/mistakes-journal.md`](docs/mistakes-journal.md) — one file for postmortems, so three of the same mistake become a mechanism instead of a habit.
+
+**Running a swarm** (many agents — a separate discipline; skip these if you run one agent):
+- [`docs/multi-agent.md`](docs/multi-agent.md) — running a swarm of ~28 long-lived agents: delivery, coordination, and the failures that cost more than the design.
 - [`docs/mission-control.md`](docs/mission-control.md) — a web panel that steers live agents by appending to a file channel they tail: cheap push over cold-start, everything counted from outside.
 
 ## Install
