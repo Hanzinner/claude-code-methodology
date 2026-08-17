@@ -23,6 +23,7 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/context-management.md`](docs/context-management.md) — keeping a months-long agent chat alive: hygiene layers, the hybrid lifecycle, and why mechanisms beat remembering.
 - [`docs/measurement-and-proof.md`](docs/measurement-and-proof.md) — when the instrument lies: what counts as proof a mechanism ran, why gates measure what they can see (not what is), and where no mechanism exists.
 - [`docs/mistakes-journal.md`](docs/mistakes-journal.md) — one file for postmortems, so three of the same mistake become a mechanism instead of a habit.
+- [`docs/mission-control.md`](docs/mission-control.md) — a web panel that steers live agents by appending to a file channel they tail: cheap push over cold-start, everything counted from outside.
 
 ## Install
 
@@ -46,7 +47,7 @@ cd claude-code-methodology
 | `mcp/` | Setup notes for MCP servers |
 | `addons/mobile-bot/` | Optional Telegram bridge |
 | `addons/offsite-backup/` | Nightly encrypted incremental backup to S3-compatible storage (restic + Filebase/R2/B2) |
-| `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study, multi-agent, context management, measurement & proof, mistakes journal |
+| `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study, multi-agent, context management, measurement & proof, mistakes journal, mission control |
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
 
