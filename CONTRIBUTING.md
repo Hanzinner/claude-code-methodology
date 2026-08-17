@@ -35,6 +35,8 @@ Additions and refinements welcome. Read `CLAUDE.md` and `docs/philosophy.md` fir
   ```
 - Skills: no automated test — include a sample invocation and expected agent behavior in the PR.
 
+**Why there's no CI:** there was a shellcheck GitHub Action; it's gone because Actions is billing-locked on this account (GitHub requires a payment method on file even for free public-repo runs), and a card for a lint badge wasn't worth it. Quality here leans on local checks, the hardening hooks in `hooks/`, and out-of-band review — the setup is periodically dropped into a fresh, memoryless model for an unbiased critique. Automated coverage is a known gap, not a stance (see `docs/methodology.md` §8–9).
+
 ## PR checklist
 
 - [ ] Change explained in one paragraph. Why, not just what.

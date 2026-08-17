@@ -224,7 +224,9 @@ Accumulate naturally — new rules overwrite old ones, but old ones stay in file
 
 **OSINT cron** — periodic briefs on general topics. Anti-pattern: "briefs for the sake of briefs". Proactivity only on real trigger.
 
-**Weaker-model critic** (Haiku critiquing Sonnet/Opus) — weaker can't reliably critique on analytical tasks. Wrong use case.
+**Weaker-model critic** (Haiku critiquing Sonnet/Opus) — weaker can't reliably critique on analytical tasks. Wrong use case. The critic that *does* work is an **equal or fresh model with no memory of the session**: this whole setup is periodically pasted into a blank Claude/other model for an unbiased read, and several of these docs (this section included) were sharpened by that loop. It's out-of-band, not a repo mechanism — worth naming as the actual quality check in place of CI.
+
+**Automated CI as the quality gate** — there was a shellcheck GitHub Action. It died when the account's Actions got billing-locked (GitHub wants a payment method on file even for free public-repo runs), and attaching a card for a lint badge wasn't worth it. So CI was dropped rather than compromised on. Honest consequence: there's no automated test/lint gate now (see §9) — quality leans on local `shellcheck`, the hardening hooks, and the fresh-model review above. A green badge was never the thing keeping the code honest, but automated coverage is a real gap, not a stance.
 
 **Vector search for personal memory** — flat files + wikilinks + grep is enough for the corpus size of one person. Vector = overengineering.
 
@@ -239,7 +241,8 @@ Accumulate naturally — new rules overwrite old ones, but old ones stay in file
 This is a living personal setup, not a shipped product. Open items being worked on:
 
 - **Trash has no rotation yet.** `mv` to `~/.Trash/` instead of `rm` gives reversibility, but nothing prunes it — it grows unbounded until cleaned by hand. A TTL cleanup (e.g. cron `find ~/.Trash -mtime +30 -delete`) is planned, not built.
-- **`/audit` is manual and report-only.** It surfaces rule drift and stale facts but doesn't auto-fix, and nothing schedules it. Between runs, drift accumulates. Cadence and optional auto-fix are open questions.
+- **`/audit` is manual and report-only.** It surfaces rule drift and stale facts but doesn't auto-fix, and nothing schedules it. Between runs, drift accumulates — which is, fairly, the exact human-memory dependency the rest of this methodology fights. Why it isn't just cron'd: `/audit` is an **LLM pass** (a skill), not a scriptable check — scheduling it needs a live agent to be awake, the same structural reason `/recap` can't auto-trigger (there's no session-end event in Claude Code). So it stays a manual ritual, flagged honestly here rather than dressed up as solved. Cadence and optional auto-fix are open questions.
+- **No automated verification of code quality.** No CI, no test suite (§8 — the shellcheck Action fell to a billing lock). The methodology is heavier on *behavior* (how the agent communicates and decides) than on *engineering output* (tests, lint, coverage). The measurement/proof discipline and the hardening hooks push on output quality, but there's no automated gate. A real gap for a "working with Claude Code" methodology, named as one.
 
 ## 10. Anthropic docs worth reading
 
