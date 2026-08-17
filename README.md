@@ -88,6 +88,8 @@ Full text: `CLAUDE.md`. Before/after dialogues: `docs/examples.md`.
 | `check-prompt-gap.sh` | UserPromptSubmit | Prepends `[now: <ts> \| gap since previous: <delta>]`. |
 | `memory-curation-check.sh` | SessionStart | Weekly `curate_memory.py` run. Silent if clean. |
 
+Plus seven **hardening hooks** (memory-write gate, pre/post-compact steering, permission-denied hint, reply-guard, stop-dispatch, and a fail-open `hook-safe` wrapper) that turn discipline-dependent rules into mechanical gates — see [`hooks/README.md`](hooks/README.md#hardening-hooks).
+
 Mobile-bot addon adds two more (no-ops outside the bot):
 - `addons/mobile-bot/hooks/mobile-restrict.sh` — PreToolUse Write/Edit allowlist
 - `addons/mobile-bot/hooks/mobile-audit.sh` — PostToolUse audit log + git commit
