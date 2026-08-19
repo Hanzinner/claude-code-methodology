@@ -29,6 +29,7 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 
 **Running a swarm** (many agents — a separate discipline; skip these if you run one agent):
 - [`docs/multi-agent.md`](docs/multi-agent.md) — running a swarm of ~28 long-lived agents: delivery, coordination, and the failures that cost more than the design.
+- [`docs/dev-methodology.md`](docs/dev-methodology.md) — the delivery layer: roles, roadmap + Definition of Done, quality gates, and bootstrap — a product team when the team is agents.
 - [`docs/mission-control.md`](docs/mission-control.md) — a web panel that steers live agents by appending to a file channel they tail: cheap push over cold-start, everything counted from outside.
 
 ## Install
@@ -53,7 +54,7 @@ cd claude-code-methodology
 | `mcp/` | Setup notes for MCP servers |
 | `addons/mobile-bot/` | Optional Telegram bridge |
 | `addons/offsite-backup/` | Nightly encrypted incremental backup to S3-compatible storage (restic + Filebase/R2/B2) |
-| `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study, multi-agent, context management, measurement & proof, mistakes journal, mission control |
+| `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study, multi-agent, context management, measurement & proof, mistakes journal, mission control, dev methodology |
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
 
