@@ -5,6 +5,9 @@
 # however you surface logs). Add your own branches at the bottom.
 #
 # Wire this single script to the Stop event; register consumers here.
+# Contract: a branch's STDOUT IS DISCARDED. Several consumers can't safely merge
+# their JSON into one Stop reply, so branches report through files (a log line,
+# a flag file read on the next turn) — as reply-guard.py and proof-guard.py do.
 
 input=$(cat)
 ERRLOG="$HOME/.claude/hook-errors.log"
@@ -18,5 +21,6 @@ run_branch() {  # run_branch <name> <command...>
 }
 
 run_branch reply_guard python3 "$HOOK_DIR/reply-guard.py"
+run_branch proof_guard python3 "$HOOK_DIR/proof-guard.py"
 # run_branch my_other_consumer python3 "$HOOK_DIR/my-consumer.py"
 exit 0

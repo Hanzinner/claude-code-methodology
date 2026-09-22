@@ -24,7 +24,7 @@ HTML="$1"
 
 OUT_DIR="${2:-$(dirname "$HTML")}"
 mkdir -p "$OUT_DIR"
-NAME=$(basename "$HTML" .html)
+NAME=$(basename "$HTML"); NAME="${NAME%.*}"   # strip any extension, same rule as the hook
 NAME="${NAME%.htm}"
 MD="$OUT_DIR/$NAME.md"
 

@@ -22,10 +22,10 @@ CLAUDE_DIR="${CLAUDE_METHODOLOGY_DIR:-$HOME/.claude}"
 LARGE_PDF_MB=10
 
 input=$(cat)
-tool=$(printf '%s' "$input" | python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_name',''))")
+tool=$(printf '%s' "$input" | python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_name',''))" 2>/dev/null) || exit 0  # malformed input → fail open
 [[ "$tool" == "Read" ]] || exit 0
 
-file_path=$(printf '%s' "$input" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))")
+file_path=$(printf '%s' "$input" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null) || exit 0  # malformed input → fail open
 [[ -n "$file_path" ]] || exit 0
 [[ -f "$file_path" ]] || exit 0  # missing file — let Read tool report it
 
@@ -51,7 +51,7 @@ EOF
       exit 2
     fi
 
-    size_mb=$(du -m "$file_path" | cut -f1)
+    size_mb=$(du -m "$file_path" 2>/dev/null | cut -f1) || exit 0   # file vanished/unreadable → fail open
     if [[ $size_mb -gt $LARGE_PDF_MB ]]; then
       cat >&2 <<EOF
 PDF is large ($size_mb MB > ${LARGE_PDF_MB} MB) — auto-extract skipped to avoid blocking.
