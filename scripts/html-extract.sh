@@ -23,7 +23,7 @@ HTML="$1"
 
 OUT_DIR="${2:-$(dirname "$HTML")}"
 mkdir -p "$OUT_DIR"
-NAME=$(basename "$HTML" .html)
+NAME=$(basename "$HTML"); NAME="${NAME%.*}"   # strip any extension (.html/.htm/.HTML), same rule as the hook
 TXT="$OUT_DIR/$NAME.txt"
 
 if [[ -f "$TXT" && "$TXT" -nt "$HTML" ]]; then

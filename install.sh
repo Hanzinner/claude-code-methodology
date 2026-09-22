@@ -24,7 +24,8 @@ PROJECT_DIR=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --user)        SCOPE="user" ;;
-    --project)     SCOPE="project"; PROJECT_DIR="${2:-}"; shift ;;
+    --project)     [[ $# -ge 2 && -n "$2" ]] || { echo "install.sh: --project requires a DIR argument" >&2; exit 2; }
+                   SCOPE="project"; PROJECT_DIR="$2"; shift ;;
     --dry-run)     DRY_RUN=1 ;;
     -h|--help)     grep '^#' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
@@ -46,11 +47,11 @@ ask() {
   echo "${ans:-$default}"
 }
 
-do_or_show() {
+do_or_show() {  # do_or_show <cmd> <arg>... — arguments are passed as-is, never re-parsed by the shell
   if [[ $DRY_RUN -eq 1 ]]; then
-    echo "  DRY: $*"
+    printf '  DRY:'; printf ' %q' "$@"; printf '\n'
   else
-    eval "$*"
+    "$@"
   fi
 }
 
@@ -90,14 +91,14 @@ elif [[ "$SCOPE" == "project" ]]; then
 fi
 
 say "Installing to: $TARGET"
-do_or_show "mkdir -p '$TARGET'/{hooks,scripts,skills,memory}"
+do_or_show mkdir -p "$TARGET"/{hooks,scripts,skills,memory}
 
 # ---- backup existing -----------------------------------------------------
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 backup_if_exists() {
   local path="$1"
   if [[ -e "$path" ]]; then
-    do_or_show "cp -a '$path' '${path}.bak-${TIMESTAMP}'"
+    do_or_show cp -a "$path" "${path}.bak-${TIMESTAMP}"
     warn "backed up existing $path → ${path}.bak-${TIMESTAMP}"
   fi
 }
@@ -105,15 +106,15 @@ backup_if_exists() {
 # ---- copy core files -----------------------------------------------------
 say "Copying CLAUDE.md (operating core)…"
 backup_if_exists "$TARGET/CLAUDE.md"
-do_or_show "cp '$REPO_DIR/CLAUDE.md' '$TARGET/CLAUDE.md'"
+do_or_show cp "$REPO_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"
 
 say "Copying hooks…"
-for f in "$REPO_DIR"/hooks/*.sh; do
+for f in "$REPO_DIR"/hooks/*.sh "$REPO_DIR"/hooks/*.py; do
   [[ -f "$f" ]] || continue
   name=$(basename "$f")
   backup_if_exists "$TARGET/hooks/$name"
-  do_or_show "cp '$f' '$TARGET/hooks/$name'"
-  do_or_show "chmod +x '$TARGET/hooks/$name'"
+  do_or_show cp "$f" "$TARGET/hooks/$name"
+  do_or_show chmod +x "$TARGET/hooks/$name"
 done
 
 say "Copying scripts…"
@@ -121,8 +122,8 @@ for f in "$REPO_DIR"/scripts/*; do
   [[ -f "$f" ]] || continue
   name=$(basename "$f")
   backup_if_exists "$TARGET/scripts/$name"
-  do_or_show "cp '$f' '$TARGET/scripts/$name'"
-  case "$name" in *.sh|*.py) do_or_show "chmod +x '$TARGET/scripts/$name'" ;; esac
+  do_or_show cp "$f" "$TARGET/scripts/$name"
+  case "$name" in *.sh|*.py) do_or_show chmod +x "$TARGET/scripts/$name" ;; esac
 done
 
 say "Copying skills…"
@@ -130,12 +131,24 @@ for d in "$REPO_DIR"/skills/*/; do
   [[ -d "$d" ]] || continue
   name=$(basename "$d")
   backup_if_exists "$TARGET/skills/$name"
-  do_or_show "cp -r '$d' '$TARGET/skills/$name'"
+  do_or_show cp -r "$d" "$TARGET/skills/$name"
+done
+
+say "Copying code pitfalls…"
+do_or_show mkdir -p "$TARGET/code-pitfalls"
+for f in "$REPO_DIR"/code-pitfalls/*.md; do
+  [[ -f "$f" ]] || continue
+  name=$(basename "$f")
+  if [[ -f "$TARGET/code-pitfalls/$name" ]]; then
+    warn "code-pitfalls/$name exists — kept yours (lessons are yours to grow)"
+  else
+    do_or_show cp "$f" "$TARGET/code-pitfalls/$name"
+  fi
 done
 
 say "Copying memory template…"
 if [[ ! -f "$TARGET/memory/MEMORY.md" ]]; then
-  do_or_show "cp -r '$REPO_DIR/memory-template/'* '$TARGET/memory/'"
+  do_or_show cp -r "$REPO_DIR/memory-template/"* "$TARGET/memory/"
   ok "memory initialized from template"
 else
   warn "memory/MEMORY.md already exists — not overwritten. See $REPO_DIR/memory-template/ for reference."
@@ -148,7 +161,18 @@ backup_if_exists "$SETTINGS"
 
 # Substitute the install target into the template
 if [[ $DRY_RUN -eq 0 ]]; then
-  sed "s|__CLAUDE_DIR__|$TARGET|g" "$REPO_DIR/settings.template.json" > "$SETTINGS"
+  # JSON-safe substitution: a path containing " \ | & would break a plain sed replacement
+  python3 - "$REPO_DIR/settings.template.json" "$SETTINGS" "$TARGET" <<'PYSUB'
+import json, sys
+src, dst, target = sys.argv[1:]
+# in commands the path sits inside shell double quotes → escape \ " $ ` for the shell first
+sh = target.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
+text = open(src).read()
+text = text.replace("__CLAUDE_DIR_RAW__", json.dumps(target)[1:-1])
+text = text.replace("__CLAUDE_DIR__", json.dumps(sh)[1:-1])
+open(dst, "w").write(text)
+json.load(open(dst))  # fail loudly if the result isn't valid JSON
+PYSUB
   ok "wrote $SETTINGS"
 else
   echo "  DRY: would write $SETTINGS with __CLAUDE_DIR__=$TARGET"
@@ -164,8 +188,8 @@ echo "  - ffmpeg, yt-dlp (video)          — system + pip"
 yn=$(ask "Try to install system deps via apt now? (y/N)" "N")
 if [[ "$yn" =~ ^[Yy]$ ]]; then
   if command -v apt-get >/dev/null 2>&1; then
-    do_or_show "sudo apt-get update -qq"
-    do_or_show "sudo apt-get install -y poppler-utils lynx pandoc ffmpeg"
+    do_or_show sudo apt-get update -qq
+    do_or_show sudo apt-get install -y poppler-utils lynx pandoc ffmpeg
   else
     warn "apt-get not available — install manually for your OS"
   fi
@@ -177,8 +201,8 @@ say "Optional addon: mobile-bot (Telegram bridge to Claude Code)"
 yn=$(ask "Install mobile-bot? (y/N)" "N")
 if [[ "$yn" =~ ^[Yy]$ ]]; then
   ADDON_DIR="$TARGET/mobile-bot"
-  do_or_show "mkdir -p '$ADDON_DIR'"
-  do_or_show "cp -r '$REPO_DIR/addons/mobile-bot/'* '$ADDON_DIR/'"
+  do_or_show mkdir -p "$ADDON_DIR"
+  do_or_show cp -r "$REPO_DIR/addons/mobile-bot/"* "$ADDON_DIR/"
   ok "mobile-bot installed at $ADDON_DIR"
   echo
   warn "Next: copy $ADDON_DIR/.env.template → .env, fill TELEGRAM_BOT_TOKEN/PIN/etc"

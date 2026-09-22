@@ -64,7 +64,7 @@ if [[ -z "$OUT_DIR" ]]; then
 fi
 mkdir -p "$OUT_DIR"
 
-NAME=$(basename "$PDF" .pdf)
+NAME=$(basename "$PDF"); NAME="${NAME%.*}"   # strip any extension (.pdf/.PDF), same rule as the hook
 FULL_TXT="$OUT_DIR/$NAME.txt"
 META_TXT="$OUT_DIR/$NAME.meta.txt"
 PAGES_DIR="$OUT_DIR/$NAME.pages"
