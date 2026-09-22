@@ -20,3 +20,7 @@ System deps: `poppler-utils`, `lynx`, `pandoc`.
 | `daily-git-snapshot.sh [REPO]` | Auto-commit uncommitted changes in REPO. Cron at 4 AM, or every N minutes. |
 | `curate_memory.py` | Memory health (orphans, broken links, unresolved wikilinks). Exit 0 if clean, 1 with findings. |
 | `recap_extract.py` | Dump user/assistant messages since the last compaction boundary. Used by `/recap`. |
+
+## cross-review.sh
+
+Independent review by a **different** model: a fresh `claude -p` with `--tools "Read,Grep,Glob"` reviews a diff or files against an optional requirements table and a "why" log. Self-review by the same model found 5 defects where other models found ~20 more. Usage: `cross-review.sh --model sonnet --git HEAD~1..HEAD`.

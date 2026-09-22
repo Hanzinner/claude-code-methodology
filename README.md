@@ -26,6 +26,7 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/context-management.md`](docs/context-management.md) — keeping a months-long agent chat alive: hygiene layers, the hybrid lifecycle, and why mechanisms beat remembering.
 - [`docs/measurement-and-proof.md`](docs/measurement-and-proof.md) — when the instrument lies: what counts as proof a mechanism ran, why gates measure what they can see (not what is), and where no mechanism exists.
 - [`docs/mistakes-journal.md`](docs/mistakes-journal.md) — one file for postmortems, so three of the same mistake become a mechanism instead of a habit.
+- [`docs/rule-to-mechanism.md`](docs/rule-to-mechanism.md) — the gate ladder (note → detector → structural impossibility): the change cycle, independent review by another model, a supervisor that checks the work, and why written rules alone didn't hold.
 
 **Running a swarm** (many agents — a separate discipline; skip these if you run one agent):
 - [`docs/multi-agent.md`](docs/multi-agent.md) — running a swarm of ~28 long-lived agents: delivery, coordination, and the failures that cost more than the design.
@@ -51,10 +52,11 @@ cd claude-code-methodology
 | `scripts/` | Utilities called from hooks, skills, or directly |
 | `skills/` | Slash commands (`/recap`, `/audit`) |
 | `memory-template/` | Seed for `memory/` (trigger index + 4 type examples) |
+| `code-pitfalls/` | Technical lessons already paid for, one file per technology — shown to the agent before it edits that kind of code |
 | `mcp/` | Setup notes for MCP servers |
 | `addons/mobile-bot/` | Optional Telegram bridge |
 | `addons/offsite-backup/` | Nightly encrypted incremental backup to S3-compatible storage (restic + Filebase/R2/B2) |
-| `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study, multi-agent, context management, measurement & proof, mistakes journal, mission control, dev methodology |
+| `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study, multi-agent, context management, measurement & proof, mistakes journal, mission control, dev methodology, rule to mechanism |
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
 
@@ -96,7 +98,7 @@ Full text: `CLAUDE.md`. Before/after dialogues: `docs/examples.md`.
 | `check-prompt-gap.sh` | UserPromptSubmit | Prepends `[now: <ts> \| gap since previous: <delta>]`. |
 | `memory-curation-check.sh` | SessionStart | Weekly `curate_memory.py` run. Silent if clean. |
 
-Plus seven **hardening hooks** (memory-write gate, pre/post-compact steering, permission-denied hint, reply-guard, stop-dispatch, and a fail-open `hook-safe` wrapper) that turn discipline-dependent rules into mechanical gates — see [`hooks/README.md`](hooks/README.md#hardening-hooks).
+Plus ten **hardening hooks** (memory-write gate, pre/post-compact steering, permission-denied hint, reply-guard, stop-dispatch, a fail-open `hook-safe` wrapper, and the change-cycle detectors: stuck-detector, proof-guard, code-pitfalls-hint) that turn discipline-dependent rules into mechanical gates — see [`hooks/README.md`](hooks/README.md#hardening-hooks).
 
 Mobile-bot addon adds two more (no-ops outside the bot):
 - `addons/mobile-bot/hooks/mobile-restrict.sh` — PreToolUse Write/Edit allowlist
@@ -113,6 +115,7 @@ Mobile-bot addon adds two more (no-ops outside the bot):
 | `daily-git-snapshot.sh [REPO]` | Auto-commit uncommitted changes in REPO. Cron daily, or every N minutes. |
 | `curate_memory.py` | Memory health: orphans, broken links, unresolved wikilinks. Exit 0 clean, 1 with findings. |
 | `recap_extract.py` | Extract user/assistant messages since last compaction boundary. Called by `/recap`. |
+| `cross-review.sh --git <range>` | Independent review of a diff by a different model (fresh `claude -p`, read-only tools). See `docs/rule-to-mechanism.md`. |
 
 System deps: `poppler-utils`, `lynx`, `pandoc`, `ffmpeg` (for addon video).
 

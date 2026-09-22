@@ -21,5 +21,8 @@ These turn a discipline-dependent rule into a mechanical gate. Each exists becau
 | `reply-guard.py` | Stop | Detects a fabricated user turn ("User: …" outside a code block) in the last assistant message; logs + flags it. A detector, not a preventer. |
 | `stop-dispatch.sh` | Stop | One Stop slot, several isolated consumers (fail-open); register more branches here. |
 | `hook-safe.sh` | wrapper | Wraps any hook: fail-open + timeout + a central error log, so a broken hook can't silently block input. (Don't wrap the fail-CLOSED gate above.) |
+| `stuck-detector.py` | PostToolUse + PostToolUseFailure on `Bash` | 3 failed Bash calls in a row → "stop, look up how it's done". Written rule never followed; the hook is. |
+| `proof-guard.py` | Stop | A completion claim after code edits with no successful run → flag for the next turn. Calibrate with `--calibrate`. |
+| `code-pitfalls-hint.py` | PreToolUse on `Edit`/`Write`/`Bash` | Shows headings of `code-pitfalls/<topic>.md` before the agent edits that kind of code. |
 
 See `docs/hooks-guide.md` for writing your own.
