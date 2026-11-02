@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Memory health check — finds duplicates, orphans, broken links, stale facts.
+"""Memory health check — finds orphans, broken index links, unresolved wikilinks.
 
 Run weekly via the SessionStart hook (`memory-curation-check.sh`). Exit code:
   0 — memory is clean (no report emitted)
@@ -60,8 +60,12 @@ def check_broken_links(index_text):
 
 
 def check_wikilinks():
-    """Find [[name]] wikilinks that don't resolve to any memory file."""
+    """Find [[name]] wikilinks that resolve neither to a file name nor to a `name:` slug."""
     valid_names = {f.stem for f in MEMORY_DIR.glob("*.md")}
+    for f in MEMORY_DIR.glob("*.md"):
+        m = re.search(r"^name:\s*(.+?)\s*$", f.read_text(encoding="utf-8"), re.M)
+        if m:
+            valid_names.add(m.group(1).strip("\"'"))
     for f in MEMORY_DIR.glob("*.md"):
         text = f.read_text(encoding="utf-8")
         for ref in re.findall(r"\[\[([^\]]+)\]\]", text):

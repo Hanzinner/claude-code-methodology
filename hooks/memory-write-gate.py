@@ -19,7 +19,8 @@ import json, os, re, sys
 
 MEM = os.path.realpath(os.environ.get("CLAUDE_MEMORY_DIR",
                                       os.path.expanduser("~/.claude/memory"))) + "/"
-SKIP = ("episodic/", "archive/", "MEMORY.md", "feedback-index.md")
+SKIP_DIRS = ("episodic/", "archive/")            # top-level folders, by prefix
+SKIP_FILES = ("MEMORY.md", "feedback-index.md")  # top-level files, exact name
 
 
 def deny(reason):
@@ -34,8 +35,8 @@ def has_fields(text):
     if not m:
         return False
     fm = m.group(1)
-    return bool(re.search(r"^\s*source:\s*\S", fm, re.M)) and \
-           bool(re.search(r"^\s*verified:\s*(yes|inferred|unverified)\b", fm, re.M))
+    return bool(re.search(r"^\s*source:\s*[\"']?[^\s\"']", fm, re.M)) and \
+           bool(re.search(r"^\s*verified:\s*[\"']?(yes|inferred|unverified)\b", fm, re.M))
 
 
 try:
@@ -44,18 +45,24 @@ try:
     ti = d.get("tool_input") or {}
     path = ti.get("file_path", "")
     rp = os.path.realpath(path) if path else ""
+    rel = rp[len(MEM):]   # MEM ends with "/"
+    # Prefix / exact match, never a substring: "project_archive/x.md" is NOT archive/.
     if not rp.startswith(MEM) or not rp.endswith(".md") or \
-       any(s in rp[len(MEM):] for s in SKIP):
+       rel.startswith(SKIP_DIRS) or rel in SKIP_FILES:
         sys.exit(0)                     # not a memory file — gate doesn't apply
     if tool == "Write":
         ok = has_fields(ti.get("content", ""))
-    else:                               # Edit: fields must be in the FILE (or added by this edit)
+    else:                               # Edit: check the file as it will be AFTER this edit
         disk = ""
         try:
             disk = open(rp, encoding="utf-8").read()
         except OSError:
             pass
-        ok = has_fields(disk) or has_fields(ti.get("new_string", ""))
+        old, new = ti.get("old_string", ""), ti.get("new_string", "")
+        # Checking only the file before the edit let an edit that deletes source:/verified:
+        # through. Apply it the way the Edit tool will (first match, or all with replace_all).
+        after = disk.replace(old, new, -1 if ti.get("replace_all") else 1) if old and old in disk else disk
+        ok = has_fields(after)
     if not ok:
         deny("MEMORY GATE: write to memory without provenance. Add to the frontmatter, "
              "under metadata: `source: <conversation date / file path / URL / inferred>` and "

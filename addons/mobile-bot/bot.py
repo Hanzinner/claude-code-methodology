@@ -7,7 +7,7 @@ Architecture:
 - The reply is sent back to Telegram
 - Memory + skills + tools are available (Claude runs in the project dir)
 """
-import os, json, re, html, time, hmac, hashlib, secrets as pysecrets, asyncio, logging, pathlib
+import os, sys, json, re, shlex, html, time, hmac, hashlib, secrets as pysecrets, asyncio, logging, pathlib
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import Application, MessageHandler, CommandHandler, CallbackQueryHandler, filters
@@ -29,7 +29,7 @@ _STATE_DIR.mkdir(parents=True, exist_ok=True)
 SESSION_FILE = _STATE_DIR / "session.txt"
 SETTINGS_FILE = _STATE_DIR / "settings.json"
 # Path to the OSM nearby-search helper (ships with this addon).
-OSM_SCRIPT = os.environ.get("OSM_NEARBY_SCRIPT") or os.path.expanduser("~/.claude/scripts/osm-nearby.sh")
+OSM_SCRIPT = os.environ.get("OSM_NEARBY_SCRIPT") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "osm-nearby.sh")
 MAX_TG_MSG = 4000  # Telegram limit is 4096; leave headroom
 
 MODELS = ["opus", "sonnet", "haiku"]
@@ -234,8 +234,9 @@ def md_to_tg_html(text: str) -> str:
     def link_sub(m):
         link_text = m.group(1)
         url = m.group(2)
-        # url needs no escaping in href, but quote is mandatory
-        return f'<a href="{html.escape(url, quote=True)}">{link_text}</a>'
+        # url was already HTML-escaped with the rest of the text in step 2; unescape
+        # first, or "&" becomes "&amp;amp;" and the link breaks. quote=True for href.
+        return f'<a href="{html.escape(html.unescape(url), quote=True)}">{link_text}</a>'
     text = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", link_sub, text)
 
     # 4) Bold **text**
@@ -272,6 +273,31 @@ def save_sid(sid: str) -> None:
     SESSION_FILE.write_text(sid)
 
 
+# The child must not see the bot's own secrets: a reply is one `echo $TOKEN` away otherwise.
+_CHILD_ENV_DROP = {"TELEGRAM_BOT_TOKEN", "ALLOWED_TG_USERS"}
+
+
+def child_env(**extra) -> dict:
+    env = {k: v for k, v in os.environ.items()
+           if k not in _CHILD_ENV_DROP and not re.search(r"(TOKEN|SECRET|PASSWORD|API_KEY)$", k)
+           or k in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN")}
+    env.update(extra)
+    return env
+
+
+# The gate is passed by the bot itself on every call, so it can't be forgotten in settings.json
+# and doesn't depend on the install scope. Paths are quoted: the install dir may contain spaces.
+_HOOKS = pathlib.Path(__file__).resolve().parent / "hooks"
+sys.path.insert(0, str(_HOOKS))
+from mobile_restrict import refuse_send   # one definition of "secret" for the gate and [SEND:]
+MOBILE_SETTINGS = json.dumps({"hooks": {
+    "PreToolUse": [{"matcher": "Bash|Read|Grep|Glob|Write|Edit|MultiEdit|NotebookEdit",
+                    "hooks": [{"type": "command", "command": shlex.quote(str(_HOOKS / "mobile-restrict.sh"))}]}],
+    "PostToolUse": [{"matcher": "Write|Edit",
+                     "hooks": [{"type": "command", "command": shlex.quote(str(_HOOKS / "mobile-audit.sh"))}]}],
+}})
+
+
 async def run_claude(prompt: str) -> tuple[str, str | None]:
     """Runs claude -p, returns (reply text, new session_id)."""
     sid = load_sid()
@@ -283,17 +309,21 @@ async def run_claude(prompt: str) -> tuple[str, str | None]:
         "--output-format", "json",
         "--exclude-dynamic-system-prompt-sections",
         "--permission-mode", "acceptEdits",
-        # Edit/Write are restricted (to .md under the project) via a hook.
-        # Bash — allowlist of read-only utils. Destructive (rm/dd/chmod/chown/mv) is not listed.
+        # User settings only. Project/local settings carry the "always allow" grants collected
+        # in working sessions (`--allowedTools` adds to them, it doesn't replace them).
+        "--setting-sources", "user",
+        "--settings", MOBILE_SETTINGS,   # the gate: hooks/mobile_restrict.py
+        # This list is the first layer, not the boundary: a "Bash(x:*)" prefix rule allows every
+        # form of x (`sed -i` and `sort -o` ran under theirs), so tools with a write or exec
+        # mode are left out (sed, awk, find, fd -x, rg --pre) and the gate does the rest.
         "--allowedTools",
         "Read", "Grep", "Glob", "WebFetch", "WebSearch", "Edit", "Write",
-        "Bash(ls:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(cat:*)",
+        "Bash(ls:*)", "Bash(grep:*)", "Bash(cat:*)",
         "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(sort:*)", "Bash(uniq:*)",
         "Bash(du:*)", "Bash(df:*)", "Bash(stat:*)", "Bash(file:*)",
-        "Bash(which:*)", "Bash(echo:*)", "Bash(tree:*)", "Bash(awk:*)", "Bash(sed:*)",
+        "Bash(which:*)", "Bash(echo:*)", "Bash(tree:*)",
         "Bash(date:*)", "Bash(pwd)", "Bash(whoami)",
         "Bash(git log:*)", "Bash(git status)", "Bash(git diff:*)", "Bash(git show:*)",
-        "Bash(jq:*)", "Bash(rg:*)", "Bash(fd:*)",
         # OSM Overpass nearby search — for location-based queries
         f"Bash({OSM_SCRIPT}:*)",
         "--disallowedTools", "NotebookEdit", "Task",
@@ -310,11 +340,8 @@ async def run_claude(prompt: str) -> tuple[str, str | None]:
         cwd=CLAUDE_CWD,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env={
-            **os.environ,
-            "CLAUDE_CODE_ENTRYPOINT": "claude-vscode",
-            "CLAUDE_MOBILE_BOT": "1",  # activates the restriction hooks
-        },
+        env=child_env(CLAUDE_CODE_ENTRYPOINT="claude-vscode",
+                      CLAUDE_MOBILE_BOT="1"),  # activates the gate
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
@@ -799,6 +826,7 @@ async def handle_message(update: Update, context):
 
     doc_path = None
     extra_photo_path = None
+    animation_frames = []   # before the document branch: a GIF sent as a file adds to it
     if msg.document:
         fname = msg.document.file_name or ""
         ext = pathlib.Path(fname).suffix.lower()
@@ -829,12 +857,11 @@ async def handle_message(update: Update, context):
         await context.bot.send_chat_action(chat_id, ChatAction.RECORD_VOICE)
         voice_transcript = await _transcribe_voice(msg, context)
 
-    animation_frames = []
     if msg.animation:
         await context.bot.send_chat_action(chat_id, ChatAction.UPLOAD_PHOTO)
         anim_path = await _download_animation(msg, context)
         if anim_path:
-            animation_frames = await _extract_animation_frames(anim_path)
+            animation_frames.extend(await _extract_animation_frames(anim_path))
 
     # Social video (TikTok/Reels/Shorts/X video) — detect in text, process max 1 URL
     social_preamble = None
@@ -984,10 +1011,10 @@ async def handle_message(update: Update, context):
         if not p.is_file():
             log.warning("SEND skipped (not file): %s", p)
             continue
-        if not str(p).startswith(str(SEND_ROOT)):
+        if not p.is_relative_to(SEND_ROOT):   # not startswith: /x/cwd-backup is not inside /x/cwd
             log.warning("SEND skipped (outside root): %s", p)
             continue
-        if "/secrets/" in str(p) or "credentials" in p.name.lower() or "/.git/" in str(p):
+        if refuse_send(p):
             log.warning("SEND skipped (sensitive): %s", p)
             continue
         if p.stat().st_size > MAX_SEND_BYTES:
@@ -1543,10 +1570,12 @@ async def cmd_usage(update: Update, context):
         "--effort", "low",
         "--output-format", "json",
         "--exclude-dynamic-system-prompt-sections",
+        "--setting-sources", "user",
+        "--settings", MOBILE_SETTINGS,
         cwd=CLAUDE_CWD,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env={**os.environ, "CLAUDE_CODE_ENTRYPOINT": "claude-vscode"},
+        env=child_env(CLAUDE_CODE_ENTRYPOINT="claude-vscode", CLAUDE_MOBILE_BOT="1"),
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)

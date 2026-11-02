@@ -11,9 +11,9 @@ Deliberate memory commit. The native `/compact` is lossy **by design** — it co
 
 1. Pull the dialogue since the last compaction boundary:
    ```bash
-   python3 "$CLAUDE_METHODOLOGY_DIR/scripts/recap_extract.py"
+   python3 "${CLAUDE_METHODOLOGY_DIR:-$HOME/.claude}/scripts/recap_extract.py"
    ```
-   (Falls back to `~/.claude/scripts/recap_extract.py` if the env var isn't set.)
+   It picks this session's transcript by `$CLAUDE_CODE_SESSION_ID`; if it warns that it fell back to the newest file, check the dialogue is really yours.
 
 2. Read the output and decide what's worth saving. Catch anything that could matter in a future conversation:
 
@@ -41,7 +41,9 @@ Deliberate memory commit. The native `/compact` is lossy **by design** — it co
    [2-3 sentences: what the session was about, key decisions, open loops]
    ```
 
-6. Report what was saved — short list, file names + one-line each.
+6. Update open loops: append this session's unfinished tasks and pending decisions to your todo / open-loops file (what, where it stopped, next step). Saving a pending item is capture; the next session only acts on it if it's somewhere that gets read at the start.
+
+7. Report what was saved — short list, file names + one-line each.
 
 ## What NOT to save
 

@@ -2,8 +2,11 @@
 """Extract user/assistant messages since the last compaction boundary.
 
 Used by the /recap skill to harvest material worth saving to memory.
-Looks for the most-recently-modified session file under the Claude Code
-project transcript directory and dumps its post-compaction content.
+Picks THIS session's transcript by $CLAUDE_CODE_SESSION_ID and dumps its
+post-compaction content. Without the variable it falls back to the most
+recently modified transcript, with a warning: with several sessions running,
+"newest file" is a lottery — /recap once pulled another session's dialogue
+into memory, silently.
 
 Override the project dir with $CLAUDE_PROJECT_TRANSCRIPT_DIR.
 """
@@ -18,12 +21,17 @@ project_dir = os.environ.get(
     os.path.expanduser("~/.claude/projects"),
 )
 
-# Find newest .jsonl across all project subdirs
-files = sorted(
-    glob.glob(f"{project_dir}/**/*.jsonl", recursive=True),
-    key=os.path.getmtime,
-    reverse=True,
-)
+sid = os.environ.get("CLAUDE_CODE_SESSION_ID", "").strip()
+files = glob.glob(f"{project_dir}/**/{sid}.jsonl", recursive=True) if sid else []
+if not files:
+    print("recap_extract: CLAUDE_CODE_SESSION_ID unset or its transcript not found — "
+          "using the newest transcript. With parallel sessions this may be ANOTHER "
+          "session; check the output against your own context.", file=sys.stderr)
+    files = sorted(
+        glob.glob(f"{project_dir}/**/*.jsonl", recursive=True),
+        key=os.path.getmtime,
+        reverse=True,
+    )
 
 if not files:
     print(f"No session files found under {project_dir}.", file=sys.stderr)

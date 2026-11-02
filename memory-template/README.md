@@ -28,6 +28,8 @@ name: short-kebab-case-slug
 description: one-line summary used to decide relevance
 metadata:
   type: user | feedback | project | reference
+  source: where the fact came from      # needed only if you enable memory-write-gate
+  verified: yes | inferred | unverified # ditto — a guess is honestly "inferred"
 ---
 ```
 
@@ -35,7 +37,7 @@ For `feedback` and `project`, body leads with the rule/fact, then `**Why:**` and
 
 ## Wikilinks
 
-`[[name]]` resolves to another file's `name:` slug. Unresolved links are caught by `scripts/curate_memory.py`.
+`[[name]]` resolves to another file's `name:` slug (or its file name without `.md`). Unresolved links are caught by `scripts/curate_memory.py`.
 
 ## What not to save
 

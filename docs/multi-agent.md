@@ -1,6 +1,6 @@
 # Multi-agent: running a swarm of long-lived Claude Code sessions
 
-A single operator running ~28 named agents — each a separate long-lived session with its own folder,
+A single operator running ~80 named agents — each a separate long-lived session with its own folder,
 briefing, and scope. Some write code in parallel branches of one repo; others handle narrow domains.
 
 Everything below is failure-driven. Each mechanism exists because something broke, and every number
@@ -45,7 +45,7 @@ Three layers, in the order they must exist:
    loses anything filed while the agent was elsewhere.
 3. **Shared-file deltas.** Coder agents coordinate through shared repo files. Since they **commit**
    those changes, `git diff HEAD` shows nothing — so the hook keeps a **snapshot** per session and
-   shows only the diff against it. Full dumps are impossible anyway: the shared backlog file is 71 KB.
+   shows only the diff against it. Full dumps are impossible anyway: the shared backlog file is over 100 KB.
 
 **The trap we walked into:** the same hook injected an outdated briefing on every turn.
 **Delivery without freshness is industrialized staleness.** Fixing delivery *raises* the cost of
@@ -73,9 +73,10 @@ forever, on every command.
 So: don't guard the gap, **remove it**. A transparent `git` wrapper redirects to the owning user
 inside the repo. Nobody has to remember anything; ownership is simply always correct.
 
-The guard hook still exists, but only for what a wrapper can't fix: **destructive git in the main
-repo is blocked outright, even for the right user** — correct ownership doesn't stop you shooting
-someone else's tree.
+The same wrapper also covers what ownership can't: **destructive git in the main repo is blocked
+outright, even for the right user** — correct ownership doesn't stop you shooting someone else's
+tree. (A separate guard hook was planned for this; folding it into the wrapper left one mechanism
+instead of two. History rewrites are blocked in worktrees too — they share the history.)
 
 ## 3. The human must not be the message bus
 

@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
     --project)     [[ $# -ge 2 && -n "$2" ]] || { echo "install.sh: --project requires a DIR argument" >&2; exit 2; }
                    SCOPE="project"; PROJECT_DIR="$2"; shift ;;
     --dry-run)     DRY_RUN=1 ;;
-    -h|--help)     grep '^#' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)     sed -n '2,/^[^#]/{/^#/s/^# \?//p}' "$0"; exit 0 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
   shift
@@ -42,7 +42,7 @@ ok()   { printf '\033[1;32m✓\033[0m %s\n' "$*"; }
 ask() {
   local prompt="$1" default="${2:-}" ans
   if [[ -n "$default" ]]; then prompt="$prompt [$default]"; fi
-  printf '%s: ' "$prompt"
+  printf '%s: ' "$prompt" >&2   # stderr: callers capture stdout as the answer — $(ask …)
   read -r ans
   echo "${ans:-$default}"
 }
@@ -61,7 +61,7 @@ if command -v claude >/dev/null 2>&1; then
   CLAUDE_VERSION=$(claude --version 2>/dev/null | head -1 || echo unknown)
   ok "claude CLI found: $CLAUDE_VERSION"
 else
-  warn "claude CLI not found in PATH. Install from https://docs.anthropic.com/claude-code and re-run."
+  warn "claude CLI not found in PATH. Install from https://code.claude.com/docs and re-run."
   read -p "Continue anyway? [y/N] " yn
   [[ "$yn" =~ ^[Yy]$ ]] || exit 1
 fi
@@ -202,7 +202,7 @@ yn=$(ask "Install mobile-bot? (y/N)" "N")
 if [[ "$yn" =~ ^[Yy]$ ]]; then
   ADDON_DIR="$TARGET/mobile-bot"
   do_or_show mkdir -p "$ADDON_DIR"
-  do_or_show cp -r "$REPO_DIR/addons/mobile-bot/"* "$ADDON_DIR/"
+  do_or_show cp -r "$REPO_DIR/addons/mobile-bot/." "$ADDON_DIR/"   # "/." copies .env.template too (a * glob skips dotfiles)
   ok "mobile-bot installed at $ADDON_DIR"
   echo
   warn "Next: copy $ADDON_DIR/.env.template → .env, fill TELEGRAM_BOT_TOKEN/PIN/etc"

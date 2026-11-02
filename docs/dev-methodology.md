@@ -24,7 +24,11 @@ doesn't recreate them:
 - **Knowledge/archivist** — knowledge hygiene across the swarm: where things live, delivery into
   briefings, freshness. Does not author engineering content.
 - **Git agent** — git practice across all repos (conventions, hooks, incident review).
-- **Infra agent** — VM / CI tooling / hooks / the board, for every project. Builds mechanisms, not product.
+- **Mechanisms dev agent** — the code of hooks, scripts, tools and the board, for every project: anything
+  testable in a sandbox. Builds mechanisms, not product.
+- **Infra agent** — the live system: schedules, services, network, backups, secrets; first response to
+  outages. (One agent did both until the two kinds of work kept blocking each other — see
+  [rule-to-mechanism.md](rule-to-mechanism.md).)
 - **Growth / PR** — the public image (shared, spans projects).
 - **Secretary** — message routing between agents.
 
@@ -101,8 +105,8 @@ pure overhead. Keep the connective tissue and the computed status; drop the plan
 
 ## Bootstrap: "deploy the infrastructure for project X"
 
-The **orchestrator** runs it (the project's HQ doesn't exist yet); the **infra agent** builds the
-mechanism. One command → a project-specific team raised and **connected** to the shared services (which are
+The **orchestrator** runs it (the project's HQ doesn't exist yet); the **mechanisms dev agent** builds the
+mechanism and the **infra agent** wires it into the live system. One command → a project-specific team raised and **connected** to the shared services (which are
 not recreated). It stamps:
 1. **Structure** — folders for the project agents, the code, project docs.
 2. **Project agents from templates** — HQ/Dev/QA/Design get a briefing skeleton (role, boundaries, how it

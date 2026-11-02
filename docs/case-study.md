@@ -1,6 +1,6 @@
 # Case study: seeing without understanding
 
-An observation from a real session — building the `/edit` skill for video breakdown work. The user showed a fan-edit about the September 1973 Chilean coup, scored to a Víctor Jara song. The agent failed both identifications.
+An observation from a real session — building a video-breakdown skill (`/edit`, private — not in this repo). The user showed a fan-edit about the September 1973 Chilean coup, scored to a Víctor Jara song. The agent failed both identifications.
 
 Documenting because it captures a boundary that recurs across culturally-specific visual work: the agent sees the pixels, but doesn't recognize what they are.
 
@@ -67,7 +67,7 @@ So this is **not a visual problem, but a culturally-dominant-training problem** 
 
 ## What to do about it (agent side)
 
-1. **Context-first protocol on visual analysis.** Before any breakdown, ask: "what is this? when? who made it? what are we looking for?" Baked into the `/edit` skill as forcing intake.
+1. **Context-first protocol on visual analysis.** Before any breakdown, ask: "what is this? when? who made it? what are we looking for?" Baked into that skill as forcing intake.
 
 2. **Calibrated humility on culturally-dense topics.** If the topic touches history, cinema, or subculture from a region not centered in English-language sources — the agent should explicitly acknowledge "my defaults may fail here" and ask rather than assert.
 
@@ -85,7 +85,7 @@ Third alternative: live with the limitation and use the context-first protocol. 
 
 Two things.
 
-**One:** it's a concrete example of the "know your agent's limits" principle from `methodology.md` §5. Not abstract "AI has limitations" — a specific mechanism (multimodal training asymmetry), a specific class of failure (cultural-narrative meaning), a specific mitigation (context-first protocol).
+**One:** it's a concrete case of two rules in [`CLAUDE.md`](../CLAUDE.md): rule 8 (doubt → ask, don't assume) and rule 6 (verify before acting on what you "know"). Not abstract "AI has limitations" — a specific mechanism (multimodal training asymmetry), a specific class of failure (cultural-narrative meaning), a specific mitigation (context-first protocol).
 
 **Two:** it's an example of how a *user* discovers this. Not from a benchmark, not from a paper — from watching the agent fail on their own domain. The corrective feedback loop only works if the user is paying enough attention to notice, and the operating core is honest enough to admit the failure instead of confabulating around it.
 

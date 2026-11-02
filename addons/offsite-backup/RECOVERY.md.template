@@ -11,7 +11,7 @@ Total time on a decent laptop: **~15 minutes**.
 
 ## What you need from the user (ask him, one at a time)
 
-1. **Backup passphrase** — a memorized phrase, known to only a few people.
+1. **Backup passphrase** — from the password manager, known to only a few people.
    Do NOT log it, print it, or write it to any file except the temporary
    passphrase file used below. When done, `shred -u` that file.
 2. **Filebase Access Key** and **Secret Key** for bucket `<your-bucket>`.
@@ -22,7 +22,7 @@ Total time on a decent laptop: **~15 minutes**.
 ```bash
 uname -a                # confirm Linux
 whoami                  # note the user (should be root or sudo-capable)
-df -h /                 # need ~5 GB free for restore
+df -h /var/tmp          # need ~5 GB free for restore (NOT /tmp — often a small tmpfs)
 which apt-get           # Debian/Ubuntu path assumed below
 ```
 
@@ -68,23 +68,23 @@ Expected: a list of snapshots (dates + host = `<your-hostname>` + tag `daily`).
 If you see `Fatal: wrong password or no key found` — passphrase is wrong.
 If you see connection errors — access keys or bucket name wrong.
 
-## Step 4 — restore the latest snapshot to /tmp/recovered
+## Step 4 — restore the latest snapshot to /var/tmp/recovered
 
 ```bash
-mkdir -p /tmp/recovered
-restic restore latest --target /tmp/recovered
+mkdir -p /var/tmp/recovered
+restic restore latest --target /var/tmp/recovered
 ```
 
 Restic will recreate the directory tree exactly as it was on the source
 machine. You should see:
 
 ```
-/tmp/recovered/home/<user>/claude-projects/
-/tmp/recovered/home/<user>/.claude/
-/tmp/recovered/home/<user>/.ssh/
-/tmp/recovered/root/.claude/
-/tmp/recovered/root/.ssh/
-/tmp/recovered/tmp/system-manifest/
+/var/tmp/recovered/home/<user>/claude-projects/
+/var/tmp/recovered/home/<user>/.claude/
+/var/tmp/recovered/home/<user>/.ssh/
+/var/tmp/recovered/root/.claude/
+/var/tmp/recovered/root/.ssh/
+/var/tmp/recovered/tmp/system-manifest/
 ```
 
 ## Step 5 — recreate the `<user>` user (if it doesn't exist)
@@ -97,9 +97,9 @@ id <user> 2>/dev/null || sudo useradd -m -s /bin/bash <user>
 
 ```bash
 # Home files for <user>
-sudo cp -a /tmp/recovered/home/<user>/claude-projects  /home/<user>/
-sudo cp -a /tmp/recovered/home/<user>/.claude          /home/<user>/
-sudo cp -a /tmp/recovered/home/<user>/.ssh             /home/<user>/
+sudo cp -a /var/tmp/recovered/home/<user>/claude-projects  /home/<user>/
+sudo cp -a /var/tmp/recovered/home/<user>/.claude          /home/<user>/
+sudo cp -a /var/tmp/recovered/home/<user>/.ssh             /home/<user>/
 sudo chown -R <user>:<user> /home/<user>/claude-projects /home/<user>/.claude /home/<user>/.ssh
 sudo chmod 700 /home/<user>/.ssh
 sudo chmod 600 /home/<user>/.ssh/*
@@ -109,8 +109,8 @@ sudo chmod 600 /home/<user>/.ssh/*
 sudo -u <user> git config --global --add safe.directory /home/<user>/claude-projects
 
 # Root config
-sudo cp -a /tmp/recovered/root/.claude /root/
-sudo cp -a /tmp/recovered/root/.ssh    /root/
+sudo cp -a /var/tmp/recovered/root/.claude /root/
+sudo cp -a /var/tmp/recovered/root/.ssh    /root/
 sudo chmod 700 /root/.ssh
 sudo chmod 600 /root/.ssh/*
 ```
@@ -126,17 +126,17 @@ sudo -u <user> claude /login
 
 The .credentials.json files in `/root/.claude/` and `/home/<user>/.claude/`
 were restored — but tokens may have expired. `/login` mints fresh ones.
-The bidirectional sync cron will keep them in step from now on.
+If you run a job that syncs these credentials between users, re-enable it now.
 
 ## Step 8 — restore cron + systemd
 
 ```bash
 # Cron
-sudo crontab /tmp/recovered/tmp/system-manifest/root-crontab.txt
-sudo -u <user> crontab /tmp/recovered/tmp/system-manifest/<user>-crontab.txt
+sudo crontab /var/tmp/recovered/tmp/system-manifest/root-crontab.txt
+sudo -u <user> crontab /var/tmp/recovered/tmp/system-manifest/<user>-crontab.txt
 
 # Mobile bot systemd unit
-sudo cp /tmp/recovered/tmp/system-manifest/<your-systemd-service>.service \
+sudo cp /var/tmp/recovered/tmp/system-manifest/<your-systemd-service>.service \
         /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now <your-systemd-service>
@@ -147,11 +147,11 @@ sudo systemctl enable --now <your-systemd-service>
 ```bash
 # Python (from <user>'s pip freeze)
 sudo -u <user> pip install --break-system-packages -r \
-    /tmp/recovered/tmp/system-manifest/<user>-pip.txt
+    /var/tmp/recovered/tmp/system-manifest/<user>-pip.txt
 
 # System packages (optional — install what you need on demand instead)
 # The apt list is a reference, not a bulk-install command.
-cat /tmp/recovered/tmp/system-manifest/apt-packages.txt | head
+cat /var/tmp/recovered/tmp/system-manifest/apt-packages.txt | head
 ```
 
 ## Step 10 — save creds permanently + clean temp
@@ -172,7 +172,7 @@ Then wipe temp state:
 
 ```bash
 shred -u /tmp/pass.txt
-rm -rf /tmp/recovered
+rm -rf /var/tmp/recovered
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY RESTIC_REPOSITORY RESTIC_PASSWORD_FILE
 ```
 

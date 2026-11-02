@@ -45,7 +45,7 @@ permanently unreadable to the agent. Overlap between what the author found and w
 **Moved up the ladder:**
 - Step 0 → [`hooks/stuck-detector.py`](../hooks/stuck-detector.py): three failed Bash calls in a row inject "stop, look it up" (rung 2).
 - Step 3 → [`scripts/cross-review.sh`](../scripts/cross-review.sh): a fresh `claude -p` with another model, read-only tools, reviewing a diff against the requirements (rung 2, as a tool). Lesson from building it: `--allowedTools` only *adds* permissions — the first "read-only" run wrote into live logs. Only `--tools` restricts.
-- Step 4 → [`hooks/proof-guard.py`](../hooks/proof-guard.py): a completion claim after code edits with no successful run gets flagged (rung 2).
+- Step 4 → [`hooks/proof-guard.py`](../hooks/proof-guard.py): a completion claim after code edits with no successful run gets flagged (rung 2). In the private setup it now blocks the end of the turn: after a week of calibration it fired 3 times in 423 turns with code edits, all three correct. Detector first, measure false positives, then block.
 
 ## 2. Lessons in front of the hand, not in a postmortem
 
@@ -54,7 +54,7 @@ one place per technology — [`code-pitfalls/`](../code-pitfalls/) — and
 [`hooks/code-pitfalls-hint.py`](../hooks/code-pitfalls-hint.py) shows the matching **headings** right before
 an agent edits code of that kind. The top repeats were unglamorous: a signal taken for proof, `pkill -f`
 killing its own shell, a shared file written without a lock, `sleep` racing an event. The private set this
-comes from held ~126 such lessons; the folder here is a seed.
+comes from held ~220 such lessons (November 2026); the folder here is a seed.
 
 ## 3. A catalog against two kinds of lie
 
@@ -62,7 +62,10 @@ A swarm accumulates mechanisms faster than anyone remembers them, and two lies f
 **"done but not documented"** (someone rebuilds it) and **"documented but not done"** (someone trusts it).
 The fix is one hierarchical catalog of every mechanism and system document — one machine-readable line per
 file, with tags for what it is (`hook:<event>`, `cron`, `tool`, `stale?`, `orphan`…) — plus a nightly check
-that compares the catalog against the disk, the hook config and the crontab. Two helpers make it hold: a
+that every listed path exists, every script in the hook config and crontab has a line, and a line's hook tags
+match what the script is really subscribed to. Findings go to the catalog's owner as one letter; no findings,
+no letter. This check was itself "documented but not done" for a while: the catalog promised it, an audit of
+this very article caught the claim, and only then was it built. Two helpers make it hold: a
 broken-link sweep, and a rule that renaming a document goes through a tool that rewrites references (a gate,
 rung 3). The first version was reported "tested" — and passed **0 of 5** acceptance checks.
 

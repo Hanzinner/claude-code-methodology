@@ -4,7 +4,10 @@
 PreToolUse on Edit|Write: by the file's extension/path → inject ONLY the headings
 (### …) of the matching code-pitfalls/<topic>.md plus its path. The bodies stay
 out of context; the agent opens the file if a heading looks like its case.
-PreToolUse on Bash: git → git.md; ssh/scp/qemu → vm.md; adb → android.md.
+PreToolUse on Bash: flock/lock files → concurrency.md; git → git.md;
+ssh/scp/qemu → vm.md; adb → android.md (the last three ship empty — add your own
+git.md / vm.md / android.md and they start showing). Edit|Write whose new text
+takes a lock or spawns threads also gets concurrency.md.
 
 Pitfall files are read at runtime, so agents append new lessons without anyone
 touching this hook. Dedup: topic × session × hour. Blocks nothing; fail-open
@@ -46,8 +49,13 @@ def topics_for_file(fp):
     return t
 
 
+CONCURRENCY = re.compile(r"\bflock\b|\bfcntl\b|O_EXCL|\.lock\b|\bthreading\b|\bmultiprocessing\b")
+
+
 def topics_for_cmd(cmd):
     t = []
+    if CONCURRENCY.search(cmd):
+        t.append("concurrency")
     if re.search(r"(^|[\s;&|(])git\s", cmd):
         t.append("git")
     if re.search(r"(^|[\s;&|(])(ssh|scp)\s|qemu-", cmd):
@@ -74,6 +82,9 @@ def main():
         if os.path.abspath(fp).startswith(os.path.abspath(ROOT) + os.sep):
             return  # editing the pitfalls themselves
         topics = topics_for_file(fp)
+        new_text = (ti.get("new_string") or ti.get("content") or "")[:20000]
+        if CONCURRENCY.search(new_text) and not fp.lower().endswith((".md", ".txt")):
+            topics.insert(0, "concurrency")
     elif tool == "Bash":
         topics = topics_for_cmd((ti.get("command") or "")[:4000])
     else:

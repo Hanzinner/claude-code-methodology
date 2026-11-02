@@ -30,5 +30,4 @@ a mechanism (a hook or a gate), not for a louder sentence.
 | `concurrency.md` | shared files, locks, TTLs |
 | `hooks.md` | Claude Code hooks and gates |
 
-These are seeds taken from a larger private set (~126 lessons at the time of
-writing). Grow your own.
+These are seeds taken from a larger private set (~220 lessons as of November 2026). Grow your own.

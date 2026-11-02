@@ -17,7 +17,10 @@ Config (env):
                             (default: ~/.claude/projects:home)
   CLAUDE_CHAT_BACKUP_ROOT   dated chat-backup root (default: ~/.claude-backups)
                             Backup is expected to mirror each root under
-                            <backup>/<date>/<tag>/<relpath>.
+                            <backup>/<date>/<tag>/<relpath> — the layout
+                            scripts/backup-chats.sh writes ("home" for
+                            ~/.claude/projects; other dirs: path with "/" -> "_",
+                            e.g. /srv/x/projects:srv_x_projects).
 """
 import json
 import os

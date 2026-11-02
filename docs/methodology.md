@@ -1,6 +1,6 @@
 # Methodology
 
-Patterns from ~three months of daily Claude Code use. Not doctrine — mechanisms that work, reasons why, mistakes to avoid.
+Patterns from daily Claude Code use (~three months in when this file was written, July 2026). Not doctrine — mechanisms that work, reasons why, mistakes to avoid.
 
 Take individual pieces, adapt to your own workflow. Don't copy the whole thing wholesale.
 
@@ -79,11 +79,11 @@ Body:
 
 ### Composable skills for distinct cognitive moves
 
-Instead of one monolithic "assistant" — separate skills for separate tasks:
-- `/grill` — stress-test a plan / decision (attack assumptions)
+Instead of one monolithic "assistant" — separate skills for separate tasks (only `/audit` and `/recap` ship in this repo; the other two are examples from the private setup):
+- `/grill` — stress-test a plan / decision (attack assumptions) *(not shipped)*
 - `/audit` — check instruction corpus for contradictions / drift
 - `/recap` — commit a session's important parts to memory before `/compact` flattens them
-- `/pulse` — multi-source recency snapshot on a topic
+- `/pulse` — multi-source recency snapshot on a topic *(not shipped)*
 
 The agent sees all skill descriptions and picks the right one. User says "stress-test this plan" → triggers `/grill` without an explicit call.
 
@@ -103,7 +103,7 @@ A rule in `CLAUDE.md` can be "forgotten" mid-long-session. A hook is a bash scri
 ```
 Gives the agent temporal awareness — otherwise it "doesn't know" what elapsed between messages (just sees the next line in the transcript).
 
-Implementation: bash script in `~/.claude/scripts/`, parses `session_id` from stdin JSON, timestamp file per session, stdout injects into context.
+Implementation: `hooks/check-prompt-gap.sh`, parses `session_id` from stdin JSON, timestamp file per session, stdout injects into context.
 
 **PreToolUse on Read for PDF/HTML — auto-extract.** Intercepts reads on `.pdf` / `.html`, runs extraction (`pdftotext`, `lynx`, `pandoc`), redirects the agent to read the `.txt` output instead. The agent never has to remember "extract first" — it physically can't read the raw file.
 
@@ -182,7 +182,7 @@ Run it when context approaches the limit (visible on status indicator), **or any
 1. Run `/recap` — agent re-reads the session, writes important parts to memory + episodic
 2. Then `/compact` — harness compresses into summary
 
-**Not really a memory problem in practice.** Claude Code shows a status indicator (a filling circle) as context approaches the auto-compact threshold — a visible cue. So you don't have to *remember* to recap; you *react* to the warning before it fires. It's still a manual step — there's no session-end event to fully automate it — but the UI removes the "forgot it existed" failure. Recap when the circle is near full, or any time something worth keeping surfaced.
+**Not really a memory problem in practice.** Claude Code shows a status indicator (a filling circle) as context approaches the auto-compact threshold — a visible cue. So you don't have to *remember* to recap; you *react* to the warning before it fires. It's still a manual step — Claude Code does have a `SessionEnd` hook, but a hook runs a command, not a model pass, so it can't do `/recap`'s judgment — but the UI removes the "forgot it existed" failure. Recap when the circle is near full, or any time something worth keeping surfaced.
 
 ### /audit for drift control
 
@@ -212,7 +212,7 @@ If you say "find holes in this plan" — the agent will find them, even when non
 2. Explicit escape hatch: "if there are no real problems, say so directly"
 3. Split description and criticism into separate steps
 
-(Baked into `/grill` as methodology.)
+(Baked into the private `/grill` skill as methodology.)
 
 ### Memory contradictions across files
 
@@ -220,39 +220,39 @@ Accumulate naturally — new rules overwrite old ones, but old ones stay in file
 
 ## 8. Tried and rejected
 
-**Email / Calendar / Slack / Telegram MCP** — privacy boundary. User passes manually.
+**Email / Calendar / Slack / Telegram MCP on primary accounts** — privacy boundary. User passes manually. (Later, a separate low-stakes mailbox and calendar were connected on purpose: the boundary is per account, not per product.)
 
 **OSINT cron** — periodic briefs on general topics. Anti-pattern: "briefs for the sake of briefs". Proactivity only on real trigger.
 
-**Weaker-model critic** (Haiku critiquing Sonnet/Opus) — weaker can't reliably critique on analytical tasks. Wrong use case. The critic that *does* work is an **equal or fresh model with no memory of the session**: this whole setup is periodically pasted into a blank Claude/other model for an unbiased read, and several of these docs (this section included) were sharpened by that loop. It's out-of-band, not a repo mechanism — worth naming as the actual quality check in place of CI.
+**Weaker-model critic on analytical tasks** (Haiku critiquing Sonnet/Opus reasoning) — it couldn't reliably critique. Wrong use case. What *does* work is a **fresh model with no memory of the session**, reviewing against written requirements. For code that is now a repo mechanism: `scripts/cross-review.sh` runs a different model in a fresh read-only session (default `sonnet` — a different model, not necessarily a stronger one; with concrete requirements and the code in front of it, it found defects the author's own runs missed — see [rule-to-mechanism.md](rule-to-mechanism.md)). The whole setup is also periodically pasted into a blank model for an unbiased read; several of these docs were sharpened by that loop.
 
-**Automated CI as the quality gate** — there was a shellcheck GitHub Action. It died when the account's Actions got billing-locked (GitHub wants a payment method on file even for free public-repo runs), and attaching a card for a lint badge wasn't worth it. So CI was dropped rather than compromised on. Honest consequence: there's no automated test/lint gate now (see §9) — quality leans on local `shellcheck`, the hardening hooks, and the fresh-model review above. A green badge was never the thing keeping the code honest, but automated coverage is a real gap, not a stance.
+**Automated CI as the quality gate** — there was a shellcheck GitHub Action. It died when the account's Actions got billing-locked (GitHub wants a payment method on file even for free public-repo runs), and attaching a card for a lint badge wasn't worth it. So CI was dropped rather than compromised on. Honest consequence: there's no automated test/lint gate now (see §9) — quality leans on local `shellcheck`, the hardening hooks, `scripts/cross-review.sh`, and installing from a fresh clone before calling a change done. A green badge was never the thing keeping the code honest, but automated coverage is a real gap, not a stance.
 
 **Vector search for personal memory** — flat files + wikilinks + grep is enough for the corpus size of one person. Vector = overengineering.
 
-**Devil's advocate as automation** — generates hallucinated problems (see above). Better an explicit `/grill` with the right prompt.
+**Devil's advocate as automation** — generates hallucinated problems (see above). Better an explicit stress-test skill (`/grill`, private) with the right prompt.
 
 **Watch on vault via inotifywait** — a static snapshot of the graph in memory is enough. Watch = overengineering.
 
-**Post-session reflection hook** — Claude Code doesn't have a "session end" event. And there's no need — `/recap` covers it.
+**Post-session reflection hook** — there is a `SessionEnd` event, but it runs a command, not a model, so it can't reflect; and a session that ends by crash never fires it. `/recap` (run while the agent is still there) covers it.
 
 ## 9. Known issues (WIP)
 
 This is a living personal setup, not a shipped product. Open items being worked on:
 
 - **Trash has no rotation yet.** `mv` to `~/.Trash/` instead of `rm` gives reversibility, but nothing prunes it — it grows unbounded until cleaned by hand. A TTL cleanup (e.g. cron `find ~/.Trash -mtime +30 -delete`) is planned, not built.
-- **`/audit` is manual and report-only.** It surfaces rule drift and stale facts but doesn't auto-fix, and nothing schedules it. Between runs, drift accumulates — which is, fairly, the exact human-memory dependency the rest of this methodology fights. Why it isn't just cron'd: `/audit` is an **LLM pass** (a skill), not a scriptable check — scheduling it needs a live agent to be awake, the same structural reason `/recap` can't auto-trigger (there's no session-end event in Claude Code). So it stays a manual ritual, flagged honestly here rather than dressed up as solved. Cadence and optional auto-fix are open questions.
+- **`/audit` is manual and report-only.** It surfaces rule drift and stale facts but doesn't auto-fix, and nothing schedules it. Between runs, drift accumulates — which is, fairly, the exact human-memory dependency the rest of this methodology fights. Why it isn't just cron'd: `/audit` is an **LLM pass** (a skill), not a scriptable check — scheduling it needs a live agent to be awake, the same structural reason `/recap` can't auto-trigger (a `SessionEnd` hook runs a command, not a model). So it stays a manual ritual, flagged honestly here rather than dressed up as solved. Cadence and optional auto-fix are open questions.
 - **No automated verification of code quality.** No CI, no test suite (§8 — the shellcheck Action fell to a billing lock). The methodology is heavier on *behavior* (how the agent communicates and decides) than on *engineering output* (tests, lint, coverage). The measurement/proof discipline and the hardening hooks push on output quality, but there's no automated gate. A real gap for a "working with Claude Code" methodology, named as one.
 
 ## 10. Anthropic docs worth reading
 
-- Skills overview: <https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview>
-- Hooks reference: <https://docs.claude.com/en/docs/claude-code/hooks>
-- Settings: <https://docs.claude.com/en/docs/claude-code/settings>
-- Memory (Claude Code): <https://docs.claude.com/en/docs/claude-code/memory>
+- Skills overview: <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview>
+- Hooks reference: <https://code.claude.com/docs/en/hooks>
+- Settings: <https://code.claude.com/docs/en/settings>
+- Memory (Claude Code): <https://code.claude.com/docs/en/memory>
 
 Anthropic Academy has short courses on Claude Code Skills and Sub-agents (1-2 hours each, certificate). Useful for vocabulary and gap-check.
 
 ## Closing
 
-This is a **snapshot of a system that took shape over ~three months of active use**. Not doctrine. Best used by taking individual patterns (memory as trigger index, `/audit` ritual, hook for time injection) and folding them in gradually. Don't dump-copy.
+This is a **snapshot of a system that took shape over its first ~three months of active use** (July 2026); later layers are in the docs linked from the README. Not doctrine. Best used by taking individual patterns (memory as trigger index, `/audit` ritual, hook for time injection) and folding them in gradually. Don't dump-copy.

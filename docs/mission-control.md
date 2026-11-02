@@ -44,18 +44,24 @@ file** the task lives in (`[x]` + a marker, `flock` + atomic write). Human confi
 mechanical edit of the truth, not a memory that can drift. (Same spirit as everything in
 [`multi-agent.md`](multi-agent.md): state lives in the file, not in a claim.)
 
-## Keeping listeners alive cheaply
+## Listening without spawning
 
-Listening costs **zero tokens** — a `tail -F` just blocks. So a watchdog cron checks each channel for a
-live tail; if none, it raises a listener session (e.g. in `tmux`) that re-subscribes. You pay only the
-cold start on a *re-raise*, not for standing by. A quota guard refuses to raise anything once quota is
-nearly spent — don't spend the last of the budget keeping idle listeners warm.
+Listening costs **zero tokens** — a `tail -F` just blocks. The executor is the session the human is
+actually talking to, subscribed to its own channel. No subscription → that agent's buttons are shown
+disabled, honestly; nothing is spawned to fill the gap.
+
+We tried the opposite first: a watchdog cron that raised a background listener session (in `tmux`)
+whenever a channel had no live tail. It was removed. The background session became an invisible
+**twin** of the one the human was talking to — buttons "worked", the twin acted, the visible session
+stayed silent, and the panel looked like it was lying for a week. One agent = one live session.
 
 ## Two lessons paid for
 
 - **Ownership is a mechanism, not a one-off `chown`.** When files are written by one user (agents as
-  root) and the panel runs as another, a single `chown` goes stale the moment a new file appears. A
-  per-minute cron that realigns ownership is the fix — the same "remove the gap, don't guard it" move as
+  root) and the panel runs as another, a single `chown` goes stale the moment a new file appears — and so
+  does a cron that re-chowns specific folders every minute (we ran one; it only patches the places that
+  already hurt). The fix is structural: inherited default ACLs on the tree root, so any new file is
+  writable by the panel's user whoever creates it — the same "remove the gap, don't guard it" move as
   the [git wrapper](../multi-agent/git-guard).
 - **Test against a throwaway channel.** Test pulses (▶/▶▶/🛑) once went into a *live* subscribed channel.
   The effect was harmless (a final 🛑), but the rule stands: create a separate test channel, never poke

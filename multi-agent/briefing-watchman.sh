@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# UserPromptSubmit hook — inject a fresh briefing.md AND inbox.md when they change.
+# UserPromptSubmit hook — inject briefing.md when it changes, and the inbox's open items on every prompt.
 # Also bootstraps a missing inbox.md + two TODO files from templates.
 #
 # See docs/multi-agent.md (delivery layer) and docs/context-management.md.
