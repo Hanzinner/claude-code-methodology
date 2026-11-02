@@ -40,7 +40,8 @@ addons/mobile-bot/
 ├── systemd/
 │   └── claude-mobile-bot.service.template
 ├── hooks/
-│   ├── mobile-restrict.sh         # PreToolUse, allowlist writes
+│   ├── mobile-restrict.sh         # PreToolUse, fail-closed wrapper
+│   ├── mobile_restrict.py         # the gate's rules
 │   └── mobile-audit.sh            # PostToolUse, log + git commit
 └── scripts/
     ├── osm-nearby.sh              # OSM Overpass nearby search
@@ -63,24 +64,8 @@ addons/mobile-bot/
    ```
    The bot degrades gracefully — without the optionals, text/photo/document
    still work; voice and video just report that the tool is unavailable.
-5. Wire the hooks in `settings.json` (they are no-ops unless `CLAUDE_MOBILE_BOT=1`,
-   which `bot.py` sets when it spawns Claude):
-   ```json
-   {
-     "hooks": {
-       "PreToolUse": [
-         { "matcher": "Write|Edit",
-           "hooks": [{ "type": "command",
-             "command": "__CLAUDE_DIR__/mobile-bot/hooks/mobile-restrict.sh" }] }
-       ],
-       "PostToolUse": [
-         { "matcher": "Write|Edit",
-           "hooks": [{ "type": "command",
-             "command": "__CLAUDE_DIR__/mobile-bot/hooks/mobile-audit.sh" }] }
-       ]
-     }
-   }
-   ```
+5. Nothing to wire: `bot.py` passes its hooks with `--settings` on every call, so the
+   gate can't be forgotten and works in any install scope.
 6. Run:
    ```bash
    set -a; source .env; set +a
@@ -93,17 +78,30 @@ addons/mobile-bot/
 ## Security posture
 
 The bot spawns Claude with a **constrained tool set**: Read/Grep/Glob/WebFetch/
-WebSearch, Edit/Write (restricted to `.md` under the project via the hook), and
-a **read-only Bash allowlist** (ls, cat, grep, git log, jq, …). Destructive
-Bash (rm/dd/chmod/chown/mv) is never allowed. So even a hijacked Telegram
-account can mostly *read*, not *run*.
+WebSearch, Edit/Write (restricted by the hook to paths in
+`CLAUDE_MOBILE_BOT_ALLOW_PATHS`; empty = no writes), and a **read-only Bash
+allowlist** (ls, cat, grep, git log, …). So even a hijacked Telegram account can
+mostly *read*, not *run*.
+
+That list is the first layer, not the boundary. A `Bash(x:*)` rule allows every
+form of `x`: in an isolated test `sed -i` and `sort -o` ran under their prefix
+rules, and the bot's `acceptEdits` mode lets `>` and `; touch` write into the
+working dir. The boundary is `hooks/mobile_restrict.py`, itself an allowlist: no
+shell metacharacters outside quotes except the pipe, every pipe segment starts
+with an allowed tool, no reads of secret zones. Our first version listed forbidden
+metacharacters instead; review bypassed it with a newline, then `<(...)`, `||` and
+`$VAR`, then glob characters hiding a path. `tests/test_restrict.py` keeps those
+cases. One honest limit: secret zones are a list of known names, so run the bot as
+its own user with a narrow working dir rather than trusting the list alone. The child process also runs
+without the bot's token in its environment and without project-level settings,
+which carry "always allow" grants collected in working sessions.
 
 Defense layers:
 1. Telegram user-ID allowlist (`ALLOWED_TG_USERS`)
 2. 6-digit PIN, scrypt-hashed, required after restart / 30-min inactivity
 3. Lockout: 3 wrong PINs → 15-min lockout, logged to the audit file
-4. `mobile-restrict.sh` blocks writes outside the allowlist and to secret-shaped files
-5. `mobile-audit.sh` logs every write + auto-commits for one-tap `/revert`
+4. `mobile-restrict.sh` (fail-closed) blocks writes outside the allowlist and to secret-shaped files, reads of secret zones, and anything in Bash but allowlisted read-only tools
+5. `mobile-audit.sh` logs every Write/Edit + auto-commits the file (new files too) for one-tap `/revert`
 6. Multi-tier rate limit (3/30s, 8/min, 20/15min, 60/hr), liftable with `/unlimit`
 7. `[SEND: ...]` file sends are confined to the project dir and refuse secrets/.git
 

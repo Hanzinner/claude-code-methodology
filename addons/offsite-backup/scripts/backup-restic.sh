@@ -18,12 +18,18 @@
 #
 # What's excluded: restic-exclude.txt (msdocs, target, .rustup, node_modules, ...).
 #
-# Rotation: keep 14 daily + 8 weekly + 6 monthly. Runs `restic forget --prune` at end.
+# Rotation: keep 14 daily + 8 weekly + 6 monthly. Runs `restic forget --prune` at end,
+# after `restic unlock` — a stale lock left by a killed run makes every later prune
+# fail while the backups themselves keep "succeeding" (it went unnoticed for 11 days).
 
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$SCRIPT_DIR/restic-env.sh"
+
+# One run at a time: a slow upload overlapping the next cron run fights over the repo lock.
+exec 9>/var/lock/restic-backup.lock
+flock -n 9 || { echo "$(date -Iseconds) another backup is running — skip" >&2; exit 0; }
 
 LOG=/var/log/restic-backup.log
 EXCLUDE_FILE="$SCRIPT_DIR/restic-exclude.txt"
@@ -50,7 +56,11 @@ date -Iseconds > "$MANIFEST_DIR/backup-timestamp.txt"
 
 # Copy the recovery instructions alongside the manifest — a fresh Claude on
 # a new machine reads THIS file first, then follows steps to restore.
-cp "$SCRIPT_DIR/RECOVERY.md" "$MANIFEST_DIR/RECOVERY.md"
+if [[ -f "$SCRIPT_DIR/RECOVERY.md" ]]; then
+    cp "$SCRIPT_DIR/RECOVERY.md" "$MANIFEST_DIR/RECOVERY.md"
+else
+    log "WARNING: $SCRIPT_DIR/RECOVERY.md missing — snapshot has no recovery guide (copy RECOVERY.md.template there)"
+fi
 
 # Ensure restic repo is initialized (idempotent — succeeds silently if already init'd)
 if ! restic snapshots --last 1 >/dev/null 2>&1; then
@@ -73,6 +83,7 @@ restic backup \
     2>&1 | tee -a "$LOG"
 
 log "pruning old snapshots (keep 14d + 8w + 6m)"
+restic unlock 2>&1 | tee -a "$LOG"   # removes only STALE locks; a live one stays
 restic forget \
     --keep-daily 14 \
     --keep-weekly 8 \

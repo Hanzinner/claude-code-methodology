@@ -10,6 +10,11 @@
 #   BACKUP_DIR=/some/path         (default: $HOME/.claude-backups)
 #   RETENTION_DAYS=90             (default: 365)
 #   CLAUDE_PROJECTS_DIRS="..."    (space-separated; default: standard locations)
+#
+# Layout: <BACKUP_DIR>/<date>/<label>/... where label is "home" for
+# $HOME/.claude/projects and the path with "/" -> "_" for any other dir. This is
+# the layout multi-agent/session-hygiene.py checks before it trims anything
+# (its default root is ~/.claude/projects with tag "home").
 
 set -e
 
@@ -21,7 +26,7 @@ TARGET="$BACKUP_DIR/$DATE"
 # Default: back up both user and root claude projects if they exist
 DEFAULT_DIRS=()
 [[ -d "$HOME/.claude/projects" ]] && DEFAULT_DIRS+=("$HOME/.claude/projects")
-[[ -d /root/.claude/projects ]] && DEFAULT_DIRS+=("/root/.claude/projects")
+[[ -d /root/.claude/projects && "$HOME" != /root ]] && DEFAULT_DIRS+=("/root/.claude/projects")
 DIRS=(${CLAUDE_PROJECTS_DIRS:-${DEFAULT_DIRS[@]}})
 
 mkdir -p "$BACKUP_DIR" "$TARGET"
@@ -29,7 +34,11 @@ mkdir -p "$BACKUP_DIR" "$TARGET"
 LATEST_PREV=$(ls -1d "$BACKUP_DIR"/2*-*-* 2>/dev/null | sort -r | grep -v "/$DATE$" | head -1)
 
 for src in "${DIRS[@]}"; do
-  label=$(echo "$src" | tr '/' '_' | sed 's/^_//')
+  if [[ "${src%/}" == "$HOME/.claude/projects" ]]; then
+    label=home
+  else
+    label=$(echo "${src%/}" | tr '/' '_' | sed 's/^_//')
+  fi
   link_opt=""
   if [[ -n "$LATEST_PREV" && -d "$LATEST_PREV/$label" ]]; then
     link_opt="--link-dest=$LATEST_PREV/$label"

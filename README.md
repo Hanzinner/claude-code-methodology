@@ -29,7 +29,7 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/rule-to-mechanism.md`](docs/rule-to-mechanism.md) — the gate ladder (note → detector → structural impossibility): the change cycle, independent review by another model, a supervisor that checks the work, and why written rules alone didn't hold.
 
 **Running a swarm** (many agents — a separate discipline; skip these if you run one agent):
-- [`docs/multi-agent.md`](docs/multi-agent.md) — running a swarm of ~28 long-lived agents: delivery, coordination, and the failures that cost more than the design.
+- [`docs/multi-agent.md`](docs/multi-agent.md) — running a swarm of ~80 long-lived agents: delivery, coordination, and the failures that cost more than the design.
 - [`docs/dev-methodology.md`](docs/dev-methodology.md) — the delivery layer: roles, roadmap + Definition of Done, quality gates, and bootstrap — a product team when the team is agents.
 - [`docs/mission-control.md`](docs/mission-control.md) — a web panel that steers live agents by appending to a file channel they tail: cheap push over cold-start, everything counted from outside.
 
@@ -41,14 +41,14 @@ cd claude-code-methodology
 ./install.sh
 ```
 
-`install.sh` detects `claude`, asks for scope (user `~/.claude/` or project `<dir>/.claude/`), copies `hooks/`, `scripts/`, `skills/`, `CLAUDE.md`, `memory-template/`, generates `settings.json` with hook paths, offers system deps and the mobile-bot addon. Existing files are backed up to `*.bak-<timestamp>`.
+`install.sh` detects `claude`, asks for scope (user `~/.claude/` or project `<dir>/.claude/`), copies `hooks/`, `scripts/`, `skills/`, `code-pitfalls/` (your own lessons are kept), `CLAUDE.md`, `memory-template/`, generates `settings.json` with hook paths, offers system deps and the mobile-bot addon. Existing files are backed up to `*.bak-<timestamp>`.
 
 ## Layout
 
 | Path | What |
 |------|------|
 | `CLAUDE.md` | Operating core — behavioral rules loaded into every conversation |
-| `hooks/` | Shell hooks (`PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `SessionStart`) |
+| `hooks/` | Shell/Python hooks on `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PreCompact`, `PostCompact`, `PermissionDenied`, `Stop` |
 | `scripts/` | Utilities called from hooks, skills, or directly |
 | `skills/` | Slash commands (`/recap`, `/audit`) |
 | `memory-template/` | Seed for `memory/` (trigger index + 4 type examples) |
@@ -98,7 +98,7 @@ Full text: `CLAUDE.md`. Before/after dialogues: `docs/examples.md`.
 | `check-prompt-gap.sh` | UserPromptSubmit | Prepends `[now: <ts> \| gap since previous: <delta>]`. |
 | `memory-curation-check.sh` | SessionStart | Weekly `curate_memory.py` run. Silent if clean. |
 
-Plus ten **hardening hooks** (memory-write gate, pre/post-compact steering, permission-denied hint, reply-guard, stop-dispatch, a fail-open `hook-safe` wrapper, and the change-cycle detectors: stuck-detector, proof-guard, code-pitfalls-hint) that turn discipline-dependent rules into mechanical gates — see [`hooks/README.md`](hooks/README.md#hardening-hooks).
+Plus eleven **hardening hooks** (memory-write gate — opt-in, pre/post-compact steering, permission-denied hint, reply-guard, stop-dispatch, a fail-open `hook-safe` wrapper, the change-cycle detectors: stuck-detector, proof-guard, code-pitfalls-hint, and `surface-flags`, which shows the detectors' flags and hook errors on the next prompt) that turn discipline-dependent rules into mechanical gates — see [`hooks/README.md`](hooks/README.md#hardening-hooks).
 
 Mobile-bot addon adds two more (no-ops outside the bot):
 - `addons/mobile-bot/hooks/mobile-restrict.sh` — PreToolUse Write/Edit allowlist

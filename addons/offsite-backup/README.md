@@ -7,7 +7,7 @@ loss isn't just files — it's the accumulated context that made Claude
 useful to you specifically.
 
 This addon backs the whole thing up nightly to any S3-compatible object
-storage using restic. Encrypted with a passphrase you memorize.
+storage using restic. Encrypted with a passphrase kept in your password manager.
 
 ## What you get
 
@@ -31,7 +31,7 @@ storage using restic. Encrypted with a passphrase you memorize.
   contents.
 - Any S3-compatible provider works — Filebase (5 GB free), Cloudflare R2
   (10 GB free), Wasabi, Backblaze B2, MinIO self-hosted. Just swap the
-  endpoint URL.
+  `endpoint` in the credentials file.
 
 ## Setup
 
@@ -51,16 +51,21 @@ storage using restic. Encrypted with a passphrase you memorize.
    ```
 
 4. Create passphrase file at `~/.claude/secrets/backup-passphrase.txt`
-   (chmod 600). **Also memorize it** — it's the ultimate decryption key,
-   losing both means losing the archive.
+   (chmod 600). **Keep a copy in a password manager, not in your head** — it's the
+   ultimate decryption key, losing both means losing the archive. We kept ours "in
+   the head": a broken heredoc overwrote the file, the owner remembered the words but
+   not the exact spelling, a search through variants failed, and two months of
+   snapshots were gone. Use a random passphrase, and overwrite-protect the file.
 
-5. Copy scripts from this addon to `~/.claude/scripts/backup/`:
+5. Copy scripts and the recovery guide from this addon to `~/.claude/scripts/backup/`:
    ```bash
+   mkdir -p ~/.claude/scripts/backup
    cp scripts/*.sh scripts/*.txt ~/.claude/scripts/backup/
+   cp RECOVERY.md.template ~/.claude/scripts/backup/RECOVERY.md   # then fill in the <placeholders>
    chmod +x ~/.claude/scripts/backup/*.sh
    ```
 
-6. Edit `restic-env.sh` if your creds path differs from default.
+6. Different creds/passphrase paths? Set `RESTIC_S3_CREDS` / `RESTIC_PASSPHRASE_FILE`.
 
 7. Initialize the repo (first time only):
    ```bash

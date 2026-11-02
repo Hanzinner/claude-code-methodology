@@ -52,9 +52,9 @@ Manual config in `~/.claude.json` (user) or `.mcp.json` (project):
 
 | Scope | Location | Use |
 |-------|----------|-----|
-| `--scope user` | `~/.claude.json` | Every session/project |
-| `--scope project` | `.mcp.json` in project | One codebase |
-| `--scope local` | Workspace settings | Throwaway |
+| `--scope local` (default) | `~/.claude.json`, under this project's path | This project, only you — experiments, servers with credentials |
+| `--scope project` | `.mcp.json` in project root | This project, shared with the team via version control |
+| `--scope user` | `~/.claude.json` | All your projects |
 
 ## Health
 

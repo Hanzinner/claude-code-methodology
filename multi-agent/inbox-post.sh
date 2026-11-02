@@ -4,10 +4,12 @@
 # inboxes collided three times in one day (torn headers, a vanished section, a
 # duplicate). See docs/multi-agent.md ("shared things have no owner").
 #
-# Usage: inbox-post.sh <agent|path-to-inbox.md> <item text (markdown, may be multi-line)>
+# Usage: inbox-post.sh <agent|path-to-inbox.md> [item text]   (no text -> read stdin)
 #   agent — a folder name under the agents root (exact, no fuzzy), or a ready path.
-# Guarantees: flock (no lost update) · inserts right after "## New" ·
-#   no anchor -> append at the end with a loud marker (never silent, never lost).
+# Guarantees: flock (no lost update) · inserts right after "## New" · an identical
+#   item already in New is not added twice · no "## New" section -> create it at the
+#   end, loudly, and put the item there · post-validates from disk; one repair
+#   re-insert if the item vanished; still gone -> exit 5 (never reports a false "sent").
 #
 # Config: CLAUDE_AGENTS_ROOT (default: $HOME/claude-projects/Agents)
 
@@ -17,7 +19,10 @@ AGENTS_ROOT="${CLAUDE_AGENTS_ROOT:-$HOME/claude-projects/Agents}"
 
 target="$1"; shift
 text="$*"
-[[ -n "$text" ]] || { echo "inbox-post: empty text" >&2; exit 2; }
+# No text argument -> stdin (heredoc/pipe survives apostrophes and backticks that
+# single-quoted shell arguments mangle).
+[[ -n "$text" ]] || text="$(cat)"
+[[ -n "$text" ]] || { echo "inbox-post: empty text (neither argument nor stdin)" >&2; exit 2; }
 
 if [[ -f "$target" ]]; then
     inbox="$target"
@@ -39,21 +44,41 @@ fi
 exec 9>>"${inbox}.lock"
 flock -w 15 9 || { echo "inbox-post: lock timeout on $inbox" >&2; exit 3; }
 
-tmp=$(mktemp "${inbox}.postXXXX")
 new_hdr='## New'
 grep -q '^## New candidates$' "$inbox" && new_hdr='## New candidates'
-if grep -q "^${new_hdr}\$" "$inbox"; then
-    # insert after the header; the first item evicts the "_(empty)_" placeholder
-    awk -v entry="$text" -v hdr="$new_hdr" '
-        /^## /            { in_new = ($0 == hdr) }
-        /^_\(empty\)_$/ && in_new && injected { next }
-        { print }
-        $0 == hdr && !injected { print ""; print entry; injected=1 }
-    ' "$inbox" > "$tmp"
-else
-    cat "$inbox" > "$tmp"
-    printf '\n## ⚠ BROKEN STRUCTURE — no "## New" section found, item appended at the end\n\n%s\n' "$text" >> "$tmp"
+
+# No "## New" section (empty or damaged inbox) -> create it at the end and put the
+# item there, so the post-validation below can find it. Loud: stderr + a note line.
+heal_new() {
+    cat "$inbox" > "$1"
+    printf '\n> inbox-post %s: no "%s" section was found — created automatically, check the structure.\n\n%s\n\n%s\n' \
+        "$(date '+%F %T')" "$new_hdr" "$new_hdr" "$text" >> "$1"
+    echo "inbox-post: no '$new_hdr' in $inbox — section created at the end, item placed there" >&2
+}
+# ENTRY via ENVIRON, not `awk -v`: -v interprets escape sequences, so a "\b" in the
+# text became a backspace and the post-validation never found its own item.
+insert_into() {
+    if grep -q "^${new_hdr}\$" "$inbox"; then
+        # insert after the header; the first item evicts the "_(empty)_" placeholder
+        ENTRY="$text" awk -v hdr="$new_hdr" '
+            /^## /            { in_new = ($0 == hdr) }
+            /^_\(empty\)_$/ && in_new && injected { next }
+            { print }
+            $0 == hdr && !injected { print ""; print ENVIRON["ENTRY"]; injected=1 }
+        ' "$inbox" > "$1"
+    else
+        heal_new "$1"
+    fi
+}
+new_section() { awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s' "$inbox"; }
+
+# Idempotent by the WHOLE text: the same item already in New -> nothing to do.
+if [[ "$(new_section)" == *"$text"* ]]; then
+    echo "inbox-post: item already in '$new_hdr' — not duplicating"; exit 0
 fi
+
+tmp=$(mktemp "${inbox}.postXXXX")
+insert_into "$tmp"
 
 # pre-check: structure didn't degrade (the "## " section count didn't drop)
 if [[ $(grep -c '^## ' "$tmp") -lt $(grep -c '^## ' "$inbox") ]]; then
@@ -69,7 +94,18 @@ mv "$tmp" "$inbox"
 # while the item vanished in a lost update). Proof of execution, not of config:
 # the item must be IN the "New" section of the final on-disk file.
 first_line=$(printf '%s\n' "$text" | head -1)
-if ! awk -v hdr="${new_hdr:-## New}" '$0==hdr{s=1;next} /^## /{s=0} s' "$inbox" | grep -qF -- "$first_line"; then
-    echo "inbox-post: 🔴 POST-VALIDATION FAILED — item NOT found in the 'New' section on disk ($inbox). Not delivered (possibly a concurrent overwrite). Do NOT report 'sent'." >&2
+in_new() { new_section | grep -qF -- "$first_line"; }
+# A live session that rewrites the file can outlast any wait, so the fix for a lost
+# update is to re-insert (idempotent: presence is checked first), not to watch.
+# Limit: one repair. More repairs against a concurrent writer breed duplicates.
+if ! in_new; then
+    tmp2=$(mktemp "${inbox}.postXXXX")
+    insert_into "$tmp2"
+    chown --reference="$inbox" "$tmp2" 2>/dev/null || true
+    chmod --reference="$inbox" "$tmp2" 2>/dev/null || true
+    mv "$tmp2" "$inbox"
+fi
+if ! in_new; then
+    echo "inbox-post: 🔴 POST-VALIDATION FAILED — item NOT found in '$new_hdr' on disk ($inbox) after a repair insert. Not delivered (a concurrent writer keeps overwriting). Do NOT report 'sent'." >&2
     exit 5
 fi
