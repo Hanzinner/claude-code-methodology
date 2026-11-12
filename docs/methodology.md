@@ -79,11 +79,11 @@ Body:
 
 ### Composable skills for distinct cognitive moves
 
-Instead of one monolithic "assistant" — separate skills for separate tasks (only `/audit` and `/recap` ship in this repo; the other two are examples from the private setup):
-- `/grill` — stress-test a plan / decision (attack assumptions) *(not shipped)*
+Instead of one monolithic "assistant" — separate skills for separate tasks (all four ship in `skills/`):
+- `/grill` — stress-test a plan / decision (attack assumptions)
 - `/audit` — check instruction corpus for contradictions / drift
 - `/recap` — commit a session's important parts to memory before `/compact` flattens them
-- `/pulse` — multi-source recency snapshot on a topic *(not shipped)*
+- `/pulse` — multi-source recency snapshot on a topic
 
 The agent sees all skill descriptions and picks the right one. User says "stress-test this plan" → triggers `/grill` without an explicit call.
 
@@ -212,7 +212,7 @@ If you say "find holes in this plan" — the agent will find them, even when non
 2. Explicit escape hatch: "if there are no real problems, say so directly"
 3. Split description and criticism into separate steps
 
-(Baked into the private `/grill` skill as methodology.)
+(Baked into the `/grill` skill as methodology.)
 
 ### Memory contradictions across files
 
@@ -230,7 +230,7 @@ Accumulate naturally — new rules overwrite old ones, but old ones stay in file
 
 **Vector search for personal memory** — flat files + wikilinks + grep is enough for the corpus size of one person. Vector = overengineering.
 
-**Devil's advocate as automation** — generates hallucinated problems (see above). Better an explicit stress-test skill (`/grill`, private) with the right prompt.
+**Devil's advocate as automation** — generates hallucinated problems (see above). Better an explicit stress-test skill (`/grill`) with the right prompt.
 
 **Watch on vault via inotifywait** — a static snapshot of the graph in memory is enough. Watch = overengineering.
 

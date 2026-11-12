@@ -18,6 +18,7 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 | `curate_memory.py` | Broken wikilinks and orphaned memory files pile up unnoticed. |
 
 **Start here** (a single agent — most readers):
+- [`docs/getting-started.md`](docs/getting-started.md) — after the install: the first day, day-to-day use, what the mechanisms will do in front of you, and how to add more agents.
 - [`docs/methodology.md`](docs/methodology.md) — the full writeup of the approach (memory, skills, hooks, permissions, communication, workflow rituals, lessons).
 - [`docs/examples.md`](docs/examples.md) — before/after dialogues showing what the rules do to agent behavior.
 - [`docs/case-study.md`](docs/case-study.md) — a real observation session that shaped several of the rules.
@@ -81,7 +82,7 @@ scripts, and Claude Code on Windows runs PowerShell unless Git Bash is installed
 
 | Layer | Installed by `install.sh` today | In the repo, set up by hand | Not in the repo yet |
 |---|---|---|---|
-| One agent | `CLAUDE.md`, 14 hooks, scripts, `/recap` `/audit`, memory template, code lessons | mobile bot (offered by the installer), offsite backup (`addons/offsite-backup/`) | most of the private guards on replies (about 30 more) |
+| One agent | `CLAUDE.md`, 30 hooks and gates, scripts and `bin/` tools (linked into `~/.local/bin`), 6 skills, memory template, code lessons, `methodology.conf` (your name, folder, time zone), a marked block in your crontab; installed tests run at the end | mobile bot (offered by the installer), offsite backup (`addons/offsite-backup/`), the search MCP server (the installer prints the `claude mcp add` line) | Telegram alerts from the input guard; cleanup of the trash folder is off unless `--enable-cleanup` |
 | A swarm of agents | — | `multi-agent/` (inbox writer, briefing watchman, git wrapper, session hygiene), `swarm-template/` (journal, registry, catalog, agent folder) | project bootstrap, releaser, blocker register |
 | Upkeep | — | — | watchdog over all mechanisms, nightly reconciliations, the panel |
 
@@ -141,7 +142,7 @@ Full text: `CLAUDE.md`. Before/after dialogues: `docs/examples.md`.
 | `check-prompt-gap.sh` | UserPromptSubmit | Prepends `[now: <ts> \| gap since previous: <delta>]`. |
 | `memory-curation-check.sh` | SessionStart | Weekly `curate_memory.py` run. Silent if clean. |
 
-Plus eleven **hardening hooks** (memory-write gate — opt-in, pre/post-compact steering, permission-denied hint, reply-guard, stop-dispatch, a fail-open `hook-safe` wrapper, the change-cycle detectors: stuck-detector, proof-guard, code-pitfalls-hint, and `surface-flags`, which shows the detectors' flags and hook errors on the next prompt) that turn discipline-dependent rules into mechanical gates — see [`hooks/README.md`](hooks/README.md#hardening-hooks).
+Plus the hardening layer — gates that block a command (`selfkill-gate`, `sysfile-gate`, `fable-gate`, `memory-write-gate` opt-in, `mistakes-format-gate`), detectors on the finished reply that flag and hint on the next turn (`proof-guard`, `pause-guard`, `abbr-guard`, `source-guard`, `strawman-guard`, `link-guard`, `draft-guard`, `cost-guard`, `reply-guard`), and helpers around them (`hook-safe` wrapper, `stop-dispatch`, `surface-flags`, `stuck-detector`, `code-pitfalls-hint`, `input-guard`, `source-hint`, `trash-guard`, `order-capture-hint`, compaction steering). One line each, with the event: [`hooks/README.md`](hooks/README.md).
 
 Mobile-bot addon adds two more (no-ops outside the bot):
 - `addons/mobile-bot/hooks/mobile-restrict.sh` — PreToolUse Write/Edit allowlist
