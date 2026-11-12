@@ -1,0 +1,32 @@
+# Settings for the methodology mechanisms. install.sh writes a filled copy to <install dir>/methodology.conf.
+# KEY=VALUE, one per line; quotes allowed; the file is parsed, not executed.
+# An environment variable with the same name overrides a line here.
+
+# Who the agents work for — appears in the hints agents read ("ask __NAME__", "__NAME__'s words").
+CCM_HUMAN_NAME="__HUMAN_NAME__"
+
+# Root folder the agents work in: agent folders, the mistakes journal, shared docs.
+CCM_WORKSPACE="__WORKSPACE__"
+
+# "Delete" means move here. Files older than CCM_TRASH_DAYS are removed by trash-guard --sweep.
+CCM_TRASH_DIR="__TRASH_DIR__"
+CCM_TRASH_DAYS=14
+
+# Keys and tokens live here — never inside the workspace (it is a git repo; a key there gets committed).
+CCM_SECRETS_DIR="__SECRETS_DIR__"
+
+# IANA time zone for timestamps shown to the human (e.g. Europe/Berlin). Empty = system zone.
+CCM_TIMEZONE="__TIMEZONE__"
+
+# Optional files. Empty = the mechanism that uses it runs without it.
+CCM_GLOSSARY=""          # terms the human already knows — abbr-guard won't ask to expand them
+CCM_DRAFTING_GUIDE=""    # how the human writes outgoing messages — draft-guard points the agent there
+CCM_MISTAKES=""          # mistakes journal; empty = <workspace>/MISTAKES.md
+CCM_EPISODIC_DIR=""      # "when did we do X" log; empty = <install dir>/memory/episodic
+
+# Models subagents must never run on (fable-gate). Comma-separated, empty = gate off.
+CCM_FORBIDDEN_SUBAGENT_MODELS=""
+CCM_SUBAGENT_DEFAULT_MODEL=sonnet
+
+# Detectors match English phrases; this adds another language's phrase lists (uk = Ukrainian; empty = English only), e.g. CCM_LANG_EXTRA=uk.
+CCM_LANG_EXTRA=""

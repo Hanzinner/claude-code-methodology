@@ -35,3 +35,6 @@ Thumbs.db
 .idea/
 *.swp
 *~
+
+# Written by install.sh with this machine's settings
+methodology.conf

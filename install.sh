@@ -10,6 +10,13 @@
 #   ./install.sh --user          # install to ~/.claude (non-interactive default)
 #   ./install.sh --project DIR   # install to DIR/.claude
 #   ./install.sh --dry-run       # show what would happen, do nothing
+#   ./install.sh --yes           # take every default, ask nothing (CI, scripted installs)
+#   --name NAME                  # who the agents work for (shown in their hints)
+#   --workspace DIR              # folder the agents work in (journal, agent folders)
+#   --timezone ZONE              # IANA zone for timestamps, e.g. Europe/Berlin
+#   --no-verify                  # skip running the installed tests at the end
+#
+# Machine-specific settings go to <install dir>/methodology.conf (kept on re-run).
 #
 # Re-run safe: existing files are backed up to *.bak-<timestamp>.
 
@@ -19,6 +26,11 @@ REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 DRY_RUN=0
 SCOPE=""
 PROJECT_DIR=""
+YES=0
+VERIFY=1
+OPT_NAME=""
+OPT_WORKSPACE=""
+OPT_TZ=""
 
 # ---- arg parse -----------------------------------------------------------
 while [[ $# -gt 0 ]]; do
@@ -27,6 +39,12 @@ while [[ $# -gt 0 ]]; do
     --project)     [[ $# -ge 2 && -n "$2" ]] || { echo "install.sh: --project requires a DIR argument" >&2; exit 2; }
                    SCOPE="project"; PROJECT_DIR="$2"; shift ;;
     --dry-run)     DRY_RUN=1 ;;
+    --yes|-y)      YES=1 ;;
+    --no-verify)   VERIFY=0 ;;
+    --name|--workspace|--timezone)
+                   [[ $# -ge 2 ]] || { echo "install.sh: $1 requires a value" >&2; exit 2; }
+                   case "$1" in --name) OPT_NAME="$2" ;; --workspace) OPT_WORKSPACE="$2" ;; --timezone) OPT_TZ="$2" ;; esac
+                   shift ;;
     -h|--help)     sed -n '2,/^[^#]/{/^#/s/^# \?//p}' "$0"; exit 0 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
@@ -41,6 +59,7 @@ ok()   { printf '\033[1;32m✓\033[0m %s\n' "$*"; }
 
 ask() {
   local prompt="$1" default="${2:-}" ans
+  if [[ $YES -eq 1 ]]; then echo "$default"; return; fi
   if [[ -n "$default" ]]; then prompt="$prompt [$default]"; fi
   printf '%s: ' "$prompt" >&2   # stderr: callers capture stdout as the answer — $(ask …)
   read -r ans
@@ -62,11 +81,13 @@ if command -v claude >/dev/null 2>&1; then
   ok "claude CLI found: $CLAUDE_VERSION"
 else
   warn "claude CLI not found in PATH. Install from https://code.claude.com/docs and re-run."
-  read -p "Continue anyway? [y/N] " yn
+  if [[ $YES -eq 1 ]]; then yn=y; else read -r -p "Continue anyway? [y/N] " yn; fi
   [[ "$yn" =~ ^[Yy]$ ]] || exit 1
 fi
 
 # ---- choose scope --------------------------------------------------------
+command -v python3 >/dev/null 2>&1 || die "python3 is required (hooks and the installer use it)"
+[[ -z "$SCOPE" && $YES -eq 1 ]] && SCOPE="user"
 if [[ -z "$SCOPE" ]]; then
   echo
   say "Install scope:"
@@ -91,7 +112,40 @@ elif [[ "$SCOPE" == "project" ]]; then
 fi
 
 say "Installing to: $TARGET"
-do_or_show mkdir -p "$TARGET"/{hooks,scripts,skills,memory}
+do_or_show mkdir -p "$TARGET"/{hooks,scripts,skills,memory,lib,bin,tests}
+
+# ---- settings for this machine (methodology.conf) -------------------------
+CONF="$TARGET/methodology.conf"
+if [[ -f "$CONF" ]]; then
+  ok "keeping your $CONF (delete it to be asked again)"
+else
+  say "A few settings for this machine (Enter = default):"
+  def_name=$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f5 | cut -d, -f1)
+  [[ -n "$def_name" ]] || def_name=$(id -un)
+  if [[ "$SCOPE" == "project" ]]; then def_ws="$PROJECT_DIR"; else def_ws="$HOME/claude-projects"; fi
+  def_tz=$(cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || true)
+  C_NAME="${OPT_NAME:-$(ask "Your name — agents address their hints to it" "$def_name")}"
+  C_WS="${OPT_WORKSPACE:-$(ask "Workspace folder (agent folders, mistakes journal)" "$def_ws")}"
+  C_TZ="${OPT_TZ:-$(ask "Time zone (IANA, empty = system)" "$def_tz")}"
+  C_TRASH="$HOME/.Trash"
+  C_SECRETS="$HOME/.config/claude-secrets"
+  if [[ $DRY_RUN -eq 1 ]]; then
+    echo "  DRY: would write $CONF (name=$C_NAME, workspace=$C_WS, timezone=$C_TZ)"
+  else
+    python3 - "$REPO_DIR/methodology.conf.template" "$CONF" "$C_NAME" "$C_WS" "$C_TRASH" "$C_SECRETS" "$C_TZ" <<'PYCONF'
+import shlex, sys
+src, dst, name, ws, trash, secrets, tz = sys.argv[1:]
+text = open(src, encoding="utf-8").read()
+for key, val in (("__HUMAN_NAME__", name), ("__WORKSPACE__", ws), ("__TRASH_DIR__", trash),
+                 ("__SECRETS_DIR__", secrets), ("__TIMEZONE__", tz)):
+    text = text.replace('"' + key + '"', shlex.quote(val) if val else '""')
+open(dst, "w", encoding="utf-8").write(text)
+PYCONF
+    ok "wrote $CONF"
+  fi
+  do_or_show mkdir -p "$C_WS" "$C_TRASH" "$C_SECRETS"
+  do_or_show chmod 700 "$C_SECRETS"
+fi
 
 # ---- backup existing -----------------------------------------------------
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -137,6 +191,32 @@ for f in "$REPO_DIR"/scripts/*; do
   do_or_show cp "$f" "$TARGET/scripts/$name"
   case "$name" in *.sh|*.py) do_or_show chmod +x "$TARGET/scripts/$name" ;; esac
 done
+
+say "Copying shared library, tools and tests…"
+for f in "$REPO_DIR"/lib/*.py; do
+  [[ -f "$f" ]] || continue
+  do_or_show cp "$f" "$TARGET/lib/$(basename "$f")"
+done
+for f in "$REPO_DIR"/bin/*; do
+  [[ -f "$f" ]] || continue
+  name=$(basename "$f")
+  backup_if_exists "$TARGET/bin/$name"
+  do_or_show cp "$f" "$TARGET/bin/$name"
+  do_or_show chmod +x "$TARGET/bin/$name"
+done
+for f in "$REPO_DIR"/tests/*; do
+  [[ -f "$f" ]] || continue
+  do_or_show cp "$f" "$TARGET/tests/$(basename "$f")"
+  do_or_show chmod +x "$TARGET/tests/$(basename "$f")"
+done
+if [[ "$SCOPE" == "user" ]] && compgen -G "$TARGET/bin/*" >/dev/null; then
+  do_or_show mkdir -p "$HOME/.local/bin"
+  for f in "$TARGET"/bin/*; do
+    [[ -e "$HOME/.local/bin/$(basename "$f")" && ! -L "$HOME/.local/bin/$(basename "$f")" ]] && { warn "~/.local/bin/$(basename "$f") exists and is not ours — left alone"; continue; }
+    do_or_show ln -sfn "$f" "$HOME/.local/bin/$(basename "$f")"
+  done
+  case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) warn "add ~/.local/bin to PATH for the tools (secret-scan, swap-live, creds, rename-ref)" ;; esac
+fi
 
 say "Copying skills…"
 for d in "$REPO_DIR"/skills/*/; do
@@ -256,9 +336,29 @@ if [[ "$yn" =~ ^[Yy]$ ]]; then
   warn "Then: see $ADDON_DIR/README.md for systemd setup"
 fi
 
+# ---- verify: run the installed tests against the installed copies -----------
+TESTS_FAILED=0
+if [[ $VERIFY -eq 1 && $DRY_RUN -eq 0 ]] && compgen -G "$TARGET/tests/*-test.*" >/dev/null; then
+  echo
+  say "Checking the installed mechanisms (each test runs in a temp sandbox)…"
+  for t in "$TARGET"/tests/*-test.*; do
+    case "$t" in *.py) runner=python3 ;; *.sh) runner=bash ;; *) continue ;; esac
+    if out=$("$runner" "$t" 2>&1); then
+      ok "$(printf '%s\n' "$out" | tail -1)"
+    else
+      TESTS_FAILED=$((TESTS_FAILED + 1))
+      warn "$(basename "$t") FAILED:"; printf '%s\n' "$out" | tail -8 >&2
+    fi
+  done
+fi
+
 # ---- done ---------------------------------------------------------------
 echo
-ok "Install complete."
+if [[ $TESTS_FAILED -gt 0 ]]; then
+  warn "Installed, but $TESTS_FAILED test(s) failed — see above. The failing mechanism may not work on this machine."
+else
+  ok "Install complete."
+fi
 echo
 echo "Checking the installation item by item…"
 if [[ $DRY_RUN -eq 0 ]]; then
@@ -272,5 +372,7 @@ echo "  2) Start a new Claude Code session (existing sessions won't pick up the 
 echo "  3) Read $REPO_DIR/docs/architecture.md"
 echo
 echo "To undo: in $TARGET, restore the *.bak-${TIMESTAMP} copies over the files they back up, and remove"
-echo "what this repo added (hooks/, scripts/, skills/, code-pitfalls/, .methodology-installed/)."
+echo "what this repo added (hooks/, scripts/, skills/, code-pitfalls/, lib/, bin/, mcp/, tests/, methodology.conf,"
+echo ".methodology-installed/), the ~/.local/bin links to bin/ and the marked block in crontab -l."
 echo "Do NOT delete $TARGET as a whole: it also holds your own Claude Code settings, memory and history."
+[[ $TESTS_FAILED -eq 0 ]] || exit 3
