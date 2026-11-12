@@ -51,6 +51,15 @@ cd claude-code-methodology
 
 You can hand the repo to your own agent and say "install this": it runs `./install.sh` like a person would.
 
+**Updating** as new layers land: `git pull && ./install.sh` again. Your memory, your own code lessons, your
+permissions, env, model and your own hooks in `settings.json` are kept (only the hook entries that point
+into the installed `hooks/` are replaced). If you edited `CLAUDE.md`, it is kept and the new version is
+written next to it as `CLAUDE.md.new`. Every replaced file is also backed up as `*.bak-<timestamp>`.
+
+**Platforms:** Linux and macOS (bash + python3). On **Windows, use WSL** (`wsl --install`, then install
+Claude Code and this repo inside it). Native Windows is not supported yet: the hooks are bash and python
+scripts, and Claude Code on Windows runs PowerShell unless Git Bash is installed.
+
 **What it sets up today, and what not yet** (as of 2026-11; the goal is the whole private setup with one command, built layer by layer):
 
 | Layer | Installed by `install.sh` today | In the repo, set up by hand | Not in the repo yet |
