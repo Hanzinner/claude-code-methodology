@@ -19,6 +19,7 @@ DEFAULTS = {
     "CCM_HUMAN_NAME": "the user",                     # who the agents work for; used in hints the agent reads
     "CCM_CLAUDE_DIR": INSTALL_DIR,                    # where hooks/, scripts/, lib/ were installed
     "CCM_WORKSPACE": os.path.join(HOME, "claude-projects"),   # root the agents work in (agent folders, journals)
+    "CCM_AGENTS_DIR": "",                             # one folder per agent (briefing, inbox, todo); empty = <workspace>/Agents
     "CCM_TRASH_DIR": os.path.join(HOME, ".claude-trash"),   # "delete" = move here (not the desktop/macOS trash)
     "CCM_TRASH_DAYS": "14",
     "CCM_SECRETS_DIR": os.path.join(HOME, ".config", "claude-secrets"),   # keys live here, never in the workspace
@@ -89,6 +90,8 @@ def load():
                 vals[k] = os.environ[k]
         if not vals.get("CCM_MISTAKES"):
             vals["CCM_MISTAKES"] = os.path.join(vals["CCM_WORKSPACE"], "MISTAKES.md")
+        if not vals.get("CCM_AGENTS_DIR"):
+            vals["CCM_AGENTS_DIR"] = os.path.join(vals["CCM_WORKSPACE"], "Agents")
         if not vals.get("CCM_EPISODIC_DIR"):
             vals["CCM_EPISODIC_DIR"] = os.path.join(vals["CCM_CLAUDE_DIR"], "memory", "episodic")
         _cache = vals
