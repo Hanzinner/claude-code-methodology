@@ -1,0 +1,240 @@
+#!/usr/bin/env bash
+# git-guard - a transparent PATH wrapper for `git`: blocks destructive verbs in the shared working tree, and blocks direct
+# moves of master for projects that live under the release queue. Install it as a `git` that comes BEFORE the real git in
+# PATH (scripts/setup-git-guard.sh does that); every caller - agents, hooks, scripts - then goes through it.
+#
+# Why it exists: a history-rewriting command (filter-repo) once wiped most of a shared repo's commit history in one go
+# (recovered only from a backup taken minutes earlier). A rule "never run that" had been written down for months and still
+# failed - a rule everybody must remember forever is a deferred outage. So the gap is removed instead of guarded by memory.
+#
+#   1. Destructive verbs IN THE SHARED REPO are blocked for everybody, judged by their EFFECT after normalising the flags
+#      (a lock on the door with the window open is not a lock: `branch --delete --force`, `-d -f`, `checkout -f`,
+#      `restore --worktree` all got around a block on the literal `-D`/`--hard`): reset --hard, branch -D / -d -f / -M, checkout -f
+#      or `checkout -- paths`, restore (worktree), switch -f, clean -f, stash clear|drop, gc --prune, prune, reflog
+#      expire|delete, update-ref (except repairing a broken branch), tag -d, worktree remove -f. filter-repo and filter-branch
+#      are blocked in the worktrees too (the history is shared).
+#   2. Optional (CCM_GIT_GUARD_BLOCK_REMOTE=1, off by default): history leaving the shared repo is blocked - `remote add|set-url`,
+#      config remote.*/url.*insteadOf, ANY push. For a repo whose history must never be published (e.g. it once contained a key and
+#      rewriting history is not an option): safety then rests on "there is no remote", made a construction instead of a coincidence.
+#   3. A project repo of its own (<workspace>/<Project-prefix>X/.git) gets the same destructive-verb protection; remote and push stay free.
+#      A project under the release queue (the releaser has written a state file for it) additionally cannot get master moved directly:
+#      commit/merge/pull/rebase/reset on master, push or fetch into master, update-ref/branch -f of master. Branches and reads are free.
+#   4. Everything else, and any git outside the workspace - plain git. Other nested repos under the workspace (a notes vault, a
+#      published showcase) are NOT the shared repo: they have their own .git and their own remote; they are judged by the repo
+#      git reports, not by the path prefix.
+#
+# Settings (methodology.conf or env): CCM_WORKSPACE (the shared repo), CCM_WORKTREES_DIR (default <workspace>-wt),
+# CCM_PROJECTS_GLOB (default Project-*), CCM_RELEASER_STATE (default /var/lib/ccm-release), CCM_GIT_GUARD_BLOCK_REMOTE (default 0),
+# CCM_REAL_GIT (default: the next `git` in PATH after this wrapper). Blocked = exit 88.
+# Test: tests/git-guard-test.sh
+set -uo pipefail
+
+SELF=$(readlink -f -- "${BASH_SOURCE[0]}")
+HERE=$(dirname -- "$SELF")
+# the real git: explicit, or the first `git` in PATH that is not this wrapper
+REAL_GIT=${CCM_REAL_GIT:-}
+if [[ -z "$REAL_GIT" ]]; then
+    IFS=: read -ra _dirs <<< "${PATH:-}"
+    for _d in "${_dirs[@]}"; do
+        [[ -x "$_d/git" && "$(readlink -f -- "$_d/git")" != "$SELF" ]] && { REAL_GIT="$_d/git"; break; }
+    done
+fi
+[[ -n "$REAL_GIT" ]] || { echo "[git-guard] cannot find the real git in PATH" >&2; exit 127; }
+
+# settings: one python call (about 20 ms); if it fails, defaults + one warning - never a silent disarm
+_cfg=$(python3 - "$HERE/../lib" 2>/dev/null <<'PY'
+import os, shlex, sys
+sys.path.insert(0, sys.argv[1])
+from ccm_conf import conf
+ws = conf("CCM_WORKSPACE")
+for k, v in (("MAIN_REPO", ws), ("WORKTREES", conf("CCM_WORKTREES_DIR", ws.rstrip("/") + "-wt")),
+             ("PROJ_GLOB", conf("CCM_PROJECTS_GLOB", "Project-*")), ("RELEASE_STATE", conf("CCM_RELEASER_STATE", "/var/lib/ccm-release")),
+             ("BLOCK_REMOTE", conf("CCM_GIT_GUARD_BLOCK_REMOTE", "0")), ("CLAUDE_DIR", conf("CCM_CLAUDE_DIR"))):
+    print(f"{k}={shlex.quote(v)}")
+PY
+) || _cfg=""
+if [[ -n "$_cfg" ]]; then eval "$_cfg"; else
+    echo "[git-guard] warning: settings unreadable, using defaults" >&2
+    MAIN_REPO="$HOME/claude-projects"; WORKTREES="$MAIN_REPO-wt"; PROJ_GLOB="Project-*"
+    RELEASE_STATE=/var/lib/ccm-release; BLOCK_REMOTE=0; CLAUDE_DIR="$HOME/.claude"
+fi
+PROJ_PREFIX=${PROJ_GLOB%%\**}
+MAIN_REPO=$(readlink -f -- "$MAIN_REPO" 2>/dev/null || echo "$MAIN_REPO")
+WORKTREES=$(readlink -f -- "$WORKTREES" 2>/dev/null || echo "$WORKTREES")
+
+# --- parse the global options before the subcommand: -C changes the target, --git-dir too ---
+target="$PWD"
+gitdir=""
+subcmd=""
+sub_args=()
+args=("$@")
+i=0
+n=${#args[@]}
+while [[ $i -lt $n ]]; do
+    a="${args[$i]}"
+    case "$a" in
+        -C) i=$((i+1)); t="${args[$i]:-}"
+            [[ "$t" == /* ]] && target="$t" || target="$target/$t" ;;
+        --git-dir=*)   gitdir="${a#--git-dir=}" ;;
+        --git-dir)     i=$((i+1)); gitdir="${args[$i]:-}" ;;
+        --work-tree=*) t="${a#--work-tree=}"
+                       [[ "$t" == /* ]] && target="$t" || target="$target/$t" ;;
+        --work-tree)   i=$((i+1)); t="${args[$i]:-}"
+                       [[ "$t" == /* ]] && target="$t" || target="$target/$t" ;;
+        -c|--namespace|--exec-path) i=$((i+1)) ;;   # options that take a value - skip it
+        --*|-*) : ;;                                 # other global flags
+        *) subcmd="$a"; sub_args=("${args[@]:$((i+1))}"); break ;;
+    esac
+    i=$((i+1))
+done
+
+resolve() { readlink -f -- "$1" 2>/dev/null || printf '%s' "$1"; }
+real_target=$(resolve "$target")
+[[ -n "$gitdir" ]] && real_target=$(resolve "$gitdir")
+
+in_main=false; in_wt=false; proj_repo=false; common=""; probe="$real_target"
+[[ "$real_target" == "$MAIN_REPO" || "$real_target" == "$MAIN_REPO"/* ]] && in_main=true
+[[ "$real_target" == "$WORKTREES" || "$real_target" == "$WORKTREES"/* ]] && in_wt=true
+# Nested SELF-STANDING repos under the workspace are not the shared repo: decided by the repository git names, not the path prefix.
+if $in_main || $in_wt; then
+    probe="$real_target"; [[ -d "$probe" ]] || probe=$(dirname -- "$probe")
+    common=$(cd -- "$probe" 2>/dev/null && "$REAL_GIT" -c safe.directory='*' rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || common=""
+    [[ -n "$gitdir" ]] && common=$(resolve "$gitdir")
+    if [[ -n "$common" && "$(resolve "$common")" != "$(resolve "$MAIN_REPO/.git")" ]]; then
+        # A project's own repo: exactly <workspace>/<prefix>X/.git - the same protection as the shared repo, only remote/push allowed.
+        rest=$(resolve "$common"); rest=${rest#"$MAIN_REPO/$PROJ_PREFIX"}
+        if [[ "$(resolve "$common")" == "$MAIN_REPO/$PROJ_PREFIX"*/.git && "$rest" == */.git && "${rest%/.git}" != */* && "$rest" != /* ]]; then
+            proj_repo=true
+        else
+            in_main=false; in_wt=false
+        fi
+    fi
+fi
+
+# --- 1: block destructive verbs --------------------------------------------------
+block() {
+    cat >&2 <<MSG
+[git-guard] BLOCKED: "git $subcmd ${sub_args[*]:-}" in $($proj_repo && echo "a project repo" || echo "the shared repo").
+Why: this class of command irreversibly destroys history or files of a SHARED repo - exactly how a filter-repo once
+erased most of a repo's commits (only a fresh backup of .git saved it).
+What to do instead: make a throw-away clone OUTSIDE the workspace, check that the clone exists (set -euo pipefail),
+and do the destructive work there.
+MSG
+    exit 88
+}
+
+has_flag() { local f; for f in "${sub_args[@]:-}"; do [[ "$f" == "$1" ]] && return 0; done; return 1; }
+
+block_remote() {
+    cat >&2 <<MSG
+[git-guard] BLOCKED: "git $subcmd ${sub_args[*]:-}" - history of the shared repo leaving it.
+Why: this repo is configured to never publish its history (CCM_GIT_GUARD_BLOCK_REMOTE=1): there is no remote and no push, by design.
+What to do instead: publish only from a throw-away clone outside the workspace, with only the needed paths and no history.
+MSG
+    exit 88
+}
+
+if $in_main || $in_wt; then
+    [[ "$subcmd" == "filter-repo" ]] && block
+fi
+if [[ "$BLOCK_REMOTE" == 1 ]] && { $in_main || $in_wt; } && ! $proj_repo; then
+    case "$subcmd" in
+        push)   block_remote ;;
+        remote) case "${sub_args[0]:-}" in add|set-url) block_remote ;; esac ;;
+        config) is_read=false
+                for f in "${sub_args[@]:-}"; do case "$f" in --get|--get-all|--get-regexp|--list|-l) is_read=true ;; esac; done
+                if ! $is_read; then
+                    for f in "${sub_args[@]:-}"; do
+                        [[ "$f" == remote.* || ( "$f" == url.* && "$f" == *insteadof* ) || ( "$f" == url.* && "$f" == *insteadOf* ) || ( "$f" == url.* && "$f" == *pushInsteadOf* ) ]] && block_remote
+                    done
+                fi ;;
+    esac
+fi
+# ── 1b: destructive by EFFECT, not by spelling. First NORMALISE: glued short flags are split (-df -> -d -f), long synonyms are
+# reduced to the short ones; then one question: does the command destroy commits/branches/tags/uncommitted work/stash/reflog or
+# rewrite history? Only the main tree (in_main): a CI runner works in a worktree and is not touched by this.
+norm=()
+for a in "${sub_args[@]:-}"; do
+    case "$a" in
+        --delete) norm+=(-d) ;;
+        --force)  norm+=(-f) ;;
+        --worktree) norm+=(-W) ;;
+        --staged) norm+=(-S) ;;
+        --discard-changes) norm+=(-f) ;;
+        --) norm+=(--) ;;
+        --*) norm+=("$a") ;;
+        -[A-Za-z][A-Za-z]*) for ((k=1; k<${#a}; k++)); do norm+=("-${a:k:1}"); done ;;
+        *) norm+=("$a") ;;
+    esac
+done
+nhas() { local f; for f in "${norm[@]:-}"; do [[ "$f" == "$1" ]] && return 0; done; return 1; }
+if $in_main || $in_wt; then
+    case "$subcmd" in filter-branch) block ;; esac
+fi
+if $in_main; then
+    case "$subcmd" in
+        reset)    nhas --hard && block ;;
+        branch)   { nhas -D || { nhas -d && nhas -f; } || nhas -M || { nhas -m && nhas -f; } || nhas -C; } && block ;;
+        checkout) { nhas -f || nhas --; } && block ;;                                 # -f, or "-- paths" = reverting files
+        restore)  { nhas -W || ! nhas -S; } && block ;;                                # without --staged restore destroys the working tree
+        switch)   nhas -f && block ;;
+        clean)    nhas -f && block ;;
+        stash)    case "${norm[0]:-}" in clear|drop) block ;; esac ;;
+        gc)       for f in "${norm[@]:-}"; do [[ "$f" == --prune* ]] && block; done ;;
+        prune)    block ;;
+        reflog)   case "${norm[0]:-}" in expire|delete) block ;; esac ;;
+        update-ref)                                                                    # moving/removing refs by hand
+            # The one exception is REPAIR: exactly "update-ref refs/heads/<branch> <commit>" with no flags, when the branch's
+            # current target does NOT read as a commit and the new one is an intact commit (a cut-off write once left the branch on
+            # an empty object and git was dead for days, while the repair procedure hit this block). On a healthy branch the same call stays blocked.
+            repair=false
+            if [[ ${#sub_args[@]} -eq 2 && "${sub_args[0]}" == refs/heads/* && "${sub_args[0]}" != -* && "${sub_args[1]}" != -* ]]; then
+                rg() { (cd -- "$probe" 2>/dev/null && "$REAL_GIT" -c safe.directory='*' "$@" 2>/dev/null); }
+                cur=$(rg rev-parse --verify -q "${sub_args[0]}") || cur=""
+                if [[ -n "$cur" ]] && ! rg cat-file -e "${cur}^{commit}" && rg cat-file -e "${sub_args[1]}^{commit}"; then
+                    repair=true
+                    echo "[git-guard] repair: ${sub_args[0]} points to an unreadable object ${cur:0:12} -> allowing it to be moved to ${sub_args[1]:0:12}" >&2
+                fi
+            fi
+            $repair || block ;;
+        tag)      nhas -d && block ;;                                                  # release tags
+        worktree) [[ "${norm[0]:-}" == remove ]] && nhas -f && block ;;
+    esac
+fi
+
+# ── 3: a project under the release queue - master moves only through the queue. "Under the releaser" = the releaser already keeps
+# state for the project (<state>/<Project>.json). The releaser itself merges with the real git, bypassing this wrapper.
+if $proj_repo; then
+    pname=$(resolve "$common"); pname=${pname%/.git}; ptop=$pname; pname=$(basename -- "$pname")
+    if [[ -e "$RELEASE_STATE/$pname.json" ]]; then
+        block_master() {
+            cat >&2 <<MSG
+[git-guard] BLOCKED: "git $subcmd ${sub_args[*]:-}" moves master in $pname, which is under the release queue.
+Why: in a project under the release queue only the queue changes master - code and documents alike - so two writers never
+race in one tree and nothing reaches master without the gate.
+What to do instead: commit on your own branch or worktree, then run  $CLAUDE_DIR/scripts/releaser.py ready <agent> "<what is done>"
+- the releaser runs the gate and merges it itself.
+MSG
+            exit 88
+        }
+        rg2() { (cd -- "$probe" 2>/dev/null && "$REAL_GIT" -c safe.directory='*' "$@" 2>/dev/null); }
+        tomaster() { local f; for f in "${sub_args[@]:-}"; do [[ "$f" == *:master || "$f" == *:refs/heads/master || "$f" == +*:master ]] && return 0; done; return 1; }
+        case "$subcmd" in
+            push|fetch) tomaster && block_master ;;
+            update-ref) for f in "${sub_args[@]:-}"; do [[ "$f" == refs/heads/master ]] && block_master; done ;;
+            branch)     if nhas -f || nhas -M || nhas -C; then for f in "${sub_args[@]:-}"; do [[ "$f" == master ]] && block_master; done; fi ;;
+        esac
+        if [[ "$(rg2 rev-parse --show-toplevel)" == "$ptop" && "$(rg2 symbolic-ref --short -q HEAD)" == master ]]; then
+            case "$subcmd" in
+                commit|merge|cherry-pick|revert|am|pull|rebase) block_master ;;
+                reset)  for f in "${norm[@]:-}"; do case "$f" in --hard|--soft|--mixed|--keep|--merge) block_master ;; esac; done
+                        # "reset HEAD~1" without a flag also moves master; "reset -- file" / "reset HEAD file" only unstages
+                        pos=(); dd=false; for f in "${sub_args[@]:-}"; do [[ "$f" == -- ]] && { dd=true; break; }; [[ "$f" != -* ]] && pos+=("$f"); done
+                        if ! $dd && [[ ${#pos[@]} -eq 1 && ! -e "$probe/${pos[0]}" ]] && rg2 rev-parse --verify -q "${pos[0]}^{commit}" >/dev/null; then
+                            block_master; fi ;;
+            esac
+        fi
+    fi
+fi
+
+exec "$REAL_GIT" "$@"

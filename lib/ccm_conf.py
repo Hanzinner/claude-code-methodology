@@ -38,6 +38,11 @@ DEFAULTS = {
     "CCM_INPUT_GUARD_MUTE": os.path.join(HOME, ".claude", "input-guard-mute.txt"),
     "CCM_TRASH_LIMIT_GB": "3",                        # trash-guard: warn above this size
     "CCM_TRASH_BOARD": os.path.join(HOME, ".claude", "trash-guard", "board.md"),
+    "CCM_PROJECTS_GLOB": "Project-*",                 # project folders in the workspace (one repo each)
+    "CCM_ALARM_MODE_DIR": os.path.join(HOME, ".claude", "alarm-mode"),   # per-agent alarm mode: off/once/auto/always
+    "CCM_WORK_GUARD_AGENTS": "",                      # file: agents that must not stop with open work; empty = guard off
+    "CCM_STATUS_GUARD_AGENTS": "",                    # coordinators whose story-state claims need a source run; empty = off
+    "CCM_RELEASER_STATE": "/var/lib/ccm-release",     # release queue state (only with install.sh --with-releaser)
     "CCM_LANG_EXTRA": "",                             # extra phrase lists the detectors also match (besides English)
 }
 

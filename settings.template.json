@@ -34,6 +34,10 @@
           {
             "type": "command",
             "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/trash-guard.py\" --pre"
+          },
+          {
+            "type": "command",
+            "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/inbox-wait-timeout.py\""
           }
         ]
       },
@@ -64,11 +68,24 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Bash|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/foreign-inbox-gate.py\""
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
+          {
+            "type": "command",
+            "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/briefing-watchman.sh\""
+          },
           {
             "type": "command",
             "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/check-prompt-gap.sh\""
@@ -80,6 +97,10 @@
           {
             "type": "command",
             "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/order-capture-hint.sh\""
+          },
+          {
+            "type": "command",
+            "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/remind-hint.sh\""
           }
         ]
       }
@@ -118,6 +139,14 @@
           {
             "type": "command",
             "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/input-guard.py\" --post"
+          },
+          {
+            "type": "command",
+            "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/inbox-delta-hint.py\""
+          },
+          {
+            "type": "command",
+            "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/agent-status.py\""
           }
         ]
       },
