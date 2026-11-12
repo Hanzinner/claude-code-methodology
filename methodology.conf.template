@@ -8,6 +8,9 @@ CCM_HUMAN_NAME="__HUMAN_NAME__"
 # Root folder the agents work in: agent folders, the mistakes journal, shared docs.
 CCM_WORKSPACE="__WORKSPACE__"
 
+# One folder per agent (briefing, inbox, own todo, the human's todo). Empty = <workspace>/Agents.
+CCM_AGENTS_DIR=""
+
 # "Delete" means move here. Its own folder — not your desktop/macOS trash.
 # Files older than CCM_TRASH_DAYS are removed ONLY if you enabled cleanup (install.sh --enable-cleanup).
 CCM_TRASH_DIR="__TRASH_DIR__"
