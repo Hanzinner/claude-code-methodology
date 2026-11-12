@@ -57,6 +57,15 @@ for d in sorted(os.listdir(f"{REPO}/skills")):
         check(os.path.isfile(f"{target}/skills/{d}/SKILL.md"), f"skills/{d}", "run ./install.sh")
 for f in files("code-pitfalls", (".md",)):
     check(os.path.isfile(f"{target}/code-pitfalls/{f}"), f"code-pitfalls/{f}", "run ./install.sh")
+for f in files("lib", (".py",)):
+    check(os.path.isfile(f"{target}/lib/{f}"), f"lib/{f}", "run ./install.sh")
+for f in files("mcp", (".py",)):
+    check(os.path.isfile(f"{target}/mcp/{f}"), f"mcp/{f}", "run ./install.sh")
+for sub in ("bin", "tests"):
+    for f in files(sub, ("",)):
+        p = f"{target}/{sub}/{f}"
+        check(os.path.isfile(p) and os.access(p, os.X_OK), f"{sub}/{f}", "missing or not executable: run ./install.sh")
+check(os.path.isfile(f"{target}/methodology.conf"), "methodology.conf", "run ./install.sh")
 check(os.path.isfile(f"{target}/memory/MEMORY.md"), "memory/MEMORY.md", "run ./install.sh")
 
 settings = f"{target}/settings.json"
@@ -69,13 +78,18 @@ except Exception as e:
 
 if s is not None:
     tmpl = json.load(open(f"{REPO}/settings.template.json"))
-    want = {(ev, shlex.split(h["command"])[-1].rsplit("/", 1)[-1])
+    def hook_id(cmd):
+        """script name + its own args: 'trash-guard.py --post' and 'input-guard.py --post' are different hooks"""
+        t = shlex.split(cmd)
+        i = max((k for k, w in enumerate(t) if w.endswith((".py", ".sh"))), default=len(t) - 1)
+        return " ".join([t[i].rsplit("/", 1)[-1], *t[i + 1:]])
+    want = {(ev, hook_id(h["command"]))
             for ev, gs in tmpl["hooks"].items() for g in gs for h in g["hooks"]}
     have = {}
     for ev, gs in (s.get("hooks") or {}).items():
         for g in gs:
             for h in g.get("hooks", []):
-                have[(ev, shlex.split(h["command"])[-1].rsplit("/", 1)[-1])] = h["command"]
+                have[(ev, hook_id(h["command"]))] = h["command"]
     sample = {"session_id": "check-install", "transcript_path": "/nonexistent", "cwd": os.getcwd(),
               "tool_name": "Read", "tool_input": {"file_path": "x.txt", "command": "ls"},
               "prompt": "hi", "trigger": "manual", "error": "Exit code 2"}
