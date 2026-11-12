@@ -1,6 +1,6 @@
 # Case study: seeing without understanding
 
-An observation from a real session — building a video-breakdown skill (`/edit`, private — not in this repo). The user showed a fan-edit about the September 1973 Chilean coup, scored to a Víctor Jara song. The agent failed both identifications.
+An observation from a real session — building the video-breakdown skill (`/edit`, in `skills/edit/`). The user showed a fan-edit about the September 1973 Chilean coup, scored to a Víctor Jara song. The agent failed both identifications.
 
 Documenting because it captures a boundary that recurs across culturally-specific visual work: the agent sees the pixels, but doesn't recognize what they are.
 
