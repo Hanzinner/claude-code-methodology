@@ -152,9 +152,10 @@ fi
 
 # ---- backup existing -----------------------------------------------------
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-backup_if_exists() {
-  local path="$1"
+backup_if_exists() {  # backup_if_exists <installed path> [repo source] — no backup when it is identical to the source
+  local path="$1" src="${2:-}"
   if [[ -e "$path" ]]; then
+    [[ -n "$src" ]] && diff -rq "$src" "$path" >/dev/null 2>&1 && return 0
     do_or_show cp -a "$path" "${path}.bak-${TIMESTAMP}"
     warn "backed up existing $path → ${path}.bak-${TIMESTAMP}"
   fi
@@ -181,7 +182,7 @@ say "Copying hooks…"
 for f in "$REPO_DIR"/hooks/*.sh "$REPO_DIR"/hooks/*.py; do
   [[ -f "$f" ]] || continue
   name=$(basename "$f")
-  backup_if_exists "$TARGET/hooks/$name"
+  backup_if_exists "$TARGET/hooks/$name" "$f"
   do_or_show cp "$f" "$TARGET/hooks/$name"
   do_or_show chmod +x "$TARGET/hooks/$name"
 done
@@ -190,7 +191,7 @@ say "Copying scripts…"
 for f in "$REPO_DIR"/scripts/*; do
   [[ -f "$f" ]] || continue
   name=$(basename "$f")
-  backup_if_exists "$TARGET/scripts/$name"
+  backup_if_exists "$TARGET/scripts/$name" "$f"
   do_or_show cp "$f" "$TARGET/scripts/$name"
   case "$name" in *.sh|*.py) do_or_show chmod +x "$TARGET/scripts/$name" ;;
     *.md|*.txt) ;;
@@ -205,7 +206,7 @@ done
 for f in "$REPO_DIR"/bin/*; do
   [[ -f "$f" ]] || continue
   name=$(basename "$f")
-  backup_if_exists "$TARGET/bin/$name"
+  backup_if_exists "$TARGET/bin/$name" "$f"
   do_or_show cp "$f" "$TARGET/bin/$name"
   do_or_show chmod +x "$TARGET/bin/$name"
 done
@@ -235,8 +236,15 @@ say "Copying skills…"
 for d in "$REPO_DIR"/skills/*/; do
   [[ -d "$d" ]] || continue
   name=$(basename "$d")
-  backup_if_exists "$TARGET/skills/$name"
-  do_or_show cp -r "$d" "$TARGET/skills/$name"
+  # a backup must NOT stay in skills/: Claude Code loads every folder there, so skills/x.bak-* = a duplicate skill
+  if [[ -d "$TARGET/skills/$name" ]] && ! diff -rq "$d" "$TARGET/skills/$name" >/dev/null 2>&1; then
+    bk="$TARGET/.methodology-installed/backups/$TIMESTAMP/skills"
+    do_or_show mkdir -p "$bk"
+    do_or_show cp -a "$TARGET/skills/$name" "$bk/$name"
+    warn "backed up your changed skills/$name → $bk/$name"
+  fi
+  do_or_show mkdir -p "$TARGET/skills/$name"
+  do_or_show cp -r "$d." "$TARGET/skills/$name/"   # "$d." — copy the contents; "$d" into an existing dir nests it
 done
 
 say "Copying code pitfalls…"
