@@ -51,6 +51,16 @@ cd claude-code-methodology
 
 You can hand the repo to your own agent and say "install this": it runs `./install.sh` like a person would.
 
+**Asking an agent to install it.** Paste this into Claude Code (any folder):
+
+> Install https://github.com/Hanzinner/claude-code-methodology for me. Clone it into ~/claude-code-methodology,
+> read its README, then run `./install.sh --user` (it takes defaults when nobody answers; that is fine).
+> Show me the last lines of its output and tell me which of my existing files it backed up or kept
+> (`*.bak-*`, `CLAUDE.md.new`). Then tell me to restart Claude Code.
+
+Want it for one project only: say `--project <path>` instead of `--user`. The optional extras (system
+packages for PDF/HTML extraction, the Telegram bot) are off by default; ask the agent for them separately.
+
 **Updating** as new layers land: `git pull && ./install.sh` again. Your memory, your own code lessons, your
 permissions, env, model and your own hooks in `settings.json` are kept (only the hook entries that point
 into the installed `hooks/` are replaced). If you edited `CLAUDE.md`, it is kept and the new version is
