@@ -15,6 +15,7 @@
 #   --workspace DIR              # folder the agents work in (journal, agent folders)
 #   --timezone ZONE              # IANA zone for timestamps, e.g. Europe/Berlin
 #   --no-verify                  # skip running the installed tests at the end
+#   --enable-cleanup             # also schedule deleting trash items older than CCM_TRASH_DAYS (off by default)
 #
 # Machine-specific settings go to <install dir>/methodology.conf (kept on re-run).
 #
@@ -28,6 +29,7 @@ SCOPE=""
 PROJECT_DIR=""
 YES=0
 VERIFY=1
+CLEANUP=0
 OPT_NAME=""
 OPT_WORKSPACE=""
 OPT_TZ=""
@@ -41,6 +43,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)     DRY_RUN=1 ;;
     --yes|-y)      YES=1 ;;
     --no-verify)   VERIFY=0 ;;
+    --enable-cleanup) CLEANUP=1 ;;
     --name|--workspace|--timezone)
                    [[ $# -ge 2 ]] || { echo "install.sh: $1 requires a value" >&2; exit 2; }
                    case "$1" in --name) OPT_NAME="$2" ;; --workspace) OPT_WORKSPACE="$2" ;; --timezone) OPT_TZ="$2" ;; esac
@@ -127,7 +130,7 @@ else
   C_NAME="${OPT_NAME:-$(ask "Your name — agents address their hints to it" "$def_name")}"
   C_WS="${OPT_WORKSPACE:-$(ask "Workspace folder (agent folders, mistakes journal)" "$def_ws")}"
   C_TZ="${OPT_TZ:-$(ask "Time zone (IANA, empty = system)" "$def_tz")}"
-  C_TRASH="$HOME/.Trash"
+  C_TRASH="$HOME/.claude-trash"
   C_SECRETS="$HOME/.config/claude-secrets"
   if [[ $DRY_RUN -eq 1 ]]; then
     echo "  DRY: would write $CONF (name=$C_NAME, workspace=$C_WS, timezone=$C_TZ)"
@@ -351,13 +354,21 @@ fi
 CRON_BEGIN="# >>> claude-code-methodology ($TARGET)"
 CRON_END="# <<< claude-code-methodology ($TARGET)"
 q() { printf '%q' "$1"; }
+# Nothing that DELETES is scheduled unless asked: trash cleanup needs --enable-cleanup or a "y" here.
+if [[ $CLEANUP -eq 0 && $YES -eq 0 ]]; then
+  yn=$(ask "Delete trash items older than the age limit automatically, daily? (y/N)" "N")
+  [[ "$yn" =~ ^[Yy]$ ]] && CLEANUP=1
+fi
 CRON_LINES="$CRON_BEGIN
 */10 * * * * python3 $(q "$TARGET/hooks/trash-guard.py") --measure >/dev/null 2>&1
-35 4 * * * python3 $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1
-55 * * * * python3 $(q "$TARGET/hooks/abbr-guard.py") --build-vocab >/dev/null 2>&1
+55 * * * * python3 $(q "$TARGET/hooks/abbr-guard.py") --build-vocab >/dev/null 2>&1"
+[[ $CLEANUP -eq 1 ]] && CRON_LINES="$CRON_LINES
+35 4 * * * python3 $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1"
+CRON_LINES="$CRON_LINES
 $CRON_END"
 echo
-say "Scheduled jobs: trash size/cleanup, abbreviation vocabulary"
+if [[ $CLEANUP -eq 1 ]]; then say "Scheduled jobs: trash size, trash cleanup (on), abbreviation vocabulary"
+else say "Scheduled jobs: trash size, abbreviation vocabulary (trash cleanup off — enable with --enable-cleanup)"; fi
 if [[ $DRY_RUN -eq 1 ]]; then
   printf '  DRY: would put into crontab:\n%s\n' "$CRON_LINES"
 elif command -v crontab >/dev/null 2>&1; then

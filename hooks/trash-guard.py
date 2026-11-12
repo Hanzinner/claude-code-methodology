@@ -217,8 +217,9 @@ KEEP_DAYS = float(conf("CCM_TRASH_DAYS", "14"))
 def clean(dry):
     import shutil
     real = os.path.realpath(TRASH)
-    # safety: clean only a folder named .Trash that lies no closer than /x/y/.Trash; not a symlink
-    if os.path.basename(real) != ".Trash" or real.count("/") < 3 or os.path.islink(TRASH) or not os.path.isdir(real):
+    # safety: clean only a folder whose name says it is a trash (.Trash, .claude-trash) that lies no closer than
+    # /x/y/<it>; not a symlink — a misconfigured CCM_TRASH_DIR=$HOME must not get emptied
+    if "trash" not in os.path.basename(real).lower() or real.count("/") < 3 or os.path.islink(TRASH) or not os.path.isdir(real):
         print(f"trash-guard --clean: \"{TRASH}\" does not look like a trash folder - touching nothing", file=sys.stderr); return 2
     cut = time.time() - KEEP_DAYS * 86400
     sizes = jread(f"{ST}/state.json", {}).get("sizes") or {}
