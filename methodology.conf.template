@@ -31,3 +31,13 @@ CCM_SUBAGENT_DEFAULT_MODEL=sonnet
 
 # Detectors match English phrases; this adds another language's phrase lists (uk = Ukrainian; empty = English only), e.g. CCM_LANG_EXTRA=uk.
 CCM_LANG_EXTRA=""
+
+# ---- finer settings of single mechanisms (defaults are fine to start) ----
+CCM_TRASH_LIMIT_GB=3                    # trash-guard warns when the trash grows above this
+CCM_TRASH_BOARD=""                      # where trash-guard writes its "trash is big" note; empty = ~/.claude/trash-guard/board.md
+CCM_ALARM_SCRIPTS=""                    # selfkill-gate: script names (comma-separated) that must run as background tasks, never detached with & / nohup
+CCM_COORDINATOR_PATTERN="HQ|Coordinator|Orchestrator"   # order-capture-hint: agent names that hand out work
+CCM_COST_UNITS_PER_PCT=""               # cost-guard: how many cost units make 1% of your session limit; empty = cost-guard stays silent
+CCM_DRAFT_GUARD_SKIP=""                 # draft-guard: agent names (comma-separated) whose English drafts are not checked
+CCM_EXTERNAL_DIRS=""                    # input-guard: workspace folders (comma-separated) whose files come from outside
+CCM_INPUT_GUARD_MUTE=""                 # input-guard: file with agent names to only log, not hint; empty = ~/.claude/input-guard-mute.txt
