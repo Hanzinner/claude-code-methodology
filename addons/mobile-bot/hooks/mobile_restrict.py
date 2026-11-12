@@ -29,8 +29,12 @@ SECRET_DIRS = [f"{HOME}/.claude/secrets", f"{HOME}/.claude/projects", f"{HOME}/.
                "/etc/sudoers", "/etc/sudoers.d"] + (["/root"] if HOME != "/root" else [])
 SECRET_RE = re.compile(r"(\.pem|\.key|\.p12|\.pfx|\.kdbx|\.jks)$|(^|/)\.env(\.[^/]*)?$|credential"
                        r"|(^|/)id_(rsa|ed25519|ecdsa|dsa)|_ed25519$|(^|/)\.credentials"
-                       r"|(^|/)\.(netrc|npmrc|pypirc|pgpass|git-credentials)$", re.I)
-PROTECTED_RE = re.compile(r"/\.git(/|$)|/\.claude/(hooks|mobile-bot|settings)|/secrets/")
+                       r"|(^|/)\.(netrc|npmrc|pypirc|pgpass|git-credentials)$|(^|/)\.claude\.json", re.I)
+# ~/.claude is closed as a whole except these: history, config backups and file snapshots can't be listed
+CLAUDE_HOME = f"{HOME}/.claude"
+CLAUDE_OK = (f"{HOME}/.claude/scripts", f"{HOME}/.claude/skills")
+PROTECTED_RE = re.compile(r"/\.git(/|$)|/\.claude/(hooks|mobile-bot|settings|agents|commands|skills|rules|output-styles)"
+                          r"|/secrets/|/CLAUDE(\.local)?\.md$")
 CWD = os.getcwd()
 
 
@@ -47,6 +51,9 @@ def absp(p):
 def is_secret(p, recursive=False):
     a = absp(p)
     if any(a == s or a.startswith(s + "/") for s in SECRET_DIRS):
+        return True
+    inside = lambda d: a == d or a.startswith(d + "/")
+    if inside(CLAUDE_HOME) and not inside(ADDON) and not any(inside(k) for k in CLAUDE_OK):
         return True
     # A recursive read (grep -r, Grep, Glob, tree, ls -R) from an ANCESTOR of a zone walks into it.
     if recursive and any(s.startswith(a.rstrip("/") + "/") for s in SECRET_DIRS):
@@ -89,56 +96,111 @@ def split_unquoted(cmd):
     return [s.strip() for s in segs], meta
 
 
-def grep_paths(args):
-    """grep's path arguments: everything but the pattern, which -e or the first positional gives."""
-    paths, pattern_given, positional, take = [], False, [], None
-    for a in args:
-        if take:
-            if take == "f": paths.append(a)
-            pattern_given = True     # -f FILE supplies the pattern too; positionals are then paths
-            take = None
-        elif a in ("--regexp", "--file"):
-            take = a[2]
-        elif a.startswith("--regexp="):
-            pattern_given = True
-        elif a.startswith("--") and "=" in a:
-            paths.append(a.split("=", 1)[1])
-        elif a.startswith("-") and not a.startswith("--") and len(a) > 1:
-            cut = next((n for n, c in enumerate(a) if c in "ef"), None)   # -ie PAT, -if FILE, -fFILE
-            if cut is not None:
-                rest = a[cut + 1:]
-                if a[cut] == "f" and rest:
-                    paths.append(rest)
-                pattern_given = pattern_given or bool(rest)
-                take = None if rest else a[cut]
-        elif not a.startswith("--") or a == "--":
-            positional.append(a)
-    return paths + (positional if pattern_given else positional[1:])
+# Flags are an ALLOWLIST too. A list of forbidden flags was bypassed by `sort -uo`, `sort --outp=`,
+# `sort --compress-program=sh` (runs code), `uniq - OUT`, `grep -d recurse`, `date -f FILE`.
+# GNU accepts flag clusters and abbreviated long options, so an unknown flag is refused and
+# abbreviations are not accepted.
+# tool: (letters without a value, letters taking a value, long without value, long with value)
+FLAGS = {
+    "ls":     ("alhtrSR1Fd", "", {"--all"}, set()),
+    "grep":   ("inrlLcvwEFHhosx", "ABCmef", {"--recursive", "--ignore-case", "--line-number", "--count"},
+               {"--regexp", "--file", "--include", "--exclude", "--exclude-dir"}),
+    "cat":    ("nbsAETvet", "", set(), set()),
+    "head":   ("qv", "nc", set(), {"--lines", "--bytes"}),
+    "tail":   ("qv", "nc", set(), {"--lines", "--bytes"}),
+    "wc":     ("lwcmL", "", set(), set()),
+    "sort":   ("bdfgiMnrVuh", "kt", set(), set()),
+    "uniq":   ("cdui", "fsw", set(), set()),
+    "du":     ("hsac", "d", set(), {"--max-depth"}),
+    "df":     ("hTi", "", set(), set()),
+    "stat":   ("Lt", "c", set(), set()),
+    "file":   ("biLz", "", set(), set()),
+    "which":  ("a", "", set(), set()),
+    "tree":   ("adfh", "LI", {"--noreport"}, set()),
+    "date":   ("uR", "d", set(), set()),
+    "pwd":    ("", "", set(), set()),
+    "whoami": ("", "", set(), set()),
+    "git":    ("ps", "n", {"--oneline", "--stat", "--shortstat", "--name-only", "--name-status", "--short",
+                           "--porcelain", "--graph", "--all", "--decorate", "--cached", "--staged", "--no-color"},
+               {"--since", "--until", "--author", "--grep", "--pretty", "--format"}),
+}
+
+
+def parse_args(head, args):
+    """-> (operands, {flag: [values]}). An unknown flag is refused."""
+    simple, val, lng, lngval = FLAGS[head]
+    ops, vals, i, dd = [], {}, 0, False
+    while i < len(args):
+        a = args[i]; i += 1
+        if dd or a == "-" or not a.startswith("-"):
+            ops.append(a)
+        elif a == "--":
+            dd = True
+        elif a.startswith("--"):
+            name, eq, v = a.partition("=")
+            if name in lng and not eq:
+                vals.setdefault(name, [])
+            elif name in lngval:
+                if not eq:
+                    if i >= len(args) or name in ("--pretty", "--format"):   # git takes these only with =
+                        deny(f"{head} {name}: no value")
+                    v = args[i]; i += 1
+                vals.setdefault(name, []).append(v)
+            else:
+                deny(f"{head}: flag {name} is not allowed from mobile")
+        elif re.fullmatch(r"-\d+", a) and head in ("head", "tail", "git"):
+            pass
+        else:
+            for n, c in enumerate(a[1:], 1):
+                if c in val:
+                    v = a[n + 1:]
+                    if not v:
+                        if i >= len(args):
+                            deny(f"{head} -{c}: no value")
+                        v = args[i]; i += 1
+                    vals.setdefault("-" + c, []).append(v)
+                    break
+                if c not in simple:
+                    deny(f"{head}: flag -{c} is not allowed from mobile")
+    return ops, vals
 
 
 def check_args(argv):
-    if argv[0] == "echo":   # text only
+    head, args = argv[0], argv[1:]
+    if head == "echo":   # text only
         return
-    flags = [x for x in argv[1:] if x.startswith("-")]
-    rec = (argv[0] in ("tree", "du")
-           or (argv[0] in ("grep", "ls") and any(f in ("--recursive", "-R", "-r", "--dereference-recursive")
-                                                  or (not f.startswith("--") and ("r" in f or "R" in f)) for f in flags)))
-    if argv[0] == "grep":
-        args = grep_paths(argv[1:])
-    else:
-        args = []
-        for a in argv[1:]:
-            if a.startswith("-") and "=" in a:
-                a = a.split("=", 1)[1]
-            elif a.startswith("-") and not a.startswith("--"):
-                # value glued to short flags (-rf/path): from its first / or ~
-                a = a[min((n for n in (a.find("/"), a.find("~")) if n >= 0), default=len(a)):]
-            if a and not a.startswith("-"):
-                args.append(a)
-    if rec and not [a for a in args if a]:
-        args = ["."]    # no path given: a recursive tool walks the working dir
-    for a in args:
-        if a and is_secret(a, recursive=rec):
+    if head == "git":
+        args = args[1:]
+    for a in args:      # the shell expands ~- and ~+ to OLDPWD/PWD; expanduser doesn't
+        if a.startswith("~") and a != "~" and not a.startswith("~/"):
+            deny(f"the form {a} is not allowed")
+    if head not in FLAGS:   # our own scripts (OSM): no flag parsing, paths only
+        for a in args:
+            if not a.startswith("-") and is_secret(a):
+                deny(f"argument in a secret zone ({absp(a)})")
+        return
+    ops, vals = parse_args(head, args)
+    if head == "uniq" and len(ops) > 1:
+        deny("uniq IN OUT writes a file")     # `-` is an operand too
+    if head == "date":
+        if any(not o.startswith("+") for o in ops):
+            deny("date: only +FORMAT")
+        return
+    if head == "grep":
+        files = vals.get("-f", []) + vals.get("--file", [])
+        if not (files or vals.get("-e") or vals.get("--regexp")):
+            ops = ops[1:]    # the first operand is the pattern
+        ops = files + ops
+    if head == "git":
+        ops = ops + [o.split(":", 1)[1] for o in ops if ":" in o]   # HEAD:.env is a path too
+    rec = (head in ("tree", "du")
+           or (head == "grep" and "--recursive" in vals)
+           or (head == "grep" and any(re.fullmatch(r"-[a-zA-Z]*r[a-zA-Z]*", x) for x in args))
+           or (head == "ls" and any(re.fullmatch(r"-[a-zA-Z0-9]*[rR][a-zA-Z0-9]*", x) for x in args)))
+    if rec and not ops:
+        ops = ["."]     # no path given: a recursive tool walks the working dir
+    for a in ops:
+        if a != "-" and is_secret(a, recursive=rec):
             deny(f"argument in a secret zone ({absp(a)})")
 
 
@@ -164,14 +226,6 @@ def check_bash(cmd):
             deny(f"'{head}' is not on the mobile allowlist")
         if head == "git" and (len(argv) < 2 or argv[1] not in GIT_OK or any(x.startswith("--output") for x in argv)):
             deny("git from mobile: only log/status/diff/show, no options before the subcommand, no --output")
-        if head == "sort" and any(x == "--output" or x.startswith(("--output=", "-o")) for x in argv[1:]):
-            deny("sort -o writes a file")
-        if head == "tree" and any(x.startswith(("-o", "--output")) for x in argv[1:]):
-            deny("tree -o writes a file")
-        if head == "uniq" and len([x for x in argv[1:] if not x.startswith("-")]) > 1:
-            deny("uniq IN OUT writes a file")
-        if head == "date" and any(x == "--set" or x.startswith(("--set=", "-s")) for x in argv[1:]):
-            deny("date -s changes the clock")
         check_args(argv)
 
 
