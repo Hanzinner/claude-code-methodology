@@ -49,6 +49,16 @@ cd claude-code-methodology
 
 `install.sh` detects `claude`, asks for scope (user `~/.claude/` or project `<dir>/.claude/`), copies `hooks/`, `scripts/`, `skills/`, `code-pitfalls/` (your own lessons are kept), `CLAUDE.md`, `memory-template/`, generates `settings.json` with hook paths, offers system deps and the mobile-bot addon. Existing files are backed up to `*.bak-<timestamp>`.
 
+You can hand the repo to your own agent and say "install this": it runs `./install.sh` like a person would.
+
+**What it sets up today, and what not yet** (as of 2026-11; the goal is the whole private setup with one command, built layer by layer):
+
+| Layer | Installed by `install.sh` today | In the repo, set up by hand | Not in the repo yet |
+|---|---|---|---|
+| One agent | `CLAUDE.md`, 14 hooks, scripts, `/recap` `/audit`, memory template, code lessons | mobile bot (offered by the installer), offsite backup (`addons/offsite-backup/`) | most of the private guards on replies (about 30 more) |
+| A swarm of agents | — | `multi-agent/` (inbox writer, briefing watchman, git wrapper, session hygiene), `swarm-template/` (journal, registry, catalog, agent folder) | project bootstrap, releaser, blocker register |
+| Upkeep | — | — | watchdog over all mechanisms, nightly reconciliations, the panel |
+
 ## Layout
 
 | Path | What |
@@ -58,6 +68,7 @@ cd claude-code-methodology
 | `scripts/` | Utilities called from hooks, skills, or directly |
 | `skills/` | Slash commands (`/recap`, `/audit`) |
 | `memory-template/` | Seed for `memory/` (trigger index + 4 type examples) |
+| `swarm-template/` | Empty shared files for a swarm: mistakes journal with the classes that repeated, agent registry, mechanism catalog, one agent's folder |
 | `code-pitfalls/` | Technical lessons already paid for, one file per technology — shown to the agent before it edits that kind of code |
 | `mcp/` | Setup notes for MCP servers |
 | `addons/mobile-bot/` | Optional Telegram bridge |
