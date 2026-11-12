@@ -16,6 +16,8 @@
 #   --timezone ZONE              # IANA zone for timestamps, e.g. Europe/Berlin
 #   --no-verify                  # skip running the installed tests at the end
 #   --enable-cleanup             # also schedule deleting trash items older than CCM_TRASH_DAYS (off by default)
+#   --with-releaser              # (root) release queue: a system user merges into master after gates; cron as root
+#   --with-git-guard             # put a git wrapper first in PATH: blocks destructive git in the shared workspace
 #
 # Machine-specific settings go to <install dir>/methodology.conf (kept on re-run).
 #
@@ -30,6 +32,8 @@ PROJECT_DIR=""
 YES=0
 VERIFY=1
 CLEANUP=0
+WITH_RELEASER=0
+WITH_GIT_GUARD=0
 OPT_NAME=""
 OPT_WORKSPACE=""
 OPT_TZ=""
@@ -44,6 +48,8 @@ while [[ $# -gt 0 ]]; do
     --yes|-y)      YES=1 ;;
     --no-verify)   VERIFY=0 ;;
     --enable-cleanup) CLEANUP=1 ;;
+    --with-releaser) WITH_RELEASER=1 ;;
+    --with-git-guard) WITH_GIT_GUARD=1 ;;
     --name|--workspace|--timezone)
                    [[ $# -ge 2 ]] || { echo "install.sh: $1 requires a value" >&2; exit 2; }
                    case "$1" in --name) OPT_NAME="$2" ;; --workspace) OPT_WORKSPACE="$2" ;; --timezone) OPT_TZ="$2" ;; esac
@@ -259,6 +265,23 @@ for f in "$REPO_DIR"/code-pitfalls/*.md; do
   fi
 done
 
+# ---- shared swarm files in the workspace (only what is missing; your files are never overwritten) ----
+say "Swarm files in the workspace…"
+if [[ $DRY_RUN -eq 1 ]]; then
+  echo "  DRY: would copy missing files of swarm-template/ into the workspace and <agents dir>/_example-agent/"
+else
+  WS=$(python3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE); AG=$(python3 "$TARGET/lib/ccm_conf.py" CCM_AGENTS_DIR)
+  added=0
+  while IFS= read -r -d '' f; do
+    rel=${f#"$REPO_DIR/swarm-template/"}
+    [[ "$rel" == README.md ]] && continue
+    case "$rel" in Agents/*) dst="$AG/${rel#Agents/}" ;; *) dst="$WS/$rel" ;; esac
+    [[ -e "$dst" ]] && continue
+    mkdir -p "$(dirname "$dst")" && cp "$f" "$dst" && added=$((added + 1))
+  done < <(find "$REPO_DIR/swarm-template" -type f -print0)
+  ok "workspace $WS: $added file(s) added from swarm-template (existing ones kept)"
+fi
+
 say "Copying memory template…"
 if [[ ! -f "$TARGET/memory/MEMORY.md" ]]; then
   do_or_show cp -r "$REPO_DIR/memory-template/"* "$TARGET/memory/"
@@ -369,14 +392,16 @@ if [[ $CLEANUP -eq 0 && $YES -eq 0 ]]; then
 fi
 CRON_LINES="$CRON_BEGIN
 */10 * * * * python3 $(q "$TARGET/hooks/trash-guard.py") --measure >/dev/null 2>&1
-55 * * * * python3 $(q "$TARGET/hooks/abbr-guard.py") --build-vocab >/dev/null 2>&1"
+55 * * * * python3 $(q "$TARGET/hooks/abbr-guard.py") --build-vocab >/dev/null 2>&1
+* * * * * python3 $(q "$TARGET/scripts/remind.py") --fire >/dev/null 2>&1
+*/15 * * * * python3 $(q "$TARGET/scripts/blockers.py") run >/dev/null 2>&1"
 [[ $CLEANUP -eq 1 ]] && CRON_LINES="$CRON_LINES
 35 4 * * * python3 $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1"
 CRON_LINES="$CRON_LINES
 $CRON_END"
 echo
-if [[ $CLEANUP -eq 1 ]]; then say "Scheduled jobs: trash size, trash cleanup (on), abbreviation vocabulary"
-else say "Scheduled jobs: trash size, abbreviation vocabulary (trash cleanup off — enable with --enable-cleanup)"; fi
+if [[ $CLEANUP -eq 1 ]]; then say "Scheduled jobs: trash size, trash cleanup (on), abbreviation vocabulary, reminders, blocker checks"
+else say "Scheduled jobs: trash size, abbreviation vocabulary, reminders, blocker checks (trash cleanup off — enable with --enable-cleanup)"; fi
 if [[ $DRY_RUN -eq 1 ]]; then
   printf '  DRY: would put into crontab:\n%s\n' "$CRON_LINES"
 elif command -v crontab >/dev/null 2>&1; then
@@ -385,6 +410,19 @@ elif command -v crontab >/dev/null 2>&1; then
 else
   warn "no crontab on this machine — add these lines to your scheduler by hand:"
   printf '%s\n' "$CRON_LINES" >&2
+fi
+
+# ---- optional system parts (explicit flags only) -----------------------------
+if [[ $WITH_GIT_GUARD -eq 1 ]]; then
+  say "git guard (wrapper first in PATH)…"
+  if [[ $DRY_RUN -eq 1 ]]; then bash "$TARGET/scripts/setup-git-guard.sh" --dry-run || true
+  else bash "$TARGET/scripts/setup-git-guard.sh" --rc-file "$HOME/.bashrc" || warn "git guard setup failed — see above"; fi
+fi
+if [[ $WITH_RELEASER -eq 1 ]]; then
+  say "release queue (system user, state dir, root cron)…"
+  if [[ $DRY_RUN -eq 1 ]]; then bash "$TARGET/scripts/setup-releaser.sh" --dry-run --cron || true
+  elif [[ $(id -u) -eq 0 ]]; then bash "$TARGET/scripts/setup-releaser.sh" --cron || warn "releaser setup failed — see above"
+  else sudo bash "$TARGET/scripts/setup-releaser.sh" --owner "$(id -un)" --cron || warn "releaser setup needs root: sudo bash $TARGET/scripts/setup-releaser.sh --owner $(id -un) --cron"; fi
 fi
 
 # ---- verify: run the installed tests against the installed copies -----------
@@ -424,6 +462,7 @@ echo "  3) Read $REPO_DIR/docs/architecture.md"
 echo
 echo "To undo: in $TARGET, restore the *.bak-${TIMESTAMP} copies over the files they back up, and remove"
 echo "what this repo added (hooks/, scripts/, skills/, code-pitfalls/, lib/, bin/, mcp/, tests/, methodology.conf,"
+echo "(with --with-git-guard: scripts/setup-git-guard.sh --uninstall; with --with-releaser: /etc/cron.d/ccm-releaser and the releaser user)"
 echo ".methodology-installed/), the ~/.local/bin links to bin/ and the marked block in crontab -l."
 echo "Do NOT delete $TARGET as a whole: it also holds your own Claude Code settings, memory and history."
 [[ $TESTS_FAILED -eq 0 ]] || exit 3

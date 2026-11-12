@@ -18,8 +18,8 @@ SLOW=5
 t0=$(date +%s)
 skipped=()
 
-BLOCKING=(pause-guard)
-DETECTORS=(proof-guard reply-guard strawman-guard abbr-guard source-guard link-guard input-guard cost-guard draft-guard)
+BLOCKING=(pause-guard work-guard status-guard)
+DETECTORS=(proof-guard reply-guard strawman-guard abbr-guard source-guard link-guard input-guard cost-guard draft-guard remind-guard agent-status)
 
 left() { echo $(( BUDGET - ($(date +%s) - t0) )); }
 log() { echo "$(date -Iseconds) stop-dispatch/$*" >> "$ERRLOG" 2>/dev/null; }

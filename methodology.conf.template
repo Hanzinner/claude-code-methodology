@@ -44,3 +44,20 @@ CCM_COST_UNITS_PER_PCT=""               # cost-guard: how many cost units make 1
 CCM_DRAFT_GUARD_SKIP=""                 # draft-guard: agent names (comma-separated) whose English drafts are not checked
 CCM_EXTERNAL_DIRS=""                    # input-guard: workspace folders (comma-separated) whose files come from outside
 CCM_INPUT_GUARD_MUTE=""                 # input-guard: file with agent names to only log, not hint; empty = ~/.claude/input-guard-mute.txt
+
+# ---- several agents (layer 2) ----
+CCM_PROJECTS_GLOB="Project-*"           # project folders in the workspace, one repo each
+CCM_WORK_GUARD_AGENTS=""                # file with agent names (one per line) that must not stop with open work; empty = off
+CCM_STATUS_GUARD_AGENTS=""              # coordinator agents (comma-separated) whose "story is X / waiting for you" needs a source run; empty = off
+CCM_ALARM_MODE_DIR=""                   # per-agent alarm mode files; empty = ~/.claude/alarm-mode
+CCM_REMINDERS_DIR=""                    # remind.py queue; empty = ~/.claude/reminders
+CCM_CLAIMS_DIR=""                       # claim.sh locks with TTL; empty = ~/.claude/claims
+CCM_BLOCKERS_LEAD="{project}-HQ"        # agent told about a blocker whose check isn't approved
+CCM_INFRA_AGENT=""                      # agent told when the machine is low on memory (work-guard); empty = nobody
+CCM_SUPERVISOR_HEARTBEAT=""             # file a supervisor touches; the watchman warns when it is older than 1 h; empty = off
+CCM_CODING_STANDARD=""                  # coding standard with "**Version: N"; empty = <workspace>/CODING-STANDARD.md
+CCM_WORKTREES_DIR=""                    # agents' git worktrees; empty = <workspace>-wt
+# Release queue and git guard — only with install.sh --with-releaser / --with-git-guard:
+CCM_RELEASER_STATE="/var/lib/ccm-release"
+CCM_RELEASER_USER="releaser"
+CCM_GIT_GUARD_BLOCK_REMOTE=0            # 1 = also block remote add/set-url and push in the shared workspace repo
