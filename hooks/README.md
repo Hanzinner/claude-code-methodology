@@ -24,6 +24,6 @@ These turn a discipline-dependent rule into a mechanical gate. Each exists becau
 | `stuck-detector.py` | PostToolUse + PostToolUseFailure on `Bash` | 3 failed Bash calls in a row → "stop, look up how it's done". Written rule never followed; the hook is. |
 | `proof-guard.py` | Stop | A completion claim after code edits with no successful run → log + flag file. Calibrate with `--calibrate`. |
 | `surface-flags.sh` | UserPromptSubmit | The reader for the files above: shows the proof-guard and reply-guard flags once, and new lines of `~/.claude/hook-errors.log`. Without it those detectors write into files nobody opens. |
-| `code-pitfalls-hint.py` | PreToolUse on `Edit`/`Write`/`Bash` | Shows headings of `code-pitfalls/<topic>.md` before the agent edits that kind of code (by extension; lock/thread code → `concurrency.md`). Bash triggers (`git`/`ssh`/`adb`) need `git.md`/`vm.md`/`android.md`, which you add. |
+| `code-pitfalls-hint.py` | PreToolUse on `Edit`/`Write`/`Bash` | Shows headings of `code-pitfalls/<topic>.md` before the agent edits that kind of code (by extension; lock/thread code → `concurrency.md`). Bash commands: `git` → `git.md`, `ssh`/`qemu` → `vm.md`, `adb` → `android.md`. |
 
 See `docs/hooks-guide.md` for writing your own.

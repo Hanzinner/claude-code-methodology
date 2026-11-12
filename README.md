@@ -26,11 +26,17 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/context-management.md`](docs/context-management.md) — keeping a months-long agent chat alive: hygiene layers, the hybrid lifecycle, and why mechanisms beat remembering.
 - [`docs/measurement-and-proof.md`](docs/measurement-and-proof.md) — when the instrument lies: what counts as proof a mechanism ran, why gates measure what they can see (not what is), and where no mechanism exists.
 - [`docs/mistakes-journal.md`](docs/mistakes-journal.md) — one file for postmortems, so three of the same mistake become a mechanism instead of a habit.
+- [`docs/coding-standard.md`](docs/coding-standard.md) — the working standard every agent that writes code follows: a one-screen core (each rule marked with what guards it — a mechanism, an audit, or nobody) plus a reference by activity.
+- [`code-pitfalls/`](code-pitfalls/README.md) — 268 technical lessons already paid for, in 11 files by technology (shell, python, git, web, hooks, verification, concurrency, services, VM, Windows, Android); a hook shows the matching headings before an edit.
+- [`docs/hall-of-shame-docs.md`](docs/hall-of-shame-docs.md), [`docs/hall-of-shame-ops.md`](docs/hall-of-shame-ops.md) — two real bad cases kept as models of what not to do: a document written for its author, and a network change declared "done" before the human's own path was checked.
+- [`docs/docx-playbook.md`](docs/docx-playbook.md) — generating Word documents with python-docx without the silent layout traps; render to an image before handing over.
 - [`docs/rule-to-mechanism.md`](docs/rule-to-mechanism.md) — the gate ladder (note → detector → structural impossibility): the change cycle, independent review by another model, a supervisor that checks the work, and why written rules alone didn't hold.
 
 **Running a swarm** (many agents — a separate discipline; skip these if you run one agent):
 - [`docs/multi-agent.md`](docs/multi-agent.md) — running a swarm of ~80 long-lived agents: delivery, coordination, and the failures that cost more than the design.
 - [`docs/dev-methodology.md`](docs/dev-methodology.md) — the delivery layer: roles, roadmap + Definition of Done, quality gates, and bootstrap — a product team when the team is agents.
+- [`docs/project-work.md`](docs/project-work.md) — the standard for agents working in a project team: the path of a task, stories with a runnable "done when", stands, releases, blockers as records with a check.
+- [`docs/po-interface.md`](docs/po-interface.md) — how ~30 technical reports a day reach a human who isn't a developer: a two-question filter, three lanes, and a pull mode.
 - [`docs/mission-control.md`](docs/mission-control.md) — a web panel that steers live agents by appending to a file channel they tail: cheap push over cold-start, everything counted from outside.
 
 ## Install

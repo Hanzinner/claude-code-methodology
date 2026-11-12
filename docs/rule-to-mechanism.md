@@ -54,7 +54,7 @@ one place per technology — [`code-pitfalls/`](../code-pitfalls/) — and
 [`hooks/code-pitfalls-hint.py`](../hooks/code-pitfalls-hint.py) shows the matching **headings** right before
 an agent edits code of that kind. The top repeats were unglamorous: a signal taken for proof, `pkill -f`
 killing its own shell, a shared file written without a lock, `sleep` racing an event. The private set this
-comes from held ~220 such lessons (November 2026); the folder here is a seed.
+comes from held ~270 such lessons (November 2026); the folder here carries them, with private context removed.
 
 ## 3. A catalog against two kinds of lie
 

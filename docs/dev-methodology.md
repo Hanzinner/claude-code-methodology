@@ -1,16 +1,23 @@
 # Orchestrating development with a swarm of agents
 
-A reusable way to build software with a swarm of AI agents — not a single project, but a **system** you
-deploy onto any project with one command. This is the delivery layer that sits on top of the mechanisms in
-[`multi-agent.md`](multi-agent.md): roles, roadmap, quality gates, and how a "product team" runs when the
-team is agents.
+A reusable way to build software with a swarm of AI agents — written down as a system, not as one
+project's history: roles, a roadmap tied to git, quality gates, and how a "product team" runs when the
+team is agents. This is the delivery layer on top of the mechanisms in [`multi-agent.md`](multi-agent.md);
+the rules agents follow day to day are in [`coding-standard.md`](coding-standard.md) and
+[`project-work.md`](project-work.md).
+
+What is code and what is text: this repository ships the mechanisms (hooks, scripts, the swarm tools) and
+documents the method. It does **not** ship the bootstrap command described below — in the private setup it
+is one script that stamps a project's folders, role briefings, roadmap and blocker register and connects
+the team to the shared services; here it is a description you rebuild for your own stack.
 
 ## The thesis
 
 In a human team, hygiene — tests, review, CI — costs **person-hours**, so startups cut it and debt piles
 up. In an agent swarm the tedious part costs ~zero labor, so you can hold hygiene **better** than most
 startups, not worse. The proof route is deliberate: invent the method on one project → prove it ports to a
-small one → apply it where it makes money.
+small one → apply it where it makes money. It has since been run end to end once on an external client
+project (a web shop with accounts and money), in two days.
 
 ## Roles
 
@@ -39,7 +46,9 @@ doesn't recreate them:
 - **Dev** — implementation (tasks, bugs, release flow).
 - **QA** — testing on user cases; findings → Dev.
 - **Design** — visual / UX, if the product has an interface.
-- **+ project-specific specialists** as needed.
+- **+ project-specific specialists** as needed. Four roles are a floor, not a template: a site that takes
+  money needed eight (front end, security, ops, mobile on top). The lead lists positions; the human
+  decides how many.
 
 **Human (not an agent):**
 - **Product owner** — sets epic priority; accepts "done" on what the swarm can't self-verify (visual,
@@ -103,7 +112,7 @@ the source**, don't quote their todo.
 estimate the unknown, sync ten people, report to a manager. A tireless agent swarm needs none of it; it's
 pure overhead. Keep the connective tissue and the computed status; drop the planning ceremony.
 
-## Bootstrap: "deploy the infrastructure for project X"
+## Bootstrap: "deploy the infrastructure for project X" (described here, not shipped)
 
 The **orchestrator** runs it (the project's HQ doesn't exist yet); the **mechanisms dev agent** builds the
 mechanism and the **infra agent** wires it into the live system. One command → a project-specific team raised and **connected** to the shared services (which are
@@ -113,7 +122,9 @@ not recreated). It stamps:
    works, a **link to this methodology** — shared, not a copy).
 3. **A roadmap skeleton** — an empty roadmap (Epic/Story/DoD) + PM rollup + a board entry.
 4. **Git convention + hooks** — commit-message format, the release train (inherited from the shared git agent).
-5. **Quality-gate scaffold** — a CI skeleton for the project's stack, the incident log, the inbox protocol.
+5. **Quality-gate scaffold** — a CI skeleton for the project's stack, the incident log, the inbox protocol,
+   and an empty blocker register (one line per blocker with a machine check, so a cleared blocker moves the
+   story on by itself instead of waiting for someone to notice).
 6. **Registration** of the new team in the swarm registry + **connection to the shared services** (so the
    archivist sees it, the git agent covers its repo, the board shows it).
 
