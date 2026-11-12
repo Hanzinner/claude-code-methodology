@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# swap-live <file.new> - atomically replace a LIVE script/hook with a checked copy, keeping its permissions.
+# Replaces the manual ritual `.new -> bash -n -> mv`, in which permissions got lost: a hook written by Python (mode 644)
+# and moved over the live file made the hook dead - caught by a watchdog only 13 minutes later.
+#   1. syntax check by type: .sh/.bash/no extension with a bash shebang -> bash -n; .py -> full compile; else none;
+#   2. mode and owner are taken from the live file (chmod/chown --reference); no live file -> 755 if it has a
+#      shebang, otherwise as is, with a warning;
+#   3. mv inside the directory (atomic: a process reading the old file finishes reading the old one);
+#   4. afterwards: was executable -> must still be executable, else rc 1.
+# rc: 0 replaced | 1 failed (live file untouched, except step 4) | 2 usage.
+set -uo pipefail
+new="${1:-}"
+[[ -n "$new" && "$new" == *.new && -f "$new" ]] || { echo "usage: swap-live <file.new> - an existing file with the .new suffix" >&2; exit 2; }
+live="${new%.new}"
+
+kind=""
+case "$live" in
+    *.sh|*.bash) kind=bash ;;
+    *.py) kind=py ;;
+    *) head -c 64 "$new" | head -1 | grep -qE '^#!.*\b(bash|sh)\b' && kind=bash
+       head -c 64 "$new" | head -1 | grep -qE '^#!.*python' && kind=py ;;
+esac
+case "$kind" in
+    bash) bash -n "$new" || { echo "swap-live: bash -n failed - live file untouched" >&2; exit 1; } ;;
+    # a full compile, not only the parser: `return` outside a function passes ast.parse
+    py)   python3 -c 'import sys; compile(open(sys.argv[1], "rb").read(), sys.argv[1], "exec")' "$new" \
+              || { echo "swap-live: Python syntax check failed - live file untouched" >&2; exit 1; } ;;
+esac
+
+# symlink: mv would replace the link itself with a regular file and leave the target stale
+[[ -L "$live" ]] && { echo "swap-live: $live is a symlink; replace the target: swap-live $(readlink -f "$live").new" >&2; exit 1; }
+was_x=0
+if [[ -e "$live" ]]; then
+    [[ -x "$live" ]] && was_x=1
+    chmod --reference="$live" "$new" && chown --reference="$live" "$new" 2>/dev/null
+else
+    # a new script with a shebang must be executable: Write gives 644, and a hook invoked directly silently does nothing
+    [[ "$(head -c 2 "$new")" == "#!" ]] && chmod 755 "$new"
+    echo "swap-live: no live $live - installing the new one ($(stat -c %A "$new"))" >&2
+fi
+mv -f "$new" "$live" || { echo "swap-live: mv failed" >&2; exit 1; }
+if [[ "$was_x" == 1 && ! -x "$live" ]]; then
+    echo "swap-live: WARNING $live was executable and no longer is - the hook is dead; chmod +x by hand" >&2; exit 1
+fi
+echo "swap-live: replaced $live ($(stat -c '%A %U' "$live")${kind:+, syntax $kind ok})"

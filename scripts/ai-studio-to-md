@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""
+ai-studio-to-md - converts Google AI Studio JSON exports to Markdown (thought chunks are dropped).
+
+Usage:
+    ai-studio-to-md [folder]          # finds every file containing chunkedPrompt, writes <name>.md next to it
+    ai-studio-to-md <file>            # converts one file
+The user's turns are labelled with CCM_HUMAN_NAME (settings), the model's with "Gemini".
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+from ccm_conf import conf  # noqa: E402
+
+_name = conf("CCM_HUMAN_NAME") or "User"
+USER_LABEL = "User" if _name == "the user" else _name
+
+
+def is_ai_studio_file(path: Path) -> bool:
+    try:
+        with path.open(encoding="utf-8", errors="replace") as f:
+            head = f.read(4096)
+        if "chunkedPrompt" not in head:
+            return False
+        f_full = path.open(encoding="utf-8", errors="replace")
+        data = json.load(f_full)
+        f_full.close()
+        return "chunkedPrompt" in data
+    except Exception:
+        return False
+
+
+def chunk_to_md(chunk: dict) -> str | None:
+    """Returns the text of a chunk, or None if it must be skipped."""
+    if chunk.get("isThought"):
+        return None
+
+    role = chunk.get("role", "")
+
+    if "inlineFile" in chunk:
+        mime = chunk["inlineFile"].get("mimeType", "unknown type")
+        return f"_[attached file: {mime}]_"
+
+    if "driveDocument" in chunk:
+        doc = chunk["driveDocument"]
+        name = doc.get("name") or doc.get("mimeType") or "Google Drive document"
+        return f"_[Google Drive: {name}]_"
+
+    text = chunk.get("text", "").strip()
+    if not text:
+        return None
+    return text
+
+
+def convert(src: Path) -> Path:
+    with src.open(encoding="utf-8", errors="replace") as f:
+        data = json.load(f)
+
+    chunks = data.get("chunkedPrompt", {}).get("chunks", [])
+    lines = [f"# {src.name}", ""]
+
+    for chunk in chunks:
+        role = chunk.get("role", "")
+        content = chunk_to_md(chunk)
+        if content is None:
+            continue
+
+        if role == "user":
+            label = f"**{USER_LABEL}:**"
+        elif role == "model":
+            label = "**Gemini:**"
+        else:
+            label = f"**{role}:**"
+
+        lines.append(f"{label} {content}")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    # remove the trailing separator
+    while lines and lines[-1] in ("", "---"):
+        lines.pop()
+
+    out = src.with_suffix(".md")
+    out.write_text("\n".join(lines), encoding="utf-8")
+    return out
+
+
+def find_and_convert(folder: Path):
+    converted = 0
+    for path in sorted(folder.rglob("*")):
+        if path.suffix == ".md" or path.is_dir():
+            continue
+        if is_ai_studio_file(path):
+            out = convert(path)
+            print(f"  ✓ {path.name} → {out.name}")
+            converted += 1
+    if converted == 0:
+        print("No files with chunkedPrompt found.")
+    else:
+        print(f"\nDone: {converted} file(s).")
+
+
+def main():
+    args = sys.argv[1:]
+    if not args:
+        target = Path.cwd()
+    else:
+        target = Path(args[0])
+
+    if target.is_file():
+        out = convert(target)
+        print(f"✓ {target.name} → {out.name}")
+    elif target.is_dir():
+        find_and_convert(target)
+    else:
+        print(f"ERROR: '{target}' does not exist", file=sys.stderr)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()

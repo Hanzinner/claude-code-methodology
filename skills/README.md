@@ -6,6 +6,10 @@ Slash commands. Each folder has a `SKILL.md` with frontmatter (`name`, `descript
 |-------|--------|
 | `recap` | Re-read the current session, save what's worth remembering to `memory/`. Uses `scripts/recap_extract.py`. |
 | `audit` | Sweep `CLAUDE.md` + `memory/` + `skills/` for contradictions, persona drift, orphaned references, stale facts. Reports, doesn't auto-fix. |
+| `dossier` | Hypothesis-tested research on a company/person/org; at least 30% of searches try to disprove the hypothesis. |
+| `edit` | Video edit analysis: scene keyframes + per-frame log + narrative. Uses `scripts/extract_scenes.sh`. |
+| `grill` | Brutalist stress-test of a plan, decision, architecture or position. |
+| `pulse` | Recency snapshot of a topic from Reddit + Hacker News + web. |
 
 ## Adding your own
 
