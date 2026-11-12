@@ -1,0 +1,5 @@
+# input-guard mute list — copy to ~/.claude/input-guard-mute.txt (or point CCM_INPUT_GUARD_MUTE at your own file).
+# One agent folder name per line. Listed agents get input-guard's Stop mode as LOG ONLY: no hint to the agent.
+# Use it for an agent that receives a known appended block at every step, so the hint would fire on every turn.
+# Example (delete the leading # to enable):
+# Some-Agent

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# creds - read credentials from the CANONICAL store, don't copy them next to your work. (An agent once copied a service
+# key into a shared folder because that was easier than finding the store, and the copy went into git.)
+# Values are NEVER printed: everything printed lands in the transcript, and the transcript lands in backups.
+#   creds list                 - which credentials exist (path + variable NAMES, no values)
+#   creds path <name>          - absolute path of the file (for Python: open(path) / from_service_account_file)
+#   creds run <name> -- cmd... - run cmd with the variables of an .env file exported (values never appear in the command)
+# <name> is a case-insensitive substring of the file/dir name (google, search, telegram...); ambiguous -> candidates.
+# Store: $CCM_SECRETS_DIR (default ~/.config/claude-secrets). Never keep keys inside the workspace git repo.
+set -uo pipefail
+eval "$(python3 "$(dirname "$(readlink -f "$0")")/../lib/ccm_conf.py" --shell)"
+ROOTS=("${CREDS_ROOT:-$CCM_SECRETS_DIR}")
+
+all() { for r in "${ROOTS[@]}"; do [[ -d "$r" ]] && find "$r" -type f ! -name '*.bak*' ! -name '*.lock' 2>/dev/null; done | sort; }
+
+resolve() {
+    local q="${1,,}" hits=()
+    mapfile -t hits < <(all | while IFS= read -r f; do [[ "${f,,}" == *"$q"* ]] && echo "$f"; done)
+    if [[ ${#hits[@]} -eq 0 ]]; then echo "creds: nothing found for '$1'. See: creds list" >&2; return 2; fi
+    if [[ ${#hits[@]} -gt 1 ]]; then echo "creds: '$1' is ambiguous, be more specific:" >&2; printf '  %s\n' "${hits[@]}" >&2; return 2; fi
+    printf '%s\n' "${hits[0]}"
+}
+
+case "${1:-}" in
+    list)
+        all | while IFS= read -r f; do
+            k=$(grep -oE '^(export )?[A-Za-z_][A-Za-z0-9_]*=' "$f" 2>/dev/null | sed 's/^export //; s/=$//' | tr '\n' ' ')
+            printf '%s%s\n' "$f" "${k:+   [$k]}"
+        done ;;
+    path)
+        [[ -n "${2:-}" ]] || { echo "usage: creds path <name>" >&2; exit 2; }
+        resolve "$2" ;;
+    run)
+        [[ -n "${2:-}" && "${3:-}" == "--" && -n "${4:-}" ]] || { echo "usage: creds run <name> -- command..." >&2; exit 2; }
+        f=$(resolve "$2") || exit 2
+        shift 3
+        set -a; . "$f"; set +a
+        exec "$@" ;;
+    ""|-h|--help|help)
+        sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; [[ -z "${1:-}" ]] && exit 2; exit 0 ;;
+    *) echo "creds: unknown action '$1' (list | path | run)" >&2; exit 2 ;;
+esac

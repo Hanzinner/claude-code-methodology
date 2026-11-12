@@ -85,7 +85,7 @@ def load():
 
 
 def conf(key, default=None):
-    v = load().get(key)
+    v = os.environ[key] if key in os.environ else load().get(key)   # env beats the file for any key, listed or not
     return default if v in (None, "") and default is not None else v
 
 

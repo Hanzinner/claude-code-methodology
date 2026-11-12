@@ -1,0 +1,305 @@
+#!/usr/bin/env bash
+# rename-ref [--dry-run] [--force-external] <old.md> <new.md>
+# Rename/move a .md file AND rewrite every reference to it (editors can rename-refactor; a plain `mv` can't).
+# A guard that blocks a bare `mv X.md Y.md` is only livable if this tool is MORE reliable than mv.
+# It works with PATHS, not text (a v1 that did sed on substrings failed 5/5 acceptance checks):
+#  - corpus = all .md files of the workspace repo (git ls-files + untracked, not ignored); spaces in paths are fine;
+#  - ](path) is resolved from the file's directory; a match with the old file -> relative path to the new one
+#    (a move to another directory recomputes ../); in the moved file ALL its relative links are recomputed;
+#  - [[stem]] (with -/_ normalisation, |alias, #heading) - only if the stem changed and the basename is unique
+#    in the corpus (otherwise ambiguous -> warning);
+#  - bare mentions: a path from the repo root / absolute - always; a bare basename - only if unique;
+#    word boundaries, so OLD-NOTES.md != NOTES.md;
+#  - BEFORE any change: mentions of the old path in scripts/hooks/skills/CLAUDE.md/cron/units -> stop with a list
+#    (exit 3); --force-external ignores them on purpose;
+#  - post-validation over the WHOLE corpus: no link to the old path left -> exit 0, otherwise exit 5.
+# Workspace: $CCM_WORKSPACE (override: $RENAME_REF_REPO). External places to check: $RENAME_REF_EXTERNAL
+# (space-separated) or the defaults below.
+set -euo pipefail
+eval "$(python3 "$(dirname "$(readlink -f "$0")")/../lib/ccm_conf.py" --shell)"
+export RENAME_REF_REPO="${RENAME_REF_REPO:-$CCM_WORKSPACE}"
+export RENAME_REF_EXTERNAL="${RENAME_REF_EXTERNAL:-$CCM_CLAUDE_DIR/scripts $CCM_CLAUDE_DIR/hooks $CCM_CLAUDE_DIR/skills $CCM_CLAUDE_DIR/settings.json $CCM_CLAUDE_DIR/CLAUDE.md $HOME/.claude/scripts $HOME/.claude/hooks $HOME/.claude/skills $HOME/.claude/settings.json $HOME/.claude/CLAUDE.md /usr/local/bin /var/spool/cron/crontabs /etc/systemd/system}"
+exec python3 - "$@" <<'PY'
+import os, re, subprocess, sys
+from urllib.parse import unquote, quote
+
+REPO = os.path.realpath(os.environ["RENAME_REF_REPO"])
+EXTERNAL = os.environ["RENAME_REF_EXTERNAL"].split()
+
+args = [a for a in sys.argv[1:] if not a.startswith("--")]
+DRY = "--dry-run" in sys.argv; FORCE_EXT = "--force-external" in sys.argv
+if len(args) != 2:
+    sys.exit("usage: rename-ref [--dry-run] [--force-external] <old.md> <new.md>")
+
+def rel(p, bases, must_exist):
+    """-> (path from the repo root, base). The base from which the OLD file was found is used for the new one too -
+    otherwise running from a subdirectory put the new file in the repo root."""
+    for base in bases:
+        a = os.path.normpath(os.path.join(base, p))
+        # the boundary is checked on the REAL path (a symlinked directory in the repo could lead outside)
+        real_parent = os.path.realpath(os.path.dirname(a))
+        if a.startswith(REPO + os.sep) and (real_parent == REPO or real_parent.startswith(REPO + os.sep)) \
+                and (os.path.exists(a) or not must_exist):
+            return os.path.relpath(a, REPO), base
+    # a path outside the repo is refused; a former fallback returned "../..." and os.rename moved a foreign
+    # file INTO the repo (or out of it)
+    sys.exit(f"rename-ref: {p} is outside {REPO}; the tool works only inside the workspace")
+
+old, _base = rel(args[0], (os.getcwd(), REPO), True)
+new, _ = rel(args[1], (_base,), False)
+old_abs, new_abs = os.path.join(REPO, old), os.path.join(REPO, new)
+if not os.path.isfile(old_abs): sys.exit(f"rename-ref: {old} does not exist")
+def nested_repo(path_abs):  # a nested git repo (e.g. a notes vault with its own git and its own links)
+    d = os.path.dirname(path_abs)
+    while d.startswith(REPO + os.sep):
+        if os.path.exists(os.path.join(d, ".git")): return os.path.relpath(d, REPO)
+        d = os.path.dirname(d)
+    return None
+for _p in (old_abs, new_abs):
+    _n = nested_repo(_p)
+    if _n: sys.exit(f"rename-ref: {os.path.relpath(_p, REPO)} is inside the nested repo '{_n}' (its own git, its own links; edit it only with its owner's consent). Not for this tool.")
+if os.path.islink(old_abs):     sys.exit(f"rename-ref: {old} is a symlink; this tool does not move symlinks")
+# a symlinked directory INSIDE the repo (dir/alias -> dir/B): links are canonical, git does not see the alias -> refuse
+if os.path.realpath(old_abs) != old_abs: sys.exit(f"rename-ref: {old} goes through a symlinked directory (really {os.path.relpath(os.path.realpath(old_abs), REPO)}); give the real path")
+_d = os.path.dirname(new_abs)
+while not os.path.exists(_d): _d = os.path.dirname(_d)
+if os.path.realpath(_d) != _d: sys.exit(f"rename-ref: {new} - the target goes through a symlinked directory; give the real path")
+if os.path.exists(new_abs):     sys.exit(f"rename-ref: {new} already exists")
+if not (old.endswith(".md") and new.endswith(".md")): sys.exit("rename-ref: both the old and the new path must be .md")
+
+def git(*a):
+    return subprocess.run(["git", "-C", REPO, *a], capture_output=True, text=True)
+
+r1 = git("ls-files", "-z", "--", "*.md"); r2 = git("ls-files", "-z", "-o", "--exclude-standard", "--", "*.md")
+# a failed ls-files = an empty corpus = a post-validation "OK" with broken links still alive
+if r1.returncode or r2.returncode:
+    sys.exit(f"rename-ref: git ls-files failed - cannot build the corpus: {(r1.stderr or r2.stderr).strip()[:200]}")
+corpus = sorted({p for p in (r1.stdout + r2.stdout).split("\0") if p and p.endswith(".md")})
+# symlinks are not in the corpus - open("w") would follow the link and rewrite a file OUTSIDE the repo
+corpus = [p for p in corpus if os.path.isfile(os.path.join(REPO, p)) and not os.path.islink(os.path.join(REPO, p))]
+if old not in corpus: corpus.append(old)
+
+ob, nb = os.path.basename(old), os.path.basename(new)
+ostem, nstem = ob[:-3], nb[:-3]
+same_base = [p for p in corpus if os.path.basename(p).lower() == ob.lower() and p != old]
+unique = not same_base
+# the new name is already carried by another file -> a bare basename / [[stem]] would become ambiguous;
+# then the FULL path from the repo root is substituted
+new_unique = not [p for p in corpus if os.path.basename(p).lower() == nb.lower() and p not in (old, new)]
+nb_out = nb if new_unique else new
+nstem_out = nstem if new_unique else new[:-3]
+stem_variants = {ostem.lower(), ostem.replace("_", "-").lower(), ostem.replace("-", "_").lower()}
+
+# -- 1. external mentions (before any change)
+# "$REPO"/x.md - a quote/bracket between the variable and the slash (the dominant idiom in shell scripts)
+ext_pat = re.compile(r"(?:" + re.escape(REPO) + r"|\$\{?\w+\}?[\"')]?|\})/" + re.escape(old) + r"(?![\w.-])")
+ext_hits, ext_unread = [], []
+def walk_ext(root):
+    # follow symlinked directories (followlinks), cut cycles by realpath
+    # an unreadable subdirectory is not skipped silently but reported in ext_unread
+    seen, out = set(), []
+    for d, dns, fs in os.walk(root, followlinks=True, onerror=lambda e: ext_unread.append(f"{e.filename}: {e.strerror}")):
+        rp = os.path.realpath(d)
+        if rp in seen: dns[:] = []; continue
+        seen.add(rp); out += [os.path.join(d, f) for f in fs]
+    return out
+for root in EXTERNAL:
+    # isfile/isdir swallow EACCES -> an unreadable directory would look "missing"; tell "absent" from "no access"
+    try: st_root = os.stat(root)
+    except FileNotFoundError: continue
+    except OSError as e: ext_unread.append(f"{root}: {e.strerror}"); continue
+    if os.path.isdir(root) and not os.access(root, os.R_OK | os.X_OK): ext_unread.append(f"{root}: no access"); continue
+    paths = [root] if os.path.isfile(root) else walk_ext(root) if os.path.isdir(root) else []
+    for p in paths:
+        if re.search(r"\.(bak|log|pyc)$|\.bak-|/\.Trash/", p): continue
+        if not os.path.exists(p) and os.path.islink(p):
+            try: os.stat(p)
+            except FileNotFoundError: continue       # a broken symlink is none of our business
+            except OSError as e: ext_unread.append(f"{p}: {e.strerror}"); continue
+        if os.path.exists(p) and not os.path.isfile(p): continue  # FIFO/socket/device: open() would hang
+        try:
+            with open(p, encoding="utf-8", errors="ignore") as fh:
+                for i, line in enumerate(fh, 1):
+                    if ext_pat.search(line): ext_hits.append(f"{p}:{i}: {line.strip()[:120]}")
+        except FileNotFoundError: pass
+        except OSError as e: ext_unread.append(f"{p}: {e.strerror}")  # do not stay silent
+# scripts/configs INSIDE the repo (not .md -> not in the corpus, not outside -> not EXTERNAL) - the same check
+r3 = git("ls-files", "-z")
+if r3.returncode: sys.exit(f"rename-ref: git ls-files failed: {r3.stderr.strip()[:200]}")
+for p in r3.stdout.split("\0"):
+    if not p or p.endswith(".md"): continue
+    ap = os.path.join(REPO, p)
+    try:
+        if os.path.islink(ap) or not os.path.isfile(ap) or os.path.getsize(ap) > 2_000_000: continue
+        with open(ap, "rb") as fh: data = fh.read()
+    except OSError as e: ext_unread.append(f"{p}: {e.strerror}"); continue
+    if b"\0" in data[:4096] or old.encode() not in data: continue
+    for i, line in enumerate(data.decode("utf-8", "ignore").splitlines(), 1):
+        if ext_pat.search(line): ext_hits.append(f"{p}:{i}: {line.strip()[:120]}")
+if ext_unread and not FORCE_EXT:
+    print("rename-ref: BLOCKED: could not read external files - cannot prove they do not mention the old path:", file=sys.stderr)
+    for h in ext_unread[:20]: print("  " + h, file=sys.stderr)
+    print("Check by hand or use --force-external.", file=sys.stderr)
+    sys.exit(3)
+if ext_hits and not FORCE_EXT:
+    print("rename-ref: BLOCKED: the old path is mentioned outside the corpus (scripts/hooks/cron) - the rename would break them:", file=sys.stderr)
+    for h in ext_hits[:20]: print("  " + h, file=sys.stderr)
+    print("Fix them together with the rename, or run with --force-external if that is deliberate.", file=sys.stderr)
+    sys.exit(3)
+
+# -- 2. rewriting
+LINK = re.compile(r"(\]\()(<[^>\n]*>|(?:[^()\s]|\([^()\s]*\))+)((?:\s+\"[^\"\n]*\")?\))")  # a(1).md - one pair of parentheses
+DEF = re.compile(r"^(\s{0,3}\[(?!\^)[^\]\n]+\]:\s*)(<[^>\n]*>|\S+)", re.M)  # [^1]: is a footnote, not a link;  [ref]: ../x.md "title"
+WIKI = re.compile(r"\[\[([^\]\|#\n]+)((?:#[^\]\|\n]*)?(?:\|[^\]\n]*)?)\]\]")
+# old_abs is always unambiguous; the root-relative path of a ROOT file = its basename,
+# so it is gated by `unique` too (it once rewrote a bare mention of someone else's NOTES.md)
+bare_alts = [re.escape(old_abs)]
+if unique or "/" in old: bare_alts.append(re.escape(old))
+if unique and "/" in old: bare_alts.append(re.escape(ob))
+BARE = re.compile(r"(?<![\w.\-/])(" + "|".join(bare_alts) + r")(?![\w-]|\.\w)")  # NOTES.md.bak is not ours; "NOTES.md." at the end of a sentence is
+
+def fix_link(target, src_dir_old, out_dir, moved, is_def=False):
+    raw = target; angle = raw.startswith("<")
+    t = raw[1:-1] if angle else raw
+    if re.match(r"^[a-z][a-z0-9+.-]*:", t, re.I) or t.startswith("#") or not t: return raw
+    path, _, frag = t.partition("#")
+    dec = unquote(path)
+    resolved = os.path.normpath(dec if dec.startswith("/") else os.path.join(src_dir_old, dec))
+    if resolved == old_abs:
+        newp = new_abs if dec.startswith("/") else os.path.relpath(new_abs, out_dir)
+    elif moved and not dec.startswith("/") and src_dir_old != out_dir and (os.path.exists(resolved) or not is_def):
+        # for [x]: definitions - only when the target exists (a glossary line "[term]: text" is not a path)
+        newp = os.path.relpath(resolved, out_dir)
+    else:
+        return raw
+    # parentheses are encoded too - raw "(" ")" in a target would not be read by this same parser next time
+    if not angle and ("%20" in path or " " in newp or "(" in newp or ")" in newp): newp = quote(newp, safe="/._-~")
+    out = newp + ("#" + frag if frag else "")
+    return f"<{out}>" if angle else out
+
+def wiki_path_target(base):
+    """[[Projects/Name]] in a vault inside the repo - a path relative to the vault root, not the repo.
+    A match = the old path (without .md) ends with /base. -> the new path with the same root."""
+    o, b = old[:-3], os.path.normpath(base)
+    if not (o.lower() == b.lower() or o.lower().endswith("/" + b.lower())):
+        return None
+    # the suffix must point at exactly one corpus file, otherwise the link is ambiguous - leave it
+    hits = [p for p in corpus if p[:-3].lower() == b.lower() or p[:-3].lower().endswith("/" + b.lower())]
+    if len(hits) > 1:
+        return None
+    prefix = o[:len(o) - len(b)]
+    n = new[:-3]
+    if not n.startswith(prefix):
+        return n
+    r = n[len(prefix):]
+    # the new suffix already ends the path of ANOTHER file -> ambiguous, take the full path
+    others = [p for p in corpus if p != old and (p[:-3].lower() == r.lower() or p[:-3].lower().endswith("/" + r.lower()))]
+    return n if others else r
+
+def fix_wiki(m):
+    tgt, tail = m.group(1), m.group(2)
+    t = tgt.strip(); base = t[:-3] if t.lower().endswith(".md") else t
+    if "/" in base:  # [[dirs/stem]]: a path from the repo root OR from the vault root (a path suffix, as Obsidian resolves)
+        repl = wiki_path_target(base)
+        return f"[[{repl}{tail}]]" if repl else m.group(0)
+    if base.lower() in stem_variants and nstem != ostem and unique:
+        return f"[[{nstem_out}{tail}]]"
+    return m.group(0)
+
+def rewrite(text, src_dir_old, out_dir, moved):
+    pieces, last = [], 0
+    # links and wikilinks are rewritten pointwise; bare mentions - only in the text BETWEEN them
+    spans = sorted([(m.start(), m.end(), "L", m) for m in LINK.finditer(text)] +
+                   [(m.start(), m.end(), "D", m) for m in DEF.finditer(text)] +
+                   [(m.start(), m.end(), "W", m) for m in WIKI.finditer(text)])
+    for s, e, kind, m in spans:
+        if s < last: continue
+        pieces.append(BARE.sub(lambda b: new_abs if b.group(1) == old_abs else (new if b.group(1) == old else nb_out), text[last:s]))
+        if kind == "L":
+            pieces.append(m.group(1) + fix_link(m.group(2), src_dir_old, out_dir, moved) + m.group(3))
+        elif kind == "D":
+            pieces.append(m.group(1) + fix_link(m.group(2), src_dir_old, out_dir, moved, is_def=True))
+        else:
+            pieces.append(fix_wiki(m))
+        last = e
+    pieces.append(BARE.sub(lambda b: new_abs if b.group(1) == old_abs else (new if b.group(1) == old else nb_out), text[last:]))
+    return "".join(pieces)
+
+plan, snap = {}, {}
+for p in corpus:
+    ap = os.path.join(REPO, p)
+    try: text = open(ap, encoding="utf-8", errors="surrogateescape").read()
+    except OSError: continue
+    moved = (p == old)
+    d_old = os.path.dirname(ap)
+    d_out = os.path.dirname(new_abs) if moved else d_old
+    nt = rewrite(text, d_old, d_out, moved)
+    if nt != text or moved: plan[p] = nt; snap[p] = (text, d_old, d_out, moved)
+
+changed = [p for p in plan if p != old or plan[p] != open(old_abs, encoding="utf-8", errors="surrogateescape").read()]
+if DRY:
+    print(f"DRY: {old} -> {new}; files that would change: {len(changed)}"); [print("  " + p) for p in changed]
+    if ext_hits: print("  (external mentions ignored with --force-external: %d)" % len(ext_hits))
+    sys.exit(0)
+
+# -- 3. move (git, if tracked) + write
+missing, d = [], os.path.dirname(new_abs)
+while not os.path.exists(d): missing.append(d); d = os.path.dirname(d)
+os.makedirs(os.path.dirname(new_abs), exist_ok=True)
+if git("ls-files", "--error-unmatch", "--", old).returncode == 0:
+    r = git("mv", "--", old, new)
+    if r.returncode: sys.exit(f"rename-ref: git mv failed: {r.stderr.strip()}")
+else:
+    os.rename(old_abs, new_abs)
+for p, nt in plan.items():
+    ap = new_abs if p == old else os.path.join(REPO, p)
+    if os.path.islink(ap): continue  # never write through a symlink
+    # other agents write inbox files in parallel -> re-read under the inbox lock (<file>.lock, flock);
+    # changed since it was read -> rewrite the FRESH content (rewrite is idempotent), not the snapshot
+    lk = None
+    if os.path.basename(ap) == "inbox.md":
+        import fcntl; lk = open(ap + ".lock", "a"); fcntl.flock(lk, fcntl.LOCK_EX)
+    try:
+        text0, d_old, d_out, mv_ = snap[p]
+        cur = open(ap, encoding="utf-8", errors="surrogateescape").read()
+        if cur != text0: nt = rewrite(cur, d_old, d_out, mv_)
+        st = os.stat(ap)
+        tmp = os.path.join(os.path.dirname(ap), "." + os.path.basename(ap) + ".rr-tmp")  # atomically
+        with open(tmp, "w", encoding="utf-8", errors="surrogateescape") as fh: fh.write(nt)
+        os.chmod(tmp, st.st_mode & 0o7777)
+        os.replace(tmp, ap)
+    finally:
+        if lk: lk.close()
+
+# -- 4. post-validation over the whole corpus
+left = []
+corpus2 = [new if p == old else p for p in corpus]
+for p in corpus2:
+    ap = os.path.join(REPO, p)
+    try: text = open(ap, encoding="utf-8", errors="surrogateescape").read()
+    except OSError: continue
+    for m in list(LINK.finditer(text)) + list(DEF.finditer(text)):  # and [ref]: definitions
+        t = m.group(2).strip("<>").partition("#")[0]
+        if re.match(r"^[a-z][a-z0-9+.-]*:", t, re.I) or not t: continue
+        t = unquote(t)
+        if os.path.normpath(t if t.startswith("/") else os.path.join(os.path.dirname(ap), t)) == old_abs:
+            left.append(f"{p}: {m.group(0)[:80]}")
+    for m in WIKI.finditer(text):
+        b = m.group(1).strip(); b = b[:-3] if b.lower().endswith(".md") else b
+        if "/" in b:
+            if wiki_path_target(b) is not None and os.path.normpath(b).lower() != new[:-3].lower() \
+                    and not new[:-3].lower().endswith("/" + os.path.normpath(b).lower()):
+                left.append(f"{p}: {m.group(0)[:80]}")
+        elif nstem != ostem and unique and b.lower() in stem_variants:
+            left.append(f"{p}: {m.group(0)[:80]}")
+    if BARE.search(text): left.append(f"{p}: mention '{BARE.search(text).group(1)}'")
+if left:
+    print(f"rename-ref: WARNING {old} -> {new} moved, but references to the old name remain:", file=sys.stderr)
+    for l in left[:20]: print("  " + l, file=sys.stderr)
+    sys.exit(5)
+warn = ""
+if not unique and (nstem != ostem or "/" not in old):
+    warn = f"; WARNING [[{ostem}]] and the bare '{ob}' left alone - the same basename is also in: {', '.join(same_base[:3])}"
+if ext_hits: warn += f"; WARNING external mentions ignored: {len(ext_hits)}"
+print(f"OK: {old} -> {new}; files rewritten: {len(changed)}; references to the old path in the .md corpus: 0{warn}")
+PY

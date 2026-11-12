@@ -336,6 +336,28 @@ if [[ "$yn" =~ ^[Yy]$ ]]; then
   warn "Then: see $ADDON_DIR/README.md for systemd setup"
 fi
 
+# ---- scheduled jobs (cron) ---------------------------------------------------
+# One marked block in the user's crontab, replaced on every run (no duplicates; other lines untouched).
+CRON_BEGIN="# >>> claude-code-methodology ($TARGET)"
+CRON_END="# <<< claude-code-methodology ($TARGET)"
+q() { printf '%q' "$1"; }
+CRON_LINES="$CRON_BEGIN
+*/10 * * * * python3 $(q "$TARGET/hooks/trash-guard.py") --measure >/dev/null 2>&1
+35 4 * * * python3 $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1
+55 * * * * python3 $(q "$TARGET/hooks/abbr-guard.py") --build-vocab >/dev/null 2>&1
+$CRON_END"
+echo
+say "Scheduled jobs: trash size/cleanup, abbreviation vocabulary"
+if [[ $DRY_RUN -eq 1 ]]; then
+  printf '  DRY: would put into crontab:\n%s\n' "$CRON_LINES"
+elif command -v crontab >/dev/null 2>&1; then
+  { crontab -l 2>/dev/null | awk -v b="$CRON_BEGIN" -v e="$CRON_END" '$0==b{skip=1;next} $0==e{skip=0;next} !skip'
+    printf '%s\n' "$CRON_LINES"; } | crontab - && ok "crontab updated ($(crontab -l | grep -cF "$TARGET") lines)"
+else
+  warn "no crontab on this machine — add these lines to your scheduler by hand:"
+  printf '%s\n' "$CRON_LINES" >&2
+fi
+
 # ---- verify: run the installed tests against the installed copies -----------
 TESTS_FAILED=0
 if [[ $VERIFY -eq 1 && $DRY_RUN -eq 0 ]] && compgen -G "$TARGET/tests/*-test.*" >/dev/null; then
