@@ -5,8 +5,7 @@ PreToolUse on Edit|Write: by the file's extension/path → inject ONLY the headi
 (### …) of the matching code-pitfalls/<topic>.md plus its path. The bodies stay
 out of context; the agent opens the file if a heading looks like its case.
 PreToolUse on Bash: flock/lock files → concurrency.md; git → git.md;
-ssh/scp/qemu → vm.md; adb → android.md (the last three ship empty — add your own
-git.md / vm.md / android.md and they start showing). Edit|Write whose new text
+ssh/scp/qemu → vm.md; adb → android.md. Edit|Write whose new text
 takes a lock or spawns threads also gets concurrency.md.
 
 Pitfall files are read at runtime, so agents append new lessons without anyone

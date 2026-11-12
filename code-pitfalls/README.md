@@ -23,11 +23,18 @@ moment it matters, not in a postmortem nobody re-reads.
 Already there? Don't duplicate — bump its "Seen" count. A repeat is a candidate for
 a mechanism (a hook or a gate), not for a louder sentence.
 
-| File | About |
-|---|---|
-| `verification.md` | proof of execution, instruments that lie |
-| `shell.md` | bash, process killing, `set -e`, `sleep` vs events, permissions |
-| `concurrency.md` | shared files, locks, TTLs |
-| `hooks.md` | Claude Code hooks and gates |
+| File | Lessons | About |
+|---|---|---|
+| `shell.md` | 34 | bash, process killing, `set -e`, `sleep` vs events, permissions, cron |
+| `python.md` | 30 | text edits by script, encodings, subprocesses, migrations |
+| `git.md` | 27 | shared working trees, wrappers, hooks, what a commit really takes |
+| `web.md` | 33 | small stdlib sites, JS patches, layout checks, other people's sites |
+| `verification.md` | 28 | proof of execution, instruments that lie |
+| `hooks.md` | 20 | Claude Code hooks and gates |
+| `concurrency.md` | 12 | shared files, locks, TTLs, connection pools |
+| `services.md` | 16 | systemd, cron, permissions of service users |
+| `vm.md` | 19 | a Linux VM on a Windows Hyper-V host |
+| `windows.md` | 18 | PowerShell and Windows over SSH |
+| `android.md` | 30 | automating Android apps over adb |
 
-These are seeds taken from a larger private set (~220 lessons as of November 2026). Grow your own.
+This is the private set as of November 2026 with private context removed (a few near-duplicates merged). Grow your own.
