@@ -29,6 +29,14 @@ DEFAULTS = {
     "CCM_EPISODIC_DIR": "",                           # "when did we do X" log; empty = <claude dir>/memory/episodic
     "CCM_FORBIDDEN_SUBAGENT_MODELS": "",              # models subagents must not run on (fable-gate), comma-separated
     "CCM_SUBAGENT_DEFAULT_MODEL": "sonnet",
+    "CCM_ALARM_SCRIPTS": "",                          # selfkill-gate: scripts that must be started as background tasks
+    "CCM_COORDINATOR_PATTERN": "HQ|Coordinator|Orchestrator",  # order-capture-hint: sessions that hand out work
+    "CCM_COST_UNITS_PER_PCT": "",                     # cost-guard: calibration of "1% of the session limit"
+    "CCM_DRAFT_GUARD_SKIP": "",                       # draft-guard: agents whose English drafts are not checked
+    "CCM_EXTERNAL_DIRS": "",                          # input-guard: workspace folders whose files come from outside
+    "CCM_INPUT_GUARD_MUTE": os.path.join(HOME, ".claude", "input-guard-mute.txt"),
+    "CCM_TRASH_LIMIT_GB": "3",                        # trash-guard: warn above this size
+    "CCM_TRASH_BOARD": os.path.join(HOME, ".claude", "trash-guard", "board.md"),
     "CCM_LANG_EXTRA": "",                             # extra phrase lists the detectors also match (besides English)
 }
 
