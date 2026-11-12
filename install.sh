@@ -260,6 +260,12 @@ fi
 echo
 ok "Install complete."
 echo
+echo "Checking the installation item by item…"
+if [[ $DRY_RUN -eq 0 ]]; then
+  if [[ "$SCOPE" == "user" ]]; then CHECK=(--user); else CHECK=(--project "$PROJECT_DIR"); fi
+  python3 "$REPO_DIR/check-install.py" "${CHECK[@]}" | tail -n 4 || warn "Some items are missing — see above: python3 $REPO_DIR/check-install.py ${CHECK[*]}"
+fi
+echo
 echo "Next steps:"
 echo "  1) Review $TARGET/CLAUDE.md — edit to fit"
 echo "  2) Start a new Claude Code session (existing sessions won't pick up the new config)"

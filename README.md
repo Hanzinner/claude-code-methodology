@@ -53,10 +53,17 @@ You can hand the repo to your own agent and say "install this": it runs `./insta
 
 **Asking an agent to install it.** Paste this into Claude Code (any folder):
 
-> Install https://github.com/Hanzinner/claude-code-methodology for me. Clone it into ~/claude-code-methodology,
-> read its README, then run `./install.sh --user` (it takes defaults when nobody answers; that is fine).
-> Show me the last lines of its output and tell me which of my existing files it backed up or kept
-> (`*.bak-*`, `CLAUDE.md.new`). Then tell me to restart Claude Code.
+> Install https://github.com/Hanzinner/claude-code-methodology for me. Clone it into ~/claude-code-methodology
+> (or `git pull` there if it exists), read its README, then run `./install.sh --user` (it takes defaults when
+> nobody answers; that is fine). Then run `./check-install.py --user` and show me its full output.
+> It is not installed until that check ends with "0 missing or broken"; if anything is missing, fix it and
+> run the check again. Do not delete or move anything in ~/.claude yourself. Tell me which of my existing
+> files the installer backed up or kept (`*.bak-*`, `CLAUDE.md.new`), then tell me to restart Claude Code.
+
+**What it never touches:** your chats and session history (`~/.claude/projects/`, `history.jsonl`),
+`~/.claude.json`, your own commands, agents and MCP servers. It writes only its own folders and merges
+`settings.json`. This is tested on a clean machine: fingerprints of those files before and after two
+installs and a run of every hook are compared.
 
 Want it for one project only: say `--project <path>` instead of `--user`. The optional extras (system
 packages for PDF/HTML extraction, the Telegram bot) are off by default; ask the agent for them separately.
