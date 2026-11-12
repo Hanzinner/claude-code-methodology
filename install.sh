@@ -105,8 +105,20 @@ backup_if_exists() {
 
 # ---- copy core files -----------------------------------------------------
 say "Copying CLAUDE.md (operating core)…"
-backup_if_exists "$TARGET/CLAUDE.md"
-do_or_show cp "$REPO_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"
+# CLAUDE.md is meant to be edited (the personal-taste sections). Overwrite it only if it is
+# exactly what we installed last time; otherwise keep the user's file and put ours next to it.
+STAMP_DIR="$TARGET/.methodology-installed"
+sha_of() { python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1"; }
+if [[ ! -e "$TARGET/CLAUDE.md" ]] || \
+   [[ -f "$STAMP_DIR/CLAUDE.md.sha256" && "$(sha_of "$TARGET/CLAUDE.md")" == "$(cat "$STAMP_DIR/CLAUDE.md.sha256")" ]]; then
+  do_or_show cp "$REPO_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"
+  if [[ $DRY_RUN -eq 0 ]]; then mkdir -p "$STAMP_DIR"; sha_of "$TARGET/CLAUDE.md" > "$STAMP_DIR/CLAUDE.md.sha256"; fi
+elif cmp -s "$REPO_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"; then
+  :   # already current
+else
+  do_or_show cp "$REPO_DIR/CLAUDE.md" "$TARGET/CLAUDE.md.new"
+  warn "CLAUDE.md has your own edits — kept. The new version is CLAUDE.md.new; merge what you want."
+fi
 
 say "Copying hooks…"
 for f in "$REPO_DIR"/hooks/*.sh "$REPO_DIR"/hooks/*.py; do
@@ -158,6 +170,8 @@ fi
 say "Generating settings.json…"
 SETTINGS="$TARGET/settings.json"
 backup_if_exists "$SETTINGS"
+# Re-running (an update) MERGES into an existing settings.json: the user's permissions, env,
+# model and their own hooks stay; only the hook entries that point into $TARGET/hooks/ are replaced.
 
 # Substitute the install target into the template
 if [[ $DRY_RUN -eq 0 ]]; then
@@ -170,8 +184,41 @@ sh = target.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replac
 text = open(src).read()
 text = text.replace("__CLAUDE_DIR_RAW__", json.dumps(target)[1:-1])
 text = text.replace("__CLAUDE_DIR__", json.dumps(sh)[1:-1])
-open(dst, "w").write(text)
-json.load(open(dst))  # fail loudly if the result isn't valid JSON
+ours = json.loads(text)  # fail loudly if the template didn't render to valid JSON
+try:
+    have = json.load(open(dst))
+    if not isinstance(have, dict):
+        raise ValueError
+except FileNotFoundError:
+    have = {}
+except ValueError:
+    print(f"  ! {dst} is not valid JSON — replaced (the .bak copy has it)", file=sys.stderr)
+    have = {}
+mine = (target.rstrip("/") + "/hooks/", sh.rstrip("/") + "/hooks/")
+merged = dict(have)
+for k, v in ours.items():
+    if k == "hooks":
+        continue
+    if k == "env" and isinstance(have.get("env"), dict):
+        merged["env"] = {**have["env"], **v}      # our variables are refreshed, theirs stay
+    else:
+        merged.setdefault(k, v)                   # anything the user set wins
+hooks = {}
+for event, groups in (have.get("hooks") or {}).items():
+    for g in groups:
+        keep = [h for h in g.get("hooks", []) if not any(m in h.get("command", "") for m in mine)]
+        if keep:
+            hooks.setdefault(event, []).append({**g, "hooks": keep})
+for event, groups in ours["hooks"].items():
+    hooks.setdefault(event, []).extend(groups)
+merged["hooks"] = hooks
+tmp = dst + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(merged, f, indent=2)
+    f.write("\n")
+json.load(open(tmp))
+import os
+os.replace(tmp, dst)
 PYSUB
   ok "wrote $SETTINGS"
 else
