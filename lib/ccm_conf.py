@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Settings shared by every mechanism: one KEY=VALUE file written by install.sh.
 
-Lookup order for the file: $CLAUDE_METHODOLOGY_CONF, then $CLAUDE_METHODOLOGY_DIR/methodology.conf,
+Lookup order for the file: $CLAUDE_METHODOLOGY_CONF (if set, it is the only one looked at), then $CLAUDE_METHODOLOGY_DIR/methodology.conf,
 then <install dir>/methodology.conf (this file lives in <install dir>/lib/), then ~/.claude/methodology.conf.
 An environment variable with the same name as a key beats the file (handy in tests).
 The file is parsed, never sourced: a value can't run code.
@@ -19,7 +19,7 @@ DEFAULTS = {
     "CCM_HUMAN_NAME": "the user",                     # who the agents work for; used in hints the agent reads
     "CCM_CLAUDE_DIR": INSTALL_DIR,                    # where hooks/, scripts/, lib/ were installed
     "CCM_WORKSPACE": os.path.join(HOME, "claude-projects"),   # root the agents work in (agent folders, journals)
-    "CCM_TRASH_DIR": os.path.join(HOME, ".Trash"),    # "delete" = move here
+    "CCM_TRASH_DIR": os.path.join(HOME, ".claude-trash"),   # "delete" = move here (not the desktop/macOS trash)
     "CCM_TRASH_DAYS": "14",
     "CCM_SECRETS_DIR": os.path.join(HOME, ".config", "claude-secrets"),   # keys live here, never in the workspace
     "CCM_TIMEZONE": "",                               # IANA name; empty = system time zone
@@ -34,7 +34,10 @@ DEFAULTS = {
 
 
 def conf_file():
-    for p in (os.environ.get("CLAUDE_METHODOLOGY_CONF"),
+    if "CLAUDE_METHODOLOGY_CONF" in os.environ:          # explicit = final: a missing file means "no file", no fallback
+        p = os.environ["CLAUDE_METHODOLOGY_CONF"]
+        return p if os.path.isfile(p) else None
+    for p in (
               os.environ.get("CLAUDE_METHODOLOGY_DIR") and os.path.join(os.environ["CLAUDE_METHODOLOGY_DIR"], "methodology.conf"),
               os.path.join(INSTALL_DIR, "methodology.conf"),
               os.path.join(HOME, ".claude", "methodology.conf")):

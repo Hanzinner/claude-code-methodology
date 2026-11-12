@@ -8,7 +8,8 @@ CCM_HUMAN_NAME="__HUMAN_NAME__"
 # Root folder the agents work in: agent folders, the mistakes journal, shared docs.
 CCM_WORKSPACE="__WORKSPACE__"
 
-# "Delete" means move here. Files older than CCM_TRASH_DAYS are removed by trash-guard --sweep.
+# "Delete" means move here. Its own folder — not your desktop/macOS trash.
+# Files older than CCM_TRASH_DAYS are removed ONLY if you enabled cleanup (install.sh --enable-cleanup).
 CCM_TRASH_DIR="__TRASH_DIR__"
 CCM_TRASH_DAYS=14
 
