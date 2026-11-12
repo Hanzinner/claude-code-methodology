@@ -189,7 +189,9 @@ for f in "$REPO_DIR"/scripts/*; do
   name=$(basename "$f")
   backup_if_exists "$TARGET/scripts/$name"
   do_or_show cp "$f" "$TARGET/scripts/$name"
-  case "$name" in *.sh|*.py) do_or_show chmod +x "$TARGET/scripts/$name" ;; esac
+  case "$name" in *.sh|*.py) do_or_show chmod +x "$TARGET/scripts/$name" ;;
+    *.md|*.txt) ;;
+    *) [[ "$(head -c 2 "$f")" == "#!" ]] && do_or_show chmod +x "$TARGET/scripts/$name" ;; esac
 done
 
 say "Copying shared library, tools and tests…"
@@ -217,6 +219,14 @@ if [[ "$SCOPE" == "user" ]] && compgen -G "$TARGET/bin/*" >/dev/null; then
   done
   case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) warn "add ~/.local/bin to PATH for the tools (secret-scan, swap-live, creds, rename-ref)" ;; esac
 fi
+
+say "Copying MCP servers…"
+do_or_show mkdir -p "$TARGET/mcp"
+for f in "$REPO_DIR"/mcp/*.py; do
+  [[ -f "$f" ]] || continue
+  do_or_show cp "$f" "$TARGET/mcp/$(basename "$f")"
+done
+[[ -f "$TARGET/mcp/search_mcp.py" || $DRY_RUN -eq 1 ]] && warn "web search MCP: put TAVILY_API_KEY= and/or EXA_API_KEY= into the secrets dir's search.env, then: claude mcp add --scope user search -- python3 \"$TARGET/mcp/search_mcp.py\""
 
 say "Copying skills…"
 for d in "$REPO_DIR"/skills/*/; do
