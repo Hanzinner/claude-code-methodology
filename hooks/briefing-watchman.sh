@@ -308,6 +308,14 @@ if [[ -f "$watchlist" ]]; then
         if [[ "$line" = /* ]]; then wf="$line"; else wf="$WORKSPACE/$line"; fi
         [[ -f "$wf" ]] || continue
 
+        # The coding standard: not a raw diff but its changelog from the version the agent confirmed in its briefing
+        # ("Standard: vN read"). Rewording without a new version -> silence; skipped versions -> all their entries.
+        if [[ "$(basename "$wf")" == "CODING-STANDARD.md" && -f "$SCRIPTS/standard_version.py" ]]; then
+            CCM_CODING_STANDARD="$wf" python3 "$SCRIPTS/standard_version.py" hint "$agent_dir" \
+                "$MARKER_DIR/${session_id}-std.shown" 2>/dev/null || true
+            continue
+        fi
+
         key=$(echo -n "$wf" | sha256sum | cut -c1-8)
         snap="$MARKER_DIR/${session_id}-wl-${key}.snap"
 
