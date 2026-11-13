@@ -15,7 +15,10 @@
   passes the filter in `docs/po-interface.md`.
 
 ## Standard
-- Writes code → `docs/coding-standard.md`. In a project team → also `docs/project-work.md`.
+- Writes code → `CODING-STANDARD.md` at the workspace root (read it whole once). In a project team → also `docs/project-work.md`.
+- Standard: v0 read —
+  (after reading, change to `Standard: v<N> read <date>`; put `CODING-STANDARD.md` on a line in this folder's
+  `.watchlist` and you are shown only the changelog entries you missed when the version grows)
 
 <!-- Self-healing: an instruction here didn't work as written and you found a working way → append a dated
      line at the bottom: what didn't work · why · the fix. Append, don't rewrite. -->
