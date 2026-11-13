@@ -57,9 +57,13 @@ base=$(count_new); base_file=$(mktemp); new_items | sort > "$base_file"; start=$
 # One alarm per agent (agents once started it on every reply: 18 links, every letter woke them all). A live alarm of
 # this agent exists -> do not start another link.
 mkdir -p "$HOME/.claude/inbox-wait"
+# Process facts from /proc (Linux; a minimal Debian has no `ps`), `ps` where there is no /proc (macOS).
+p_cmd()  { if [[ -r /proc/$1/cmdline ]]; then tr '\0' ' ' < "/proc/$1/cmdline"; else ps -o command= -p "$1" 2>/dev/null; fi; }
+p_comm() { if [[ -r /proc/$1/comm ]]; then cat "/proc/$1/comm"; else ps -o comm= -p "$1" 2>/dev/null; fi; }
+p_ppid() { if [[ -r /proc/$1/stat ]]; then awk '{sub(/.*\) /, ""); print $2}' "/proc/$1/stat"; else ps -o ppid= -p "$1" 2>/dev/null | tr -d ' '; fi; }
 alive_waiter() {   # -> pid of a live inbox_wait.sh of this agent, other than me
     local p c; p=$(cat "$HOME/.claude/inbox-wait/$agent" 2>/dev/null)
-    if [[ -n "$p" && "$p" != "$$" ]] && c=$(ps -o command= -p "$p" 2>/dev/null) && [[ "$c" == *inbox_wait* && " $c " == *" $agent "* ]]; then
+    if [[ -n "$p" && "$p" != "$$" ]] && c=$(p_cmd "$p") && [[ -n "$c" && "$c" == *inbox_wait* && " $c " == *" $agent "* ]]; then
         echo "$p"; return 0; fi
     return 1
 }
@@ -68,9 +72,9 @@ alive_waiter() {   # -> pid of a live inbox_wait.sh of this agent, other than me
 session_of() {
     local p=$1 n=0 c
     while [[ "$p" -gt 1 && $n -lt 40 ]]; do
-        c=$(ps -o comm= -p "$p" 2>/dev/null); c=${c##*/}
+        c=$(p_comm "$p"); c=${c##*/}
         [[ "$c" == claude ]] && { echo "$p"; return 0; }
-        p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ') || return 1
+        p=$(p_ppid "$p") || return 1
         [[ -n "$p" ]] || return 1
         n=$((n+1))
     done
@@ -93,7 +97,12 @@ trap 'rm -f "$base_file"; [[ "$(cat "$HOME/.claude/inbox-wait/$agent" 2>/dev/nul
 # "Also waiting": on an exit without a letter the coordinator sees who else stands waiting and for how long - a chain
 # "Dev waited for Design 22 min, the coordinator waited for a letter". Agents from $WORK_GUARD_AGENTS (a list file,
 # one name per line); with no such file, every agent that has a live alarm.
-etime_min() {   # elapsed minutes of a pid, portable ([[dd-]hh:]mm:ss)
+etime_min() {   # elapsed minutes of a pid: /proc start time, else ps ([[dd-]hh:]mm:ss)
+    if [[ -r /proc/$1/stat && -r /proc/uptime ]]; then
+        local st up hz; st=$(awk '{sub(/.*\) /, ""); print $20}' "/proc/$1/stat"); read -r up _ < /proc/uptime
+        hz=$(getconf CLK_TCK 2>/dev/null || echo 100)
+        awk -v u="$up" -v s="$st" -v h="$hz" 'BEGIN{print int((u - s / h) / 60)}'; return
+    fi
     ps -o etime= -p "$1" 2>/dev/null | awk '{n=split($1,a,/[-:]/); s=0; if(n==2)s=a[1]*60+a[2]; else if(n==3)s=a[1]*3600+a[2]*60+a[3]; else if(n==4)s=a[1]*86400+a[2]*3600+a[3]*60+a[4]; print int(s/60)}'
 }
 others_waiting() {

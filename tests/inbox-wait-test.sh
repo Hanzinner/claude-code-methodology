@@ -59,7 +59,7 @@ kill $pu 2>/dev/null; wait $pu 2>/dev/null
 # two tabs with the same identity: a live alarm of ANOTHER session (another ancestor named "claude") does not take mine
 mkdir -p "$T/fake"; cp /bin/bash "$T/fake/claude"
 # "; true" - a second command: otherwise bash -c execs and "claude" disappears from the chain
-"$T/fake/claude" -c "bash '$IW' T --max 120; true" >/dev/null 2>&1 & pf=$!; sleep 2; p1=$(cat "$HOME/.claude/inbox-wait/T" 2>/dev/null)
+"$T/fake/claude" -c "bash $(printf %q "$IW") T --max 120; true" >/dev/null 2>&1 & pf=$!; sleep 2; p1=$(cat "$HOME/.claude/inbox-wait/T" 2>/dev/null)
 out=$(timeout 60 bash "$IW" T --max 3 2>&1); rc=$?
 ok "another tab: \"armed in ANOTHER tab\" and my own alarm ran" '[[ -n $p1 && $out == *"ANOTHER tab (pid $p1)"* && $out == *"of waiting passed"* ]]'
 ok "...the pid file stayed with the other tab's alarm (my exit did not erase it)" '[[ "$(cat "$HOME/.claude/inbox-wait/T" 2>/dev/null)" == "$p1" ]]'
