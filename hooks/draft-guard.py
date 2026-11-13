@@ -76,7 +76,7 @@ def agent_of(sid):
 def is_prompt(o):
     if o.get("type") != "user" or o.get("isMeta"):
         return False
-    c = (o.get("message") or {}).get("content")
+    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
     if isinstance(c, str):
         return bool(c.strip())
     return isinstance(c, list) and not any(isinstance(x, dict) and x.get("type") == "tool_result" for x in c)
@@ -107,7 +107,7 @@ def last_reply(tp):
             if idx or start == 0:
                 text = ""
                 for o in rows[idx[-1] + 1 if idx else 0:]:
-                    c = (o.get("message") or {}).get("content")
+                    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
                     if o.get("type") == "assistant" and isinstance(c, list):
                         for x in c:
                             if isinstance(x, dict) and x.get("type") == "text":

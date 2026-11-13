@@ -46,7 +46,7 @@ def first_hit(p):
 def is_prompt(o):
     if o.get("type") != "user" or o.get("isMeta"):
         return False
-    c = (o.get("message") or {}).get("content")
+    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
     if isinstance(c, str):
         return bool(c.strip())
     if isinstance(c, list):
@@ -75,7 +75,7 @@ def turns(tp):
                 flush()
                 text, bash_ids, ok, total, edits = "", set(), 0, 0, 0
                 continue
-            c = (o.get("message") or {}).get("content")
+            c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
             if not isinstance(c, list):
                 continue
             for x in c:

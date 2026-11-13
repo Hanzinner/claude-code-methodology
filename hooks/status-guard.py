@@ -81,7 +81,7 @@ def turn(tp):
             continue
         if o.get("type") != "assistant":
             continue
-        for x in (o.get("message") or {}).get("content") or []:
+        for x in (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content") or []:
             if not isinstance(x, dict):
                 continue
             if x.get("type") == "text":

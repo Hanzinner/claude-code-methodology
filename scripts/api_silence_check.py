@@ -30,7 +30,7 @@ def human_text(o):
     """text of a real human message, or None (service line, tool result)"""
     if o.get("type") != "user" or o.get("isMeta"):
         return None
-    c = (o.get("message") or {}).get("content")
+    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
     if isinstance(c, str):
         t = c
     elif isinstance(c, list):
@@ -80,7 +80,7 @@ def scan(tp, now):
             continue
         if now - epoch(o.get("timestamp", "")) > WINDOW:
             continue
-        txt = " ".join(x.get("text", "") for x in (o.get("message") or {}).get("content") or []
+        txt = " ".join(x.get("text", "") for x in (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content") or []
                        if isinstance(x, dict) and x.get("type") == "text")
         if last_human and any(m in txt for m in ERR_MARKS):
             out.append((txt.strip()[:90], last_human[:40]))

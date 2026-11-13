@@ -91,7 +91,7 @@ def live_branch(tp):
 def _is_human(o):
     if o.get("type") != "user":
         return False
-    c = (o.get("message") or {}).get("content")
+    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
     if isinstance(c, str):
         return True
     return isinstance(c, list) and any(isinstance(b, dict) and b.get("type") == "text" for b in c)

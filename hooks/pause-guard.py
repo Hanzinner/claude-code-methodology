@@ -126,7 +126,7 @@ def last_assistant(tp):
                 except json.JSONDecodeError:
                     continue
                 if o.get("type") == "assistant":
-                    for c in (o.get("message") or {}).get("content") or []:
+                    for c in (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content") or []:
                         if isinstance(c, dict) and c.get("type") == "text":
                             a = c["text"]
     except OSError:
@@ -172,7 +172,7 @@ def calibrate(days):
                     continue
                 if o.get("type") != "assistant":
                     continue
-                for c in (o.get("message") or {}).get("content") or []:
+                for c in (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content") or []:
                     if isinstance(c, dict) and c.get("type") == "text":
                         n += 1
                         a, h = verdict(c["text"])

@@ -62,7 +62,7 @@ def link(text):
 
 
 def is_prompt(o):
-    c = (o.get("message") or {}).get("content")
+    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
     return o.get("type") == "user" and not o.get("isMeta") and (isinstance(c, str) or (isinstance(c, list) and any(
         isinstance(x, dict) and x.get("type") == "text" for x in c)))
 
@@ -104,7 +104,7 @@ def last_turn_text(tp):
             o = json.loads(line)
         except ValueError:
             continue
-        c = (o.get("message") or {}).get("content")
+        c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
         if o.get("type") == "user" and not o.get("isMeta"):
             if is_prompt(o):
                 texts = []

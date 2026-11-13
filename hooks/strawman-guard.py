@@ -142,7 +142,7 @@ def last_texts(transcript):
                 except json.JSONDecodeError:
                     continue
                 if o.get("type") == "user":
-                    c = (o.get("message") or {}).get("content")
+                    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
                     if isinstance(c, str) and not c.startswith("<"):
                         u = c
                     elif isinstance(c, list):
@@ -150,7 +150,7 @@ def last_texts(transcript):
                         if t.strip() and not t.lstrip().startswith("<"):
                             u = t
                 elif o.get("type") == "assistant":
-                    for cc in (o.get("message") or {}).get("content") or []:
+                    for cc in (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content") or []:
                         if isinstance(cc, dict) and cc.get("type") == "text":
                             a = cc["text"]
     except OSError:

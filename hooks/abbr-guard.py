@@ -93,7 +93,7 @@ def session(tp):
                 o = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            c = (o.get("message") or {}).get("content")
+            c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
             if o.get("type") == "user" and not o.get("isMeta"):
                 if isinstance(c, str):
                     users.append(c)

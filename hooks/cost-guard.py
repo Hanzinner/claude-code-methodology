@@ -190,7 +190,7 @@ def parse(lines):
 def is_prompt(o):
     if o.get("type") != "user" or o.get("isMeta"):
         return False
-    c = (o.get("message") or {}).get("content")
+    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
     return isinstance(c, str) or (isinstance(c, list) and any(isinstance(x, dict) and x.get("type") == "text" for x in c)
                                   and not any(isinstance(x, dict) and x.get("type") == "tool_result" for x in c))
 

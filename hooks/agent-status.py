@@ -43,7 +43,7 @@ def main():
                 except ValueError:
                     continue
                 if o.get("type") == "assistant":
-                    for c in ((o.get("message") or {}).get("content") or []):
+                    for c in ((o.get("message") if isinstance(o.get("message"), dict) else {}).get("content") or []):
                         if isinstance(c, dict) and c.get("type") == "text":
                             txt = c["text"]
         except Exception:
