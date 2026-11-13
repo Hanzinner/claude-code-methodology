@@ -461,7 +461,8 @@ CRON_LINES="$CRON_BEGIN
 52 12 * * * python3 $(q "$TARGET/scripts/library_check.py") >/dev/null 2>&1
 50 12 * * * $(q "$TARGET/scripts/swarm_tools_check.sh") >/dev/null 2>&1
 @reboot sleep 120 && $(q "$TARGET/scripts/git_empty_objects_check.sh") >/dev/null 2>&1
-25 5 * * * $(q "$TARGET/scripts/public_gate_selftest.sh") >/dev/null 2>&1"
+25 5 * * * $(q "$TARGET/scripts/public_gate_selftest.sh") >/dev/null 2>&1
+30 12 * * 0 $(q "$TARGET/scripts/prune_watchman_state.sh") >/dev/null 2>&1"
 [[ $WITH_CONSOLIDATION -eq 1 ]] && CRON_LINES="$CRON_LINES
 20 * * * * $(q "$TARGET/scripts/memory_consolidation.sh") >/dev/null 2>&1
 20 * * * * python3 $(q "$TARGET/scripts/stats_corrections.py") --days 3 --after 6 >/dev/null 2>&1"

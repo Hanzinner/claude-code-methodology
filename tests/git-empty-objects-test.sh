@@ -20,7 +20,7 @@ ok "3 the same set again -> rc 1 but no second letter" '[ $rc = 1 ] && [ "$(grep
 : > "$T/letters"; rm -f "$STATE"; out=$(bash "$GE" 2>&1); rc=$?
 ok "4 keeper empty -> rc 1, no letter, repo not touched" '[ $rc = 1 ] && [ ! -s "$T/letters" ] && [ -f "$obj" ]'
 out=$(REPO="$T/nothing" bash "$GE" 2>&1); rc=$?
-ok "5 no repo -> rc 3" '[ $rc = 3 ]'
+ok "5 not a git repo -> rc 0, nothing to check" '[ $rc = 0 ]'
 rm -f "$obj"; out=$(bash "$GE" 2>&1); rc=$?
 ok "6 repaired (object gone) -> rc 0 and the state is cleared" '[ $rc = 0 ] && [ ! -f "$STATE" ]'
 echo "git-empty-objects: $pass pass, $fail fail"; [ $fail = 0 ]
