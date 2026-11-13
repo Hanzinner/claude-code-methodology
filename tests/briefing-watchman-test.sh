@@ -99,4 +99,13 @@ echo $(( $(date +%s) - 7200 )) > "$T/hb"
 out=$(CCM_SUPERVISOR_HEARTBEAT="$T/hb" hook s1 "go on"); ok "stale supervisor heartbeat -> one line" '[[ "$out" == *"supervisor"*"silent for"* ]]'
 date +%s > "$T/hb"; out=$(CCM_SUPERVISOR_HEARTBEAT="$T/hb" hook s1 "go on"); ok "fresh heartbeat -> silent" '[ -z "$out" ]'
 echo $(( $(date +%s) - 7200 )) > "$T/hb"; out=$(hook s1 "go on"); ok "key not set -> off, silent" '[ -z "$out" ]'
+
+# coding standard in .watchlist: the changelog since the confirmed version, not a raw diff
+cp "$HERE/../scripts/standard_version.py" "$T/inst/scripts/"
+printf '# Standard\n**Version: 2** (test)\n\n## Changelog\n\n- **v2** (2026-11) — NEW RULE TWO\n- **v1** (2026-11) — first\n' > "$T/ws/CODING-STANDARD.md"
+mkdir -p "$A/Coder"; printf '# Coder briefing\nStandard: v1 read 2026-11-01\n' > "$A/Coder/briefing.md"; echo "CODING-STANDARD.md" > "$A/Coder/.watchlist"
+out=$(hook s9 "Coder")
+ok "coder behind the standard (v1 read, v2 out) -> the v2 changelog entry, not a diff" '[[ "$out" == *"NEW RULE TWO"* && "$out" != *"@@"* ]]'
+sed -i 's/Standard: v1 read/Standard: v2 read/' "$A/Coder/briefing.md"; hook s9 "go on" >/dev/null; out=$(hook s9 "go on")
+ok "coder on the current version -> silent about the standard" '[[ "$out" != *"NEW RULE TWO"* ]]'
 echo "watchman: $pass pass, $fail fail"; [ $fail = 0 ]

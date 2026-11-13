@@ -117,6 +117,7 @@ elif [[ "$SCOPE" == "project" ]]; then
     PROJECT_DIR=$(ask "Project directory" "$PWD")
   fi
   [[ -d "$PROJECT_DIR" ]] || die "project dir does not exist: $PROJECT_DIR"
+  PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd)   # absolute: hooks run with any cwd
   TARGET="$PROJECT_DIR/.claude"
 fi
 
@@ -136,6 +137,13 @@ else
   C_NAME="${OPT_NAME:-$(ask "Your name — agents address their hints to it" "$def_name")}"
   C_WS="${OPT_WORKSPACE:-$(ask "Workspace folder (agent folders, mistakes journal)" "$def_ws")}"
   C_TZ="${OPT_TZ:-$(ask "Time zone (IANA, empty = system)" "$def_tz")}"
+  # the workspace must be absolute: hooks run with any cwd, a relative "n" would mean a different folder each time
+  case "$C_WS" in
+    "~") C_WS="$HOME" ;;
+    "~/"*) C_WS="$HOME/${C_WS#\~/}" ;;
+    /*) ;;
+    *) warn "workspace \"$C_WS\" is relative — using $HOME/$C_WS"; C_WS="$HOME/$C_WS" ;;
+  esac
   C_TRASH="$HOME/.claude-trash"
   C_SECRETS="$HOME/.config/claude-secrets"
   if [[ $DRY_RUN -eq 1 ]]; then
@@ -279,7 +287,10 @@ else
     [[ -e "$dst" ]] && continue
     mkdir -p "$(dirname "$dst")" && cp "$f" "$dst" && added=$((added + 1))
   done < <(find "$REPO_DIR/swarm-template" -type f -print0)
-  ok "workspace $WS: $added file(s) added from swarm-template (existing ones kept)"
+  if [[ ! -e "$WS/CODING-STANDARD.md" && -f "$REPO_DIR/docs/coding-standard.md" ]]; then
+    cp "$REPO_DIR/docs/coding-standard.md" "$WS/CODING-STANDARD.md" && added=$((added + 1))
+  fi
+  ok "workspace $WS: $added file(s) added from swarm-template and the coding standard (existing ones kept)"
 fi
 
 say "Copying memory template…"
