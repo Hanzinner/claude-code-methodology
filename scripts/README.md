@@ -69,7 +69,7 @@ Scripts of the swarm. Agent names are folder names under `CCM_AGENTS_DIR`; proje
 | `project_drift.py` | Nightly: red line for each project with code that lacks a parseable `release.toml`, a gate command, or a recent green release. Writes `drift.json`. Exit 1 when any is red. |
 | `repo_stale.py` | Hourly: uncommitted files older than 24 h in a project's own repo -> one letter per day to its lead. Commits nothing. |
 | `wt_deliver.sh <agent>` | Delivers an agent's worktree into `master`: merge master in, test, check file ownership against `<project>/OWNERS`, `--ff-only`, build. Refuses at every step without moving `master`. Settings in `<project>/deliver.conf`. |
-| `standard_version.py current\|hint\|lag` | Compares the coding standard's version with the `Standard: vN read` line in an agent's briefing; `hint` prints the changelog entries it missed. Nothing in this repo calls it yet. |
+| `standard_version.py current\|hint\|lag` | Compares the coding standard's version with the `Standard: vN read` line in an agent's briefing; `hint` prints the changelog entries it missed. Called by `briefing-watchman.sh` when an agent's `.watchlist` has `CODING-STANDARD.md`. |
 | `setup-git-guard.sh` | Symlinks `bin/git-guard` as `git` into `~/.local/bin` (or `--system`); `--rc-file` adds a PATH block, `--uninstall`, `--dry-run`. **Only with `install.sh --with-git-guard`.** |
 
 ## cross-review.sh

@@ -50,15 +50,17 @@ keep a note, or leave the line and empty its list in `methodology.conf` where it
 
 Several named agents, each in its own chat with its own folder, talking through inboxes. The installer has
 already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS.md` (the registry),
-`MISTAKES.md` (one mistakes journal for all agents), `LIBRARY.md` (the catalog of mechanisms) and
-`Agents/_example-agent/` (the template). Files you already had are not touched.
+`MISTAKES.md` (one mistakes journal for all agents), `LIBRARY.md` (the catalog of mechanisms),
+`CODING-STANDARD.md` (the rules for agents that write code) and `Agents/_example-agent/` (the template). Files you already had are not touched.
 
 1. **Create an agent:** in any chat, type **`/register-as <Name>`** (letters, digits, `-`, `_`). It copies the
    template to `Agents/<Name>/` (briefing, inbox, the agent's own todo, your todo for it) and adds a row to
    `AGENTS.md`. Running it again for the same name changes nothing.
 2. **Say what it owns.** After the first real conversation the agent fills `briefing.md`: its role in one line,
    what it owns, what it doesn't touch, where its tasks come from. Check the registry row. Ownership is the part
-   that matters: two agents owning one file is how work gets lost.
+   that matters: two agents owning one file is how work gets lost. An agent that writes code also reads
+   `CODING-STANDARD.md` and confirms it in its briefing (`Standard: v1 read <date>`); with the file listed in its
+   `.watchlist`, it is shown what changed whenever the standard gets a new version.
 3. **Open it:** start a new chat whose **first message is just the agent's name** (`Docs`, `docs-agent`, `Docs v2`
    all work). From then on that chat is that agent: on every message it is shown its briefing again when the
    briefing has changed, and the letters in its inbox that are still open. You never paste a briefing by hand.
