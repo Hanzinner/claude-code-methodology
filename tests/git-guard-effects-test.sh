@@ -10,6 +10,7 @@ RG=$(command -v git)
 M="$T/main"; W="$T/wt"
 export CCM_WORKSPACE="$M" CCM_WORKTREES_DIR="$W" CCM_REAL_GIT="$RG"
 H() { bash -c "$1"; }
+QGW=$(printf %q "$GW")   # the install dir may contain ' and spaces
 fresh() {   # a clean shared repo: master + branches b1..b6 (all merged) + a tag + a stash + an uncommitted change in a.txt
     rm -rf "$M" "$W"
     H "mkdir -p '$M' && cd '$M' && '$RG' init -q -b master && '$RG' config user.email t@t && '$RG' config user.name t \
@@ -17,7 +18,7 @@ fresh() {   # a clean shared repo: master + branches b1..b6 (all merged) + a tag
        && for b in b1 b2 b3 b4 b5 b6; do '$RG' branch \$b; done && '$RG' tag rel-1 \
        && echo stashed >> a.txt && '$RG' stash -q && echo 'SOMEBODY ELSES UNCOMMITTED WORK' >> a.txt && echo junk > untracked.txt"
 }
-run() { H "cd '$M' && '$GW' $1" >/dev/null 2>&1; }
+run() { H "cd '$M' && $QGW $1" >/dev/null 2>&1; }
 branch_exists() { H "cd '$M' && '$RG' rev-parse -q --verify refs/heads/$1" >/dev/null 2>&1; }
 work_intact() { grep -q 'SOMEBODY ELSES UNCOMMITTED WORK' "$M/a.txt"; }
 pass=0; fail=0
@@ -50,10 +51,10 @@ fresh; run "branch -d b1";               must "branch -d of a merged branch (saf
 fresh; run "restore --staged a.txt";     must "restore --staged (index only) -> passed, work intact" 'work_intact'
 fresh; run "tag rel-2";                  must "tag creation -> it exists"                    'H "cd '"'$M'"' && '"$RG"' rev-parse -q --verify refs/tags/rel-2" >/dev/null'
 fresh; run "stash list";                 must "stash list -> rc 0"                           'true'
-fresh; H "cd '$M' && '$GW' worktree add -q '$W/x' b1" >/dev/null 2>&1
+fresh; H "cd '$M' && $QGW worktree add -q '$W/x' b1" >/dev/null 2>&1
        must "worktree add -> created"      '[ -d "$W/x" ]'
-       H "cd '$W/x' && '$GW' reset -q --hard" >/dev/null 2>&1; must "reset --hard in a worktree (a runner) -> not blocked" '[ $? = 0 ]'
-       H "cd '$W/x' && echo w >> a.txt && '$GW' checkout -q -f" >/dev/null 2>&1; must "checkout -f in a worktree -> passed (file reverted)" '! grep -q "^w$" "$W/x/a.txt"'
-fresh; H "cd '$M' && echo x > b.txt && '$GW' add b.txt && '$GW' commit -qm x" >/dev/null 2>&1
+       H "cd '$W/x' && $QGW reset -q --hard" >/dev/null 2>&1; must "reset --hard in a worktree (a runner) -> not blocked" '[ $? = 0 ]'
+       H "cd '$W/x' && echo w >> a.txt && $QGW checkout -q -f" >/dev/null 2>&1; must "checkout -f in a worktree -> passed (file reverted)" '! grep -q "^w$" "$W/x/a.txt"'
+fresh; H "cd '$M' && echo x > b.txt && $QGW add b.txt && $QGW commit -qm x" >/dev/null 2>&1
        must "a plain commit in the shared repo -> it exists"  'H "cd '"'$M'"' && '"$RG"' log --oneline" | grep -q " x$"'
 echo "git-guard-effects: $pass pass, $fail fail"; [ $fail = 0 ]
