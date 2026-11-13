@@ -1,6 +1,6 @@
 # Coding standard
 
-Version: as of 2026-11.
+**Version: 1** (2026-11). An agent confirms it in its briefing with the line `Standard: v1 read <date>`; when the version grows, it reads the new entries under "Changelog" at the bottom and updates the line (`scripts/standard_version.py` shows who is behind).
 
 **Audience: anyone who writes code, a script, a hook, a site or a detection rule.** One file for yourself or a shared mechanism, no difference. These are rules about the code itself and about proving it works.
 
@@ -116,7 +116,7 @@ Next to each rule, who guards it: ⚙ mechanism (block or hint, see §5) · 📊
 - **Before a fix, check master:** `git log master -- <file>`; it may already be fixed. Cost: a mouse-click fix was done twice, the merge conflict kept HTTPS and 4 apps off the OS for 5+ weeks.
 - **First line of a commit is plain language for the operator** (the dashboard shows it as "last thing done"); technical detail in the body.
 - **Someone else's uncommitted WIP is not stashed, reset or cleaned.** Stop your operation and write the owner the exact list of "what and where". A destructive action for process tidiness is worse than the problem.
-- **Destructive operations in the main repo are blocked by a git wrapper** on PATH (`multi-agent/git-guard`; protects against accidents, not against deliberate bypass: calling the real binary directly skips it, which is only done in a throwaway clone). It blocks `filter-repo` / `reset --hard` / `gc --prune` / `branch -D` / `push --force` / `clean -f` for everyone (exit 88), judged by **effect** after normalizing flags (synonyms such as `branch --delete --force`, `checkout -f`, `restore`, `switch -f`, `stash clear|drop`, `reflog expire`, `update-ref`, `worktree remove -f`, `filter-branch` are blocked too).
+- **Destructive operations in the main repo are blocked by a git wrapper** on PATH (`bin/git-guard`, installed with `install.sh --with-git-guard`; protects against accidents, not against deliberate bypass: calling the real binary directly skips it, which is only done in a throwaway clone). It blocks `filter-repo` / `reset --hard` / `gc --prune` / `branch -D` / `push --force` / `clean -f` for everyone (exit 88), judged by **effect** after normalizing flags (synonyms such as `branch --delete --force`, `checkout -f`, `restore`, `switch -f`, `stash clear|drop`, `reflog expire`, `update-ref`, `worktree remove -f`, `filter-branch` are blocked too).
 - **Build output does not go into git.** `.gitignore` does not act on already tracked files; you need `git rm --cached`. Cost: 1009 MB of `target/` in history blocked a public carve-out. Pitfalls: `code-pitfalls/git.md`; convention: the commit convention.
 
 **2.9 Shared mechanisms (hooks, gates, background scripts)**
@@ -180,9 +180,13 @@ Architecture decisions (§4.3), human docs (§4.5a), "what we do not do" (§4.6)
 | 3 failures in a row | `hooks/stuck-detector.py` | hint |
 | "Done" without proof | `hooks/proof-guard.py` | **block** for code since 2026-10 (calibration: 3 triggers in 423 turns with code edits over a week, all genuine). Claimed "done" after an edit and ran nothing: run it and show the output, or say plainly it is unverified and who will verify. Off-switch `PROOF_GUARD_BLOCK=0`. For shared docs it is a hint, next row |
 | Claim "done" after an edit (>3 lines) to shared docs without `cross-review` | `hooks/proof-guard.py` (docs branch) | flag + hint (cleared only when EVERY changed shared doc passed a successful `scripts/cross-review.sh` after the edit; briefs: one review) |
-| Writing into someone else's inbox by hand | in the private setup: `foreign_inbox_gate` hook; the repo ships `multi-agent/inbox-post.sh` as the sanctioned path | block |
-| Stopping with open work | in the private setup: `work_guard` Stop hook (a list of agents), fail-open on purpose: a Stop gate that fell must not lock an agent forever | block |
-| Whether the standard is used | in the private setup: a nightly adoption audit page | nightly measurement |
+| Writing into someone else's inbox by hand | `hooks/foreign-inbox-gate.py`; the sanctioned path is `scripts/inbox_post.sh` | block |
+| Stopping with open work | `hooks/work-guard.py` (Stop; only for agents listed in `CCM_WORK_GUARD_AGENTS`, off when empty), fail-open on purpose: a Stop gate that fell must not lock an agent forever | block |
+| Whether the standard is used | `scripts/standard_version.py` (which agents confirmed which version); in the private setup also a nightly adoption audit page | on demand |
 | **"Done" only with a run proof / review for critical** | a gate for the review part is the next step | |
 
 A rule nobody guards, agents do not follow (measured). A new item in this file is introduced together with a measurement of how it is used, with an introduction date and a removal condition.
+
+## Changelog
+
+- **v1** (2026-11) — first public version: the core path of a change, handing in with a run proof, who guards what.

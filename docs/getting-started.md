@@ -48,25 +48,44 @@ keep a note, or leave the line and empty its list in `methodology.conf` where it
 
 ## 4. More than one agent
 
-Several named agents, each in its own chat with its own folder, talking through inboxes. This is layer 2;
-**the installer does not set it up yet** — what follows is how to do it by hand today.
+Several named agents, each in its own chat with its own folder, talking through inboxes. The installer has
+already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS.md` (the registry),
+`MISTAKES.md` (one mistakes journal for all agents), `LIBRARY.md` (the catalog of mechanisms) and
+`Agents/_example-agent/` (the template). Files you already had are not touched.
 
-1. **Make the shared folder** (your `CCM_WORKSPACE`) and copy `swarm-template/` into it: the mistakes
-   journal, the agent registry (`AGENTS.md`), the catalog of mechanisms (`LIBRARY.md`) and one example
-   agent folder.
-2. **Create an agent:** copy `Agents/_example-agent/` to `Agents/<Name>/` and fill `briefing.md`: what it
-   owns, what it doesn't touch, where its tasks come from. Add a row to `AGENTS.md`. Ownership is the part
+1. **Create an agent:** in any chat, type **`/register-as <Name>`** (letters, digits, `-`, `_`). It copies the
+   template to `Agents/<Name>/` (briefing, inbox, the agent's own todo, your todo for it) and adds a row to
+   `AGENTS.md`. Running it again for the same name changes nothing.
+2. **Say what it owns.** After the first real conversation the agent fills `briefing.md`: its role in one line,
+   what it owns, what it doesn't touch, where its tasks come from. Check the registry row. Ownership is the part
    that matters: two agents owning one file is how work gets lost.
-3. **Start it:** open a new chat and make the first message *"You are <Name>. Read Agents/<Name>/briefing.md
-   and work as that agent."* (Layer 2 adds a watchman that does this from the name alone and re-shows the
-   briefing when it changes.)
-4. **Agents talk by letter, not by you:** one agent writes to another with
-   `multi-agent/inbox-post.sh <Name> "<text>"` (a lock and a check that the letter landed); the receiver
-   reads its `inbox.md`, does it or moves it to its `agent-TODO.md`, and closes the item. You only get what
-   needs you: taste, product, priority, anything irreversible — one line in that agent's `human-TODO.md`.
-   How reports are filtered for a human: [`po-interface.md`](po-interface.md).
-5. **When a project needs a team** (a lead agent, developers, QA): [`project-work.md`](project-work.md) is
-   the standard they follow, [`dev-methodology.md`](dev-methodology.md) is how the team is set up.
+3. **Open it:** start a new chat whose **first message is just the agent's name** (`Docs`, `docs-agent`, `Docs v2`
+   all work). From then on that chat is that agent: on every message it is shown its briefing again when the
+   briefing has changed, and the letters in its inbox that are still open. You never paste a briefing by hand.
+   Want to call it by another word? Put it on a line in `Agents/<Name>/.aliases`.
+4. **Agents talk by letter, not through you:** `scripts/inbox_post.sh <Name> "<text>"` (a lock, and a check
+   that the letter landed); the receiver does it or moves it to its todo and closes the item with
+   `scripts/inbox_done.sh`. Writing into someone else's `inbox.md` by hand is refused by a gate. A letter that
+   arrives while an agent is mid-task is shown to it after the current tool call. You only get what needs you:
+   taste, product, priority, anything irreversible — one line in that agent's `human-TODO.md`. How reports are
+   filtered for a human: [`po-interface.md`](po-interface.md).
+5. **Reminders:** "remind me at 18:30 to …" → the agent runs `scripts/remind.py`, and at that time a letter lands
+   in its inbox (a cron line checks every minute). The agent sees it on your next message in that chat, or at
+   once if it left an alarm running (`scripts/inbox_wait.sh`, see the work gate below). An agent that promises
+   "I'll get back to it" without setting a reminder is flagged.
+6. **Optional gates** (off until you name agents at the end of `methodology.conf`, section "several agents"):
+   `CCM_WORK_GUARD_AGENTS` (a file, one agent name per line) — these agents can't end a reply while their inbox
+   has unprocessed letters, or while their todo has open items and the reply doesn't say `STATE: waiting for …`;
+   they also leave an alarm running, so a new letter wakes the chat without you;
+   `CCM_STATUS_GUARD_AGENTS` — these agents can't tell you "story X is done / waiting for you" without running
+   the status command first.
+7. **When a project needs a team** (a lead agent, developers, QA): `scripts/new_project.sh --own-repo <Name>` (a code project
+   with its own git repo) or `--no-code <Name>` (a folder in the shared one) creates the project files (roadmap,
+   blockers, release settings) and the agents `<Name>-HQ` (the lead) and `<Name>-Dev`; [`project-work.md`](project-work.md) is the standard the team follows,
+   [`dev-methodology.md`](dev-methodology.md) is how the team is set up. The release queue (a separate system
+   user merges into the main branch only after the tests pass) and the git wrapper (blocks history-destroying
+   commands in the shared folder) need root and are installed only on request:
+   `./install.sh --with-releaser`, `./install.sh --with-git-guard`.
 
 ## 5. Keeping it up to date
 

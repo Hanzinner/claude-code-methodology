@@ -12,7 +12,7 @@ Section numbers are shared with coding-standard: "§D-A", "§1", "§2.6–2.8", 
 
 Next to each rule, who guards it: ⚙ mechanism · 📊 audit (catches only what is in brackets) · ✋ nobody, only you.
 
-**Roles:** the **operator** is Product Owner (goal, order of epics, accepts visuals/hardware) · the **project lead agent** is the only one who talks to the operator about the project; writes stories, hands out work, accepts · **executors** · **QA** (none: the lead launches a one-off verifier, §D-A) · **shared services**: the mechanisms dev agent (code of shared mechanisms), the infra agent (server), the git agent, the librarian agent (freshness of docs, registry, measurements). Communication is only through `multi-agent/inbox-post.sh <agent-name>` ⚙.
+**Roles:** the **operator** is Product Owner (goal, order of epics, accepts visuals/hardware) · the **project lead agent** is the only one who talks to the operator about the project; writes stories, hands out work, accepts · **executors** · **QA** (none: the lead launches a one-off verifier, §D-A) · **shared services**: the mechanisms dev agent (code of shared mechanisms), the infra agent (server), the git agent, the librarian agent (freshness of docs, registry, measurements). Communication is only through `scripts/inbox_post.sh <agent-name>` ⚙.
 
 1. **Idea → lead → story.** A story has a **"Done when"** (a check that runs) in the project's `ROADMAP.md`, with a **size and priority**. The order of epics is the operator's. **Blocks the operator's work → 95, ahead of everything** ✋ (an audit sees only a letter tagged 🖐/9x that has sat in the inbox over a day). (§1)
 2. **Lead → executor** by letter. The executor **does not block on others**: write it and keep working ✋. (§D-A)
@@ -39,7 +39,7 @@ Next to each rule, who guards it: ⚙ mechanism · 📊 audit (catches only what
 | **QA** | the project's QA agent; **no QA: the lead launches a one-off verifier** (below) | runs the live system along the user's path; has a **stop-cock, not the right to accept**: a veto stops, no veto means go (otherwise QA becomes the bottleneck) |
 | **Shared services** (one set for the whole setup) | the mechanisms dev agent (code of mechanisms), the infra agent (server, services, network), the git agent (git), the librarian agent (freshness of docs, registry, measurements) | serve all projects, do not write products |
 
-Communication is by letters in the inbox only (`multi-agent/inbox-post.sh`). State lives in git and the queue, not in retellings.
+Communication is by letters in the inbox only (`scripts/inbox_post.sh`). State lives in git and the queue, not in retellings.
 
 ### How agents work together
 - **Do not block on another agent:** write into the channel and keep working. A wait you cannot avoid goes into the addressee's inbox, not your chat. A lock/claim only with a TTL and a takeover rule. Design test: "does it take a living being to make this move?": yes means a cron, not an agent. Cost: two agents politely waited for each other for 2+ hours; the operator untangled it by hand.
@@ -90,7 +90,7 @@ Tests live in the project's `tests/` and are run by the deploy or CI (§2.7), no
 - **Do not:** keep a list of "live priorities" in a brief; it goes stale in days. Order lives in the project queue.
 - Conversational work with no queue (chat, research): the tag is optional.
 
-**1.3 The inbox is transit.** Arrived → read → done at once, or moved into your own queue with a tag and the item closed (`multi-agent` inbox tooling). Write to others only through `multi-agent/inbox-post.sh <agent-name>` (a gate does not let you write by hand). If a letter arrives in the middle of long work, reread "New" before the next step.
+**1.3 The inbox is transit.** Arrived → read → done at once, or moved into your own queue with a tag and the item closed (`scripts/inbox_done.sh`). Write to others only through `scripts/inbox_post.sh <agent-name>` (a gate does not let you write by hand). If a letter arrives in the middle of long work, reread "New" before the next step.
 
 ---
 
@@ -119,7 +119,7 @@ Tests live in the project's `tests/` and are run by the deploy or CI (§2.7), no
 - **Last-known-good** version is frozen as a rollback point, especially under an auto-snapshot where there are no tags.
 - **A branch lives hours, not days** (trunk-based per DORA: merge into main at least once a day, ≤3 active branches per project; branches of days and weeks are named bad practice). Finished a piece: a marker into the releaser queue the same day. A branch older than a day is red on the dashboard (measurement ordered). **Pull master into your branch daily and always before a marker into the queue.** The author resolves conflicts at their end, not the releaser; a marker only with green tests after the pull, so the releaser has a clean fast-forward. The releaser's clean copy is not cancelled by this: it checks what will ship, not what sits in the agent's directory.
 - **A project under a releaser: everything reaches master only through the queue, documents too** (ROADMAP, BLOCKERS, release.toml, .md): edit in your branch/copy → commit → marker (`releaser.py ready`). There is no separate "small" path around the releaser: two paths into master mean again "passed on trust" and uncommitted changes in the master tree that the next ff will not take (seen: ROADMAP and release.toml edited directly in the master tree). The dashboard sees the ROADMAP after release; that takes minutes. **The one exception is launch:** the releaser cannot read the first `release.toml` with the gate command (it reads the toml from master), so the mechanisms dev agent puts it into master together with `releaser.py approve` and a log line. After that every toml change goes through the queue, and a new gate command needs approve again. In the private setup the releaser is a separate tool; the repo does not ship it.
-- **Waking a team agent: the built-in `SendMessage`, the content by letter.** Write the assignment with `multi-agent/inbox-post.sh` (a record survives a dropped tab). If it prints "⚠ not listening" or it is urgent, use the built-in `SendMessage` tool into its live tab with one line, "you have a letter from X about Y". It wakes an idle tab on its own, no alarm clock. A tab name ≠ an agent name; limits and traps are in the tools list under "waking another agent".
+- **Waking a team agent: the built-in `SendMessage`, the content by letter.** Write the assignment with `scripts/inbox_post.sh` (a record survives a dropped tab). If it prints "⚠ not listening" or it is urgent, use the built-in `SendMessage` tool into its live tab with one line, "you have a letter from X about Y". It wakes an idle tab on its own, no alarm clock. A tab name ≠ an agent name; limits and traps are in the tools list under "waking another agent".
 
 **2.7 Quality gates.**
 - **With its own git flow:** CI on every commit of a branch (build + tests + linter), built FIRST. A red CI on your commit is your 90+.
