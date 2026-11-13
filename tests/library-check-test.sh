@@ -6,7 +6,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 LC=${LC:-$HERE/../scripts/library_check.py}
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" HANZ_TEST=1 CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T"; mkdir -p "$HOME"
-C="python3 $LC --dry"
+C() { python3 "$LC" --dry "$@"; }   # a function: the install path may contain spaces and quotes
 mkdir -p "$T/s" "$T/docs" "$T/nofresh"
 for f in gate.py tagged.py branch.py cronjob.sh; do echo '#' > "$T/s/$f"; done
 printf 'DETECTORS=(branch)\n' > "$T/s/stop-dispatch.sh"
@@ -32,25 +32,25 @@ ALL="- I.1 [gate.py]($T/s/gate.py) — g {hook:PreToolUse}
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; echo "$out" | sed 's/^/   /'; fi; }
 
-lib "$ALL"; out=$($C)
+lib "$ALL"; out=$(C)
 ok "1 all matches -> quiet (brackets in a path, %20, URL, retired, dispatcher, >> log, inline cron)" '[[ "$out" =~ ^[0-9-]+\ [0-9:]+\ library_check:\ no\ differences$ ]]'
 lib "$ALL
-- V.4 [gone](docs/gone.md) — {doc}"; out=$($C)
+- V.4 [gone](docs/gone.md) — {doc}"; out=$(C)
 ok "2 vanished path -> (a)" 'echo "$out" | grep -q "(a).*docs/gone.md"'
-lib "$(echo "$ALL" | grep -v 'I.1 ')"; out=$($C)
+lib "$(echo "$ALL" | grep -v 'I.1 ')"; out=$(C)
 ok "3 hook without a line -> (b)" 'echo "$out" | grep -q "(b) hook without a LIBRARY line.*gate.py"'
-lib "$(echo "$ALL" | grep -v 'I.4 ')"; out=$($C)
+lib "$(echo "$ALL" | grep -v 'I.4 ')"; out=$(C)
 ok "4 dispatcher branch without a line -> (b)" 'echo "$out" | grep -q "(b) hook without a LIBRARY line.*branch.py {hook:Stop}"'
-lib "$(echo "$ALL" | grep -v 'I.5 ')"; out=$($C)
+lib "$(echo "$ALL" | grep -v 'I.5 ')"; out=$(C)
 ok "5 cron job without a line -> (b)" 'echo "$out" | grep -q "(b) cron job without a LIBRARY line.*cronjob.sh"'
 ok "5b a >> target is not counted as a script" '! echo "$out" | grep -q "run.log"'
-lib "$(echo "$ALL" | sed 's/t {hook:PostToolUse}/t {hook:Stop}/')"; out=$($C)
+lib "$(echo "$ALL" | sed 's/t {hook:PostToolUse}/t {hook:Stop}/')"; out=$(C)
 ok "6 wrong tag -> (c)" 'echo "$out" | grep -q "(c).*tagged.py — tags {hook:Stop}, settings say {hook:PostToolUse}"'
 lib "$ALL
-- I.7 [ghost.py]($T/s/cronjob.sh) — {hook:Stop}"; out=$($C)
+- I.7 [ghost.py]($T/s/cronjob.sh) — {hook:Stop}"; out=$(C)
 ok "7 hook tag but not subscribed -> (c)" 'echo "$out" | grep -q "(c).*I.7.*not subscribed"'
 lib "$ALL
-- I.1 [dup.py]($T/s/gate.py) — {doc}"; out=$($C)
+- I.1 [dup.py]($T/s/gate.py) — {doc}"; out=$(C)
 ok "7b duplicate number -> (d)" 'echo "$out" | grep -q "(d) number I.1 twice"'
 # 8. (e) new within a day without a line -> letter to the AUTHOR (transcript -> identity)
 mkdir -p "$T/fresh" "$T/tr/p" "$T/ident"; printf '# S\n' > "$T/SWARM-TOOLS.md"
@@ -59,7 +59,7 @@ printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","nam
 echo "$T/Agents/Some-Agent" > "$T/ident/sid-author"
 export LIBCHECK_FRESH_DIRS="$T/fresh" LIBCHECK_TRANSCRIPTS="$T/tr/*/*.jsonl" LIBCHECK_IDENTITY="$T/ident"
 lib "$ALL
-- I.6 [known_tool.sh]($T/fresh/known_tool.sh) — c {tool}"; out=$($C)
+- I.6 [known_tool.sh]($T/fresh/known_tool.sh) — c {tool}"; out=$(C)
 ok "8 new file without a line -> (e) with the author and a letter to the author" 'echo "$out" | grep -q "(e).*new_tool.sh (author: Some-Agent)" && echo "$out" | grep -q "^→ Some-Agent:"'
 ok "8b a file with a LIBRARY line is not mentioned" '! echo "$out" | grep -q "known_tool"'
 # 9. a real (non --dry) run: the keeper gets ONE letter; empty keeper = no letter
