@@ -104,15 +104,15 @@ def _tail(tp, what):
     from transcript_tail import lines
     if what == "text":
         pred = lambda o: o.get("type") == "assistant" and any(isinstance(c, dict) and c.get("type") == "text"
-                                                           for c in ((o.get("message") or {}).get("content") or []))
+                                                           for c in ((o.get("message") if isinstance(o.get("message"), dict) else {}).get("content") or []))
         return lines(tp, pred, need='"text"', skip=None)
-    return lines(tp, lambda o: o.get("type") == "assistant" and (o.get("message") or {}).get("usage"),
+    return lines(tp, lambda o: o.get("type") == "assistant" and (o.get("message") if isinstance(o.get("message"), dict) else {}).get("usage"),
                  need='"usage"', skip=None)
 
 
 def _real(o):
     """An assistant row from the model, not a synthetic one (a limit error etc.: model "<synthetic>", zero usage)."""
-    return o.get("type") == "assistant" and (o.get("message") or {}).get("model") != "<synthetic>"
+    return o.get("type") == "assistant" and (o.get("message") if isinstance(o.get("message"), dict) else {}).get("model") != "<synthetic>"
 
 
 def last_assistant(tp, rows=None):
@@ -124,7 +124,7 @@ def last_assistant(tp, rows=None):
             except json.JSONDecodeError:
                 continue
             if _real(o):
-                for c in (o.get("message") or {}).get("content") or []:
+                for c in (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content") or []:
                     if isinstance(c, dict) and c.get("type") == "text":
                         a = c["text"]
     except OSError:
@@ -203,7 +203,7 @@ def _human(o):
     """A human's message: user without origin (task notifications have an origin), not a service row, not a tool result."""
     if o.get("type") != "user" or o.get("origin") or o.get("isMeta") or o.get("isCompactSummary"):
         return False
-    c = (o.get("message") or {}).get("content")
+    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
     return isinstance(c, str) or (isinstance(c, list) and c and all(isinstance(x, dict) and x.get("type") == "text" for x in c))
 
 
@@ -226,7 +226,7 @@ def pressure_reaped(tp, rows=None):
         if _human(o):
             hit = None
         elif o.get("type") == "user" and (o.get("origin") or {}).get("kind") == "task-notification":
-            c = (o.get("message") or {}).get("content")
+            c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
             if "low on memory" in (c if isinstance(c, str) else json.dumps(c)):
                 hit = o.get("uuid") or "?"
     return hit
@@ -270,7 +270,7 @@ def _human_msgs(rows):
             continue
         if o.get("type") != "user" or o.get("origin") or o.get("isMeta"):
             continue
-        c = (o.get("message") or {}).get("content")
+        c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
         t = c if isinstance(c, str) else " ".join(x.get("text", "") for x in c if isinstance(x, dict) and x.get("type") == "text") if isinstance(c, list) else ""
         if not t or t.lstrip().startswith("<"):
             continue
@@ -311,7 +311,7 @@ def alarm_off(agent_dir, tp, live):
             continue
         if o.get("type") != "user" or o.get("origin") or o.get("isMeta"):
             continue
-        c = (o.get("message") or {}).get("content")
+        c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
         t = c if isinstance(c, str) else " ".join(x.get("text", "") for x in c if isinstance(x, dict) and x.get("type") == "text") if isinstance(c, list) else ""
         if not t or t.lstrip().startswith("<"):
             continue

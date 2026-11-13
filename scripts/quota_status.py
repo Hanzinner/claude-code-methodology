@@ -108,14 +108,14 @@ def files():
                         except ValueError:
                             continue
                         ts = o.get("timestamp", "")
-                        u = (o.get("message") or {}).get("usage")
+                        u = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("usage")
                         if not ts or not u:
                             continue
                         try:
                             e = time.mktime(time.strptime(ts[:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone
                         except ValueError:
                             continue
-                        ev = [e, (o.get("message") or {}).get("model", "?"), u.get("input_tokens", 0) or 0,
+                        ev = [e, (o.get("message") if isinstance(o.get("message"), dict) else {}).get("model", "?"), u.get("input_tokens", 0) or 0,
                               u.get("output_tokens", 0) or 0, u.get("cache_read_input_tokens", 0) or 0,
                               u.get("cache_creation_input_tokens", 0) or 0]
                         day = ts[:10]

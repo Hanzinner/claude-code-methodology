@@ -85,7 +85,7 @@ def log(line):
 def texts(o):
     """→ (assistant texts [reasoning + reply], visible input [human's message, tool outputs]) from a transcript row."""
     mine, seen = [], []
-    c = (o.get("message") or {}).get("content")
+    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
     if o.get("type") == "assistant" and isinstance(c, list):
         for x in c:
             if isinstance(x, dict):
@@ -131,7 +131,7 @@ def verdict(mine, seen):
 def is_prompt(o):
     if o.get("type") != "user" or o.get("isMeta"):
         return False
-    c = (o.get("message") or {}).get("content")
+    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
     return isinstance(c, str) or (isinstance(c, list) and any(isinstance(x, dict) and x.get("type") == "text" for x in c)
                                   and not any(isinstance(x, dict) and x.get("type") == "tool_result" for x in c))
 
@@ -263,7 +263,7 @@ def calibrate(days):
                 o = json.loads(l)
             except ValueError:
                 continue
-            c = (o.get("message") or {}).get("content")
+            c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
             if is_prompt(o) and (mine or seen):
                 turns += 1
                 v = verdict(mine, seen)

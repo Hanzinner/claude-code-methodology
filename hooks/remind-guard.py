@@ -72,7 +72,7 @@ def is_prompt(o):
     """a human message that opens a turn (not a tool result, not a service row)"""
     if o.get("type") != "user" or o.get("isMeta") or o.get("isCompactSummary"):
         return False
-    c = (o.get("message") or {}).get("content")
+    c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
     if isinstance(c, str):
         return bool(c.strip())
     return isinstance(c, list) and bool(c) and not any(isinstance(x, dict) and x.get("type") == "tool_result" for x in c)
@@ -89,7 +89,7 @@ def build_turn(rows):
             o = json.loads(line)
         except ValueError:
             continue
-        c = (o.get("message") or {}).get("content")
+        c = (o.get("message") if isinstance(o.get("message"), dict) else {}).get("content")
         if not isinstance(c, list):
             continue
         for x in c:
