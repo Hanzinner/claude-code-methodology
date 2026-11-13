@@ -42,6 +42,7 @@ type find_done_hdr >/dev/null 2>&1 || find_done_hdr() { echo "## Processed"; }
 MARKER_DIR="$HOME/.claude/briefing-watchman"
 IDENTITY_DIR="$HOME/.claude/agent-identity"
 mkdir -p "$MARKER_DIR" "$IDENTITY_DIR"
+touch "$MARKER_DIR/heartbeat" 2>/dev/null || true   # the supervisor's "watchman is alive" check reads its age
 
 input=$(cat)
 session_id=$(echo "$input" | grep -oP '"session_id"\s*:\s*"\K[^"]+' | head -1)

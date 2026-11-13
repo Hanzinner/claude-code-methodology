@@ -18,6 +18,9 @@
 #   --enable-cleanup             # also schedule deleting trash items older than CCM_TRASH_DAYS (off by default)
 #   --with-releaser              # (root) release queue: a system user merges into master after gates; cron as root
 #   --with-git-guard             # put a git wrapper first in PATH: blocks destructive git in the shared workspace
+#   --with-consolidation         # daily memory consolidation + correction stats: each runs a model (your quota)
+#   --no-cron                    # do not touch the crontab (also automatic for an install under a temp dir)
+#   --prune-cron                 # remove OUR crontab blocks whose install dir no longer exists, then exit
 #
 # Machine-specific settings go to <install dir>/methodology.conf (kept on re-run).
 #
@@ -34,6 +37,9 @@ VERIFY=1
 CLEANUP=0
 WITH_RELEASER=0
 WITH_GIT_GUARD=0
+WITH_CONSOLIDATION=0
+NO_CRON=0
+PRUNE_CRON=0
 OPT_NAME=""
 OPT_WORKSPACE=""
 OPT_TZ=""
@@ -50,6 +56,9 @@ while [[ $# -gt 0 ]]; do
     --enable-cleanup) CLEANUP=1 ;;
     --with-releaser) WITH_RELEASER=1 ;;
     --with-git-guard) WITH_GIT_GUARD=1 ;;
+    --with-consolidation) WITH_CONSOLIDATION=1 ;;
+    --no-cron)     NO_CRON=1 ;;
+    --prune-cron)  PRUNE_CRON=1 ;;
     --name|--workspace|--timezone)
                    [[ $# -ge 2 ]] || { echo "install.sh: $1 requires a value" >&2; exit 2; }
                    case "$1" in --name) OPT_NAME="$2" ;; --workspace) OPT_WORKSPACE="$2" ;; --timezone) OPT_TZ="$2" ;; esac
@@ -82,6 +91,27 @@ do_or_show() {  # do_or_show <cmd> <arg>... — arguments are passed as-is, neve
     "$@"
   fi
 }
+
+# ---- --prune-cron: our marked blocks whose install dir is gone (test installs in /tmp leave them behind) ----
+if [[ $PRUNE_CRON -eq 1 ]]; then
+  command -v crontab >/dev/null 2>&1 || die "no crontab on this machine"
+  cur=$(crontab -l 2>/dev/null)
+  new=$(printf '%s\n' "$cur" | python3 -c '
+import os, re, sys
+out, skip, dropped = [], False, []
+for line in sys.stdin.read().split("\n"):
+    m = re.match(r"# >>> claude-code-methodology \((.*)\)$", line)
+    if m and not os.path.isdir(m.group(1)):
+        skip = True; dropped.append(m.group(1)); continue
+    if skip:
+        if line.startswith("# <<< claude-code-methodology ("): skip = False
+        continue
+    out.append(line)
+sys.stderr.write("".join(f"  removing block of missing {d}\n" for d in dropped) or "  nothing to remove\n")
+print("\n".join(out).rstrip("\n"))')
+  if [[ $DRY_RUN -eq 1 ]]; then ok "dry run: crontab unchanged"; else printf '%s\n' "$new" | crontab - && ok "crontab pruned"; fi
+  exit 0
+fi
 
 # ---- detect claude-code --------------------------------------------------
 say "Detecting Claude Code…"
@@ -150,11 +180,12 @@ else
     echo "  DRY: would write $CONF (name=$C_NAME, workspace=$C_WS, timezone=$C_TZ)"
   else
     python3 - "$REPO_DIR/methodology.conf.template" "$CONF" "$C_NAME" "$C_WS" "$C_TRASH" "$C_SECRETS" "$C_TZ" <<'PYCONF'
-import shlex, sys
+import os, shlex, sys
 src, dst, name, ws, trash, secrets, tz = sys.argv[1:]
+hb = os.path.join(os.path.expanduser("~"), ".claude", "supervisor", "heartbeat")
 text = open(src, encoding="utf-8").read()
 for key, val in (("__HUMAN_NAME__", name), ("__WORKSPACE__", ws), ("__TRASH_DIR__", trash),
-                 ("__SECRETS_DIR__", secrets), ("__TIMEZONE__", tz)):
+                 ("__SECRETS_DIR__", secrets), ("__TIMEZONE__", tz), ("__SUPERVISOR_HEARTBEAT__", hb)):
     text = text.replace('"' + key + '"', shlex.quote(val) if val else '""')
 open(dst, "w", encoding="utf-8").write(text)
 PYCONF
@@ -236,6 +267,16 @@ if [[ "$SCOPE" == "user" ]] && compgen -G "$TARGET/bin/*" >/dev/null; then
     do_or_show ln -sfn "$f" "$HOME/.local/bin/$(basename "$f")"
   done
   case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) warn "add ~/.local/bin to PATH for the tools (secret-scan, swap-live, creds, rename-ref)" ;; esac
+fi
+
+say "Supervisor registry…"
+do_or_show mkdir -p "$TARGET/config"
+for f in "$REPO_DIR"/config/*; do
+  [[ -f "$f" ]] || continue
+  do_or_show cp "$f" "$TARGET/config/$(basename "$f")"
+done
+if [[ $DRY_RUN -eq 0 && -f "$TARGET/scripts/supervisor.py" ]]; then
+  python3 "$TARGET/scripts/supervisor.py" --init "$TARGET/config/supervisor-checks.template.json" 2>&1 | tail -1 || warn "supervisor --init failed"
 fi
 
 say "Copying MCP servers…"
@@ -405,15 +446,38 @@ CRON_LINES="$CRON_BEGIN
 */10 * * * * python3 $(q "$TARGET/hooks/trash-guard.py") --measure >/dev/null 2>&1
 55 * * * * python3 $(q "$TARGET/hooks/abbr-guard.py") --build-vocab >/dev/null 2>&1
 * * * * * python3 $(q "$TARGET/scripts/remind.py") --fire >/dev/null 2>&1
-*/15 * * * * python3 $(q "$TARGET/scripts/blockers.py") run >/dev/null 2>&1"
+*/15 * * * * python3 $(q "$TARGET/scripts/blockers.py") run >/dev/null 2>&1
+*/15 * * * * python3 $(q "$TARGET/scripts/supervisor.py") >/dev/null 2>&1
+* * * * * flock -n $(q "$HOME/.claude/quota.lock") timeout 50 python3 $(q "$TARGET/scripts/quota_status.py") --json --out $(q "$HOME/.claude/quota-status.json") 2>>$(q "$HOME/.claude/quota.err")
+7 * * * * python3 $(q "$TARGET/scripts/quota_log_line.py") >/dev/null 2>&1
+15 * * * * python3 $(q "$TARGET/scripts/token_daily_report.py") --after 8 >/dev/null 2>&1
+*/10 * * * * $(q "$TARGET/scripts/mech_snapshot.sh") >/dev/null 2>&1
+35 * * * * python3 $(q "$TARGET/scripts/stats_collect.py") >/dev/null 2>&1
+40 * * * * python3 $(q "$TARGET/scripts/stats_adoption.py") >/dev/null 2>&1
+45 * * * * python3 $(q "$TARGET/scripts/stats_orphan_docs.py") >/dev/null 2>&1
+*/15 * * * * python3 $(q "$TARGET/scripts/stats_projects.py") >/dev/null 2>&1
+35 12 * * 0 mkdir -p $(q "$HOME/.claude/logs") && $(q "$TARGET/scripts/mistakes_review.sh") >> $(q "$HOME/.claude/logs/mistakes-review.log") 2>&1
+@reboot sleep 300 && $(q "$TARGET/scripts/mistakes_review_catchup.sh") >/dev/null 2>&1
+52 12 * * * python3 $(q "$TARGET/scripts/library_check.py") >/dev/null 2>&1
+50 12 * * * $(q "$TARGET/scripts/swarm_tools_check.sh") >/dev/null 2>&1
+@reboot sleep 120 && $(q "$TARGET/scripts/git_empty_objects_check.sh") >/dev/null 2>&1
+25 5 * * * $(q "$TARGET/scripts/public_gate_selftest.sh") >/dev/null 2>&1"
+[[ $WITH_CONSOLIDATION -eq 1 ]] && CRON_LINES="$CRON_LINES
+20 * * * * $(q "$TARGET/scripts/memory_consolidation.sh") >/dev/null 2>&1
+20 * * * * python3 $(q "$TARGET/scripts/stats_corrections.py") --days 3 --after 6 >/dev/null 2>&1"
 [[ $CLEANUP -eq 1 ]] && CRON_LINES="$CRON_LINES
 35 4 * * * python3 $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1"
 CRON_LINES="$CRON_LINES
 $CRON_END"
 echo
-if [[ $CLEANUP -eq 1 ]]; then say "Scheduled jobs: trash size, trash cleanup (on), abbreviation vocabulary, reminders, blocker checks"
-else say "Scheduled jobs: trash size, abbreviation vocabulary, reminders, blocker checks (trash cleanup off — enable with --enable-cleanup)"; fi
-if [[ $DRY_RUN -eq 1 ]]; then
+if [[ $CLEANUP -eq 1 ]]; then say "Scheduled jobs: supervisor, quota, reports, stats, journal checks, reminders, blockers, trash size + cleanup (on)"
+else say "Scheduled jobs: supervisor, quota, reports, stats, journal checks, reminders, blockers, trash size (cleanup off: --enable-cleanup; model-run jobs off: --with-consolidation)"; fi
+case "$TARGET" in
+  /tmp/*|/var/tmp/*|"${TMPDIR:-/nonexistent}"/*) [[ $NO_CRON -eq 1 ]] || warn "install dir is under a temp dir — crontab left alone (a test install must not schedule jobs)"; NO_CRON=1 ;;
+esac
+if [[ $NO_CRON -eq 1 ]]; then
+  say "crontab not touched (--no-cron or a temp install dir)"
+elif [[ $DRY_RUN -eq 1 ]]; then
   printf '  DRY: would put into crontab:\n%s\n' "$CRON_LINES"
 elif command -v crontab >/dev/null 2>&1; then
   { crontab -l 2>/dev/null | awk -v b="$CRON_BEGIN" -v e="$CRON_END" '$0==b{skip=1;next} $0==e{skip=0;next} !skip'
