@@ -83,7 +83,7 @@ scripts, and Claude Code on Windows runs PowerShell unless Git Bash is installed
 | Layer | Installed by `install.sh` today | In the repo, set up by hand | Not in the repo yet |
 |---|---|---|---|
 | One agent | `CLAUDE.md`, 30 hooks and gates, scripts and `bin/` tools (linked into `~/.local/bin`), 6 skills, memory template, code lessons, `methodology.conf` (your name, folder, time zone), a marked block in your crontab; installed tests run at the end | mobile bot (offered by the installer), offsite backup (`addons/offsite-backup/`), the search MCP server (the installer prints the `claude mcp add` line) | Telegram alerts from the input guard; cleanup of the trash folder is off unless `--enable-cleanup` |
-| A swarm of agents | — | `multi-agent/` (inbox writer, briefing watchman, git wrapper, session hygiene), `swarm-template/` (journal, registry, catalog, agent folder) | project bootstrap, releaser, blocker register |
+| A swarm of agents | 9 more hooks (briefing watchman: an agent recognised by its name in the first message, briefing re-shown when it changes, unread letters every turn; inbox gate; reminders), inbox tools, `/register-as <Name>`, blocker register and story status, project bootstrap (`new_project.sh`), the shared files from `swarm-template/` copied into your workspace. Off until you list agents in `methodology.conf`: the two Stop gates (open work, unproven status). Only with a flag: the releaser (`--with-releaser`, root) and the git wrapper (`--with-git-guard`) | `multi-agent/`: two examples not installed yet (session trimming, tool redirect) | — |
 | Upkeep | — | — | watchdog over all mechanisms, nightly reconciliations, the panel |
 
 ## Layout

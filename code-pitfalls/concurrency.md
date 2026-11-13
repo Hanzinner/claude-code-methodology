@@ -3,7 +3,7 @@
 ### Read-modify-write of a shared file without a lock → lost update
 - **Symptom:** messages vanish from an inbox, headers torn, sections duplicated; the sender saw `✓`, the recipient sees nothing.
 - **Why:** agents and crons write the same file at once; "read → change → write back" erases whatever landed between the read and the write. A lock held by only one of the writers saves nothing.
-- **Right way:** one sanctioned writer (e.g. `multi-agent/inbox-post.sh`) plus one for closing items: `flock` on a separate `.lock` file (not the file itself — `mv` swaps its inode), then validate by reading back from disk. Never `cat >>`, a bare Edit/Write, or your own python script.
+- **Right way:** one sanctioned writer (e.g. `scripts/inbox_post.sh`) plus one for closing items: `flock` on a separate `.lock` file (not the file itself — `mv` swaps its inode), then validate by reading back from disk. Never `cat >>`, a bare Edit/Write, or your own python script.
 - **Seen:** 7+ times across 4 agents.
 
 ### "Delivered" proven in the wrong place

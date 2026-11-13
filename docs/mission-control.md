@@ -62,7 +62,7 @@ stayed silent, and the panel looked like it was lying for a week. One agent = on
   does a cron that re-chowns specific folders every minute (we ran one; it only patches the places that
   already hurt). The fix is structural: inherited default ACLs on the tree root, so any new file is
   writable by the panel's user whoever creates it — the same "remove the gap, don't guard it" move as
-  the [git wrapper](../multi-agent/git-guard).
+  the [git wrapper](../bin/git-guard).
 - **Test against a throwaway channel.** Test pulses (▶/▶▶/🛑) once went into a *live* subscribed channel.
   The effect was harmless (a final 🛑), but the rule stands: create a separate test channel, never poke
   the production one.
