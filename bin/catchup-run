@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# catchup-run <name> daily|weekly|monthly [--after HH] -- <command...> - cron with catch-up after downtime.
+# Why: a daily job at 11:00 in plain cron is simply LOST when the machine is off at that minute (a monthly job never
+# ran at all). Cron calls this wrapper EVERY HOUR; it runs the command only if the current period (day / ISO week /
+# month) has no SUCCESS yet and the hour given by --after has come. So a missed job runs at the first tick after start.
+# State (read by scripts/cron_state_check.py and so by the supervisor): <state>/<name>.ok = "YYYY-MM-DD HH:MM <period>"
+# of the last success; <state>/<name>.fail = the last failure (rc, time). The command's output goes to <logdir>/<name>.log.
+# rc: 0 done / not the time yet · the command's rc on failure · 2 usage · rc 75 from the command (EX_TEMPFAIL) = "not
+# ready, try later": neither .ok nor .fail, the next tick tries again (a job that started before its prerequisite after
+# downtime refused honestly and used to turn the supervisor red for an hour). If "later" never comes, the age check
+# (cron_state_check.py) notices.
+# Cron:  7 * * * * <install dir>/bin/catchup-run nightly_report daily --after 3 -- python3 <install dir>/scripts/x.py
+# Config: CCM_CRON_STATE (default ~/.claude/cron-state), CCM_CRON_LOGDIR (default ~/.claude/cron-logs); env of the
+# same names wins. Nothing here deletes anything.
+set -uo pipefail
+HERE="$(dirname "$(readlink -f "$0")")"
+conf_get() { python3 "$HERE/../lib/ccm_conf.py" "$1" 2>/dev/null; }
+STATE=${CCM_CRON_STATE:-$(conf_get CCM_CRON_STATE)}; STATE=${STATE:-$HOME/.claude/cron-state}
+LOGDIR=${CCM_CRON_LOGDIR:-$(conf_get CCM_CRON_LOGDIR)}; LOGDIR=${LOGDIR:-$HOME/.claude/cron-logs}
+name="${1:-}"; period="${2:-}"; shift 2 2>/dev/null || true
+after=0
+[[ "${1:-}" == "--after" ]] && { after="${2:-}"; shift 2; }
+[[ "${1:-}" == "--" ]] && shift
+[[ "$after" =~ ^[0-9]+$ ]] || after=bad
+[[ -n "$name" && "$name" != */* && "$after" != bad && ( "$period" == daily || "$period" == weekly || "$period" == monthly ) && $# -gt 0 ]] \
+    || { echo "catchup-run <name> daily|weekly|monthly [--after HH] -- <command...>" >&2; exit 2; }
+# weekly = ISO week (from Monday): the machine slept on Monday 07:30 -> the job goes at the first hour it is alive
+case "$period" in daily) key=$(date +%F) ;; weekly) key=$(date +%G-W%V) ;; monthly) key=$(date +%Y-%m) ;; esac
+mkdir -p "$STATE" "$LOGDIR"
+ok="$STATE/$name.ok"
+[[ "$(awk '{print $3}' "$ok" 2>/dev/null)" == "$key" ]] && exit 0     # this period is already done
+(( 10#$(date +%H) >= 10#$after )) || exit 0                             # too early
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"$STATE/$name.lock"
+    flock -n 9 || exit 0                                                # the previous run is still going
+else                                                                    # no flock (stock macOS): a mkdir lock, stale after 12 h
+    [[ -n "$(find "$STATE/$name.lock.d" -maxdepth 0 -mmin +720 2>/dev/null)" ]] && rmdir "$STATE/$name.lock.d" 2>/dev/null
+    mkdir "$STATE/$name.lock.d" 2>/dev/null || exit 0
+    trap 'rmdir "$STATE/$name.lock.d" 2>/dev/null' EXIT
+fi
+# 9>&- : the command must not inherit the lock fd, or its background child would hold the lock forever and every
+# later run would be skipped without a word
+{ echo "-- $(date '+%F %T') start ($period, period $key)"; "$@" 9>&-; } >> "$LOGDIR/$name.log" 2>&1
+rc=$?
+# state is written atomically (tmp + mv): the supervisor reading at this moment never sees an empty file
+put() { local t; t=$(mktemp "$1.XXXX") && printf '%s\n' "$2" > "$t" && mv -f "$t" "$1"; }
+if (( rc == 0 )); then
+    put "$ok" "$(date '+%F %H:%M') $key"; rm -f "$STATE/$name.fail"
+else
+    if [[ $rc == 75 ]]; then
+        echo "-- $(date '+%F %T') DEFERRED (rc 75: not ready) - will try at the next run" >> "$LOGDIR/$name.log"
+        exit 0
+    fi
+    put "$STATE/$name.fail" "$(date '+%F %H:%M') rc=$rc period $key"
+    echo "-- $(date '+%F %T') FAILED rc=$rc" >> "$LOGDIR/$name.log"
+fi
+exit $rc

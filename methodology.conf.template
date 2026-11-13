@@ -54,10 +54,25 @@ CCM_REMINDERS_DIR=""                    # remind.py queue; empty = ~/.claude/rem
 CCM_CLAIMS_DIR=""                       # claim.sh locks with TTL; empty = ~/.claude/claims
 CCM_BLOCKERS_LEAD="{project}-HQ"        # agent told about a blocker whose check isn't approved
 CCM_INFRA_AGENT=""                      # agent told when the machine is low on memory (work-guard); empty = nobody
-CCM_SUPERVISOR_HEARTBEAT=""             # file a supervisor touches; the watchman warns when it is older than 1 h; empty = off
+CCM_SUPERVISOR_HEARTBEAT="__SUPERVISOR_HEARTBEAT__"   # the supervisor touches it every run; the watchman warns when it is older than 1 h; empty = off
 CCM_CODING_STANDARD=""                  # coding standard with "**Version: N"; empty = <workspace>/CODING-STANDARD.md
 CCM_WORKTREES_DIR=""                    # agents' git worktrees; empty = <workspace>-wt
 # Release queue and git guard — only with install.sh --with-releaser / --with-git-guard:
 CCM_RELEASER_STATE="/var/lib/ccm-release"
 CCM_RELEASER_USER="releaser"
 CCM_GIT_GUARD_BLOCK_REMOTE=0            # 1 = also block remote add/set-url and push in the shared workspace repo
+
+# ---- upkeep and supervision (layer 3) ----
+# Who gets a letter when something breaks. Empty = no letter: the finding stays in ~/.claude/supervisor/summary.json,
+# ~/.claude/stats/ and the logs. Put an agent's name to have it fixed by that agent.
+CCM_INFRA_AGENT=""                      # broken checks, low memory
+CCM_MISTAKES_KEEPER=""                  # weekly mistakes-journal review: repeats that need a mechanism
+CCM_LIBRARY_KEEPER=""                   # LIBRARY.md out of step with what is installed
+CCM_GIT_KEEPER=""                       # empty objects in the workspace's git
+CCM_MECH_OWNER=""                       # mechanism-code snapshots fail / a secret got into one
+CCM_STATS_OWNER=""                      # stats findings (stuck urgent items, orphan docs, repeating corrections)
+CCM_CONSOLIDATION_KEEPER=""             # daily memory consolidation report (only with install.sh --with-consolidation)
+CCM_SUPERVISOR_PAUSED=""                # file with project names whose checks are skipped
+CCM_PRESENCE_CMD=""                     # command printing the desktop idle time in seconds (presence check); empty = prompts only
+CCM_PUBLIC_GATE_NAMES=""                # names that must never reach a public repo (public_gate.sh), comma-separated
+CCM_PRUNE_WATCHMAN_STATE=0              # 1 = weekly delete of the watchman's own state files older than CCM_PRUNE_DAYS

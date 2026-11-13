@@ -1,0 +1,177 @@
+{
+  "_about": "Registry of the swarm supervisor (scripts/supervisor.py). __CLAUDE_DIR__ and __HOME__ are replaced when it is read. `supervisor.py --init <this file>` copies it to <state>/checks.json. Each check is FUNCTIONAL (does the work), not 'the process is alive'. kind: http | tcp | cmd | fresh | journal | hooks | system. severity: human (a flag shown to the human in a live session + the owner's letter) | infra (the owner's letter only). owner: an agent name or a list; empty = no letter, the check still shows in summary.json and the log.",
+  "checks": [
+    {
+      "name": "Registry lint: checks look at the result",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "cmd": "python3 \"__CLAUDE_DIR__/scripts/checks_lint.py\"",
+      "note": "a `fresh` check on a *.log file needs a `fresh_ok` reason (a log is written on failures too)"
+    },
+    {
+      "name": "Hooks: files exist and are executable",
+      "kind": "hooks",
+      "severity": "infra",
+      "owner": "",
+      "note": "every hook named in settings.json exists; direct calls have +x; every branch of stop-dispatch.sh has its file; imports resolve"
+    },
+    {
+      "name": "Briefing watchman is alive",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "cmd": "python3 \"__CLAUDE_DIR__/scripts/watchman_alive_check.py\"",
+      "only_if_exists": "__HOME__/.claude/briefing-watchman/heartbeat",
+      "note": "chats written to within 20 min -> the watchman must have run within 90 min; quiet chats = green; skipped until the watchman writes its heartbeat file"
+    },
+    {
+      "name": "Hooks do not time out",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "cmd": "python3 \"__CLAUDE_DIR__/scripts/hook_timeouts_check.py\"",
+      "note": "more than 3 [TIMEOUT lines in ~/.claude/hook-errors.log in the last hour = an overloaded machine or a slow hook"
+    },
+    {
+      "name": "Reminders are not stuck (remind.py)",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "cmd": "python3 \"__CLAUDE_DIR__/scripts/reminders_stuck_check.py\"",
+      "note": "a reminder overdue by over 10 min = the per-minute cron `remind.py --fire` does not deliver"
+    },
+    {
+      "name": "Release queue is processed (releaser)",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "cmd": "python3 \"__CLAUDE_DIR__/scripts/releaser_check.py\"",
+      "note": "a *.ready marker waiting over 15 min = the releaser cron is not running; green when the releaser is not installed"
+    },
+    {
+      "name": "Agent cannot answer (API error after a human message)",
+      "kind": "cmd",
+      "severity": "human",
+      "owner": "",
+      "cmd": "python3 \"__CLAUDE_DIR__/scripts/api_silence_check.py\"",
+      "note": "within 20 min a synthetic harness error (API/OAuth/rate limit/overloaded) right after a human message; set `owner` to the agent that should look into it"
+    },
+    {
+      "name": "Agent tab is not stopped on a service error",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "cmd": "python3 \"__CLAUDE_DIR__/scripts/tab_stuck_check.py\"",
+      "note": "needs CCM_WORK_GUARD_AGENTS (the agents list); a tab that stopped on a service error with no alarm adds a line to the agent's human TODO"
+    },
+    {
+      "name": "Job under catchup-run: EXAMPLE (copy per job)",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "enabled": false,
+      "cmd": "python3 \"__CLAUDE_DIR__/scripts/cron_state_check.py example_job 36\"",
+      "note": "copy this entry for each job run as `catchup-run <name> ...`: red when the last run failed or the last success is older than 36 working hours (time the machine was off is subtracted)"
+    },
+    {
+      "name": "Human presence (informational)",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "enabled": false,
+      "ok_rc": [
+        0,
+        1
+      ],
+      "cmd": "python3 \"__CLAUDE_DIR__/scripts/presence_check.py\"",
+      "note": "present/away is a signal for systems that push messages, not a health problem; red only on rc 2 (unknown). Meant to be called directly, so disabled here"
+    },
+    {
+      "name": "Mistakes review (weekly)",
+      "kind": "cmd",
+      "severity": "archivist",
+      "owner": "",
+      "cmd": "L=__HOME__/.claude/logs/mistakes-review.log; [ -f $L ] && [ $(( $(date +%s) - $(stat -c %Y $L) )) -lt 691200 ] && tail -1 $L | grep -q 'mistakes-review:'",
+      "grace_min": 11520,
+      "note": "cron 35 12 * * 0; the log is written on every run"
+    },
+    {
+      "name": "Git: empty objects (cut-off write)",
+      "kind": "cmd",
+      "severity": "human",
+      "owner": "",
+      "cmd": "\"__CLAUDE_DIR__/scripts/git_empty_objects_check.sh\""
+    },
+    {
+      "name": "Public gate selftest",
+      "kind": "cmd",
+      "severity": "archivist",
+      "owner": "",
+      "grace_min": 90,
+      "cmd": "\"__CLAUDE_DIR__/scripts/public_gate_selftest.sh\" --check",
+      "note": "daily 05:25; green and not older than 26 h"
+    },
+    {
+      "name": "Quota status",
+      "kind": "cmd",
+      "severity": "archivist",
+      "owner": "",
+      "cmd": "\"__CLAUDE_DIR__/scripts/quota_real_check.sh\"",
+      "note": "file <10 min, source=api, real reading <=60 min; an expired login while nobody works = quiet. NEVER refresh the token."
+    },
+    {
+      "name": "Daily token report",
+      "kind": "fresh",
+      "path": "__HOME__/.claude/reports/token-daily/latest.md",
+      "max_age_min": 2160,
+      "severity": "archivist",
+      "owner": "",
+      "note": "cron 15 * * * *, token_daily_report.py --after 8"
+    },
+    {
+      "name": "Mechanism code snapshots",
+      "kind": "cmd",
+      "severity": "archivist",
+      "owner": "",
+      "cmd": "L=__HOME__/.claude/mech-snapshot.log; [ -f $L ] && [ $(( $(date +%s) - $(stat -c %Y $L) )) -lt 1800 ] && tail -1 $L | grep -qE 'no changes|commit OK|only secrets'",
+      "note": "cron */10; the log is also written on failure, so freshness + last line = success"
+    },
+    {
+      "name": "Swarm stats (data.json)",
+      "kind": "fresh",
+      "path": "__HOME__/.claude/stats/data.json",
+      "max_age_min": 120,
+      "severity": "archivist",
+      "owner": "",
+      "note": "cron :35, stats_collect.py"
+    },
+    {
+      "name": "Adoption audit",
+      "kind": "fresh",
+      "path": "__HOME__/.claude/stats/adoption.json",
+      "max_age_min": 2160,
+      "severity": "archivist",
+      "owner": "",
+      "note": "stats_adoption.py, hourly"
+    },
+    {
+      "name": "Orphan docs scan",
+      "kind": "fresh",
+      "path": "__HOME__/.claude/stats/orphan-docs.json",
+      "max_age_min": 2160,
+      "severity": "archivist",
+      "owner": "",
+      "note": "stats_orphan_docs.py, hourly"
+    },
+    {
+      "name": "Projects overview",
+      "kind": "fresh",
+      "path": "__HOME__/.claude/stats/projects.json",
+      "max_age_min": 60,
+      "severity": "archivist",
+      "owner": "",
+      "note": "cron */15, stats_projects.py"
+    }
+  ]
+}

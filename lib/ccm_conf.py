@@ -43,6 +43,9 @@ DEFAULTS = {
     "CCM_WORK_GUARD_AGENTS": "",                      # file: agents that must not stop with open work; empty = guard off
     "CCM_STATUS_GUARD_AGENTS": "",                    # coordinators whose story-state claims need a source run; empty = off
     "CCM_RELEASER_STATE": "/var/lib/ccm-release",     # release queue state (only with install.sh --with-releaser)
+    "CCM_SUPERVISOR_DIR": os.path.join(HOME, ".claude", "supervisor"),   # supervisor state, registry, summary
+    "CCM_MECH_OWNER": "",                             # agent told when mechanism-code snapshots fail; empty = log only
+    "CCM_STATS_OWNER": "",                            # agent told about stats findings; empty = files only
     "CCM_LANG_EXTRA": "",                             # extra phrase lists the detectors also match (besides English)
 }
 
