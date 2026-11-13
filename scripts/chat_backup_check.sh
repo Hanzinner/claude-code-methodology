@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Not scheduled by install.sh and not in the supervisor template: the backup/snapshot scripts it reads are run by hand.
+# If you schedule them, add an entry {"name": ..., "kind": "cmd", "cmd": "<install dir>/scripts/chat_backup_check.sh"} to checks.json.
 # chat_backup_check.sh - watchdog for the local chat backup (backup-chats.sh): the last result line in the log is
 # "backup:" (success) and not older than MAX_H hours, and today's folder holds at least one .jsonl.
 # A "FAIL" line = rsync failed. Exit: 0 ok | 1 bad/stale | 3 no run in the log.

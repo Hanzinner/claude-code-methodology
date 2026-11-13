@@ -94,7 +94,8 @@
       "owner": "",
       "cmd": "L=__HOME__/.claude/logs/mistakes-review.log; [ -f $L ] && [ $(( $(date +%s) - $(stat -c %Y $L) )) -lt 691200 ] && tail -1 $L | grep -q 'mistakes-review:'",
       "grace_min": 11520,
-      "note": "cron 35 12 * * 0; the log is written on every run"
+      "note": "cron 35 12 * * 0; the log is written on every run",
+      "only_if_exists": "__HOME__/.claude/logs/mistakes-review.log"
     },
     {
       "name": "Git: empty objects (cut-off write)",
@@ -110,7 +111,8 @@
       "owner": "",
       "grace_min": 90,
       "cmd": "\"__CLAUDE_DIR__/scripts/public_gate_selftest.sh\" --check",
-      "note": "daily 05:25; green and not older than 26 h"
+      "note": "daily 05:25; green and not older than 26 h",
+      "only_if_exists": "__HOME__/.claude/logs/public-gate-selftest.log"
     },
     {
       "name": "Quota status",
@@ -118,7 +120,8 @@
       "severity": "infra",
       "owner": "",
       "cmd": "\"__CLAUDE_DIR__/scripts/quota_real_check.sh\"",
-      "note": "file <10 min, source=api, real reading <=60 min; an expired login while nobody works = quiet. NEVER refresh the token."
+      "note": "file <10 min, source=api, real reading <=60 min; an expired login while nobody works = quiet. NEVER refresh the token.",
+      "only_if_exists": "__HOME__/.claude/quota-status.json"
     },
     {
       "name": "Daily token report",

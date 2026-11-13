@@ -22,8 +22,11 @@ def main():
         t_w = os.path.getmtime(os.path.join(W, "heartbeat"))
     except OSError:
         t_w = None
-    if not chats or t_w is None:
-        print(f"no data (transcripts: {len(chats)}, watchman pulse: {'-' if t_w is None else 'yes'})")
+    if not chats:
+        print("no sessions yet - nothing to watch")
+        return 0
+    if t_w is None:
+        print(f"no data (transcripts: {len(chats)}, watchman pulse: -)")
         return 3
     chat_min, w_min = int((now - max(chats)) / 60), int((now - t_w) / 60)
     print(f"chats: last write {chat_min} min ago; watchman: {w_min} min ago")
