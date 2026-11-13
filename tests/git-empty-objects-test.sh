@@ -12,7 +12,7 @@ R="$T/repo"; mkdir -p "$R"; ( cd "$R" && git init -q . && git config user.email 
 export REPO="$R" STATE="$T/state"
 out=$(CCM_GIT_KEEPER=Keeper bash "$GE" 2>&1); rc=$?
 ok "1 healthy repo -> rc 0, no letter" '[ $rc = 0 ] && [ ! -s "$T/letters" ]'
-obj=$(find "$R/.git/objects" -type f | grep -v pack | head -1); : > "$obj"
+obj=$(find "$R/.git/objects" -type f | grep -v pack | head -1); chmod u+w "$obj"; : > "$obj"   # git writes objects 0444: only root could truncate without chmod
 out=$(CCM_GIT_KEEPER=Keeper bash "$GE" 2>&1); rc=$?
 ok "2 a zero-byte object -> rc 1 and ONE letter with the path" '[ $rc = 1 ] && [ "$(grep -c "^Keeper|" "$T/letters")" = 1 ] && grep -q "objects/" "$T/letters"'
 out=$(CCM_GIT_KEEPER=Keeper bash "$GE" 2>&1); rc=$?
