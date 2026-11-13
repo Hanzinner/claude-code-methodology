@@ -68,7 +68,8 @@ def read_lines(p):
 
 def is_human_todo(path):
     n = os.path.basename(path).lower()
-    return "human" in n or "marko" in n
+    who = (conf("CCM_HUMAN_NAME", "") or "").lower().split()
+    return "human" in n or bool(who and who[0] in n)
 
 
 def main():

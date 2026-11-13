@@ -139,7 +139,7 @@ def classify(batch, classes):
     try:
         res = subprocess.run([sys.executable, MACHINE, "corrections", "-p", "--model", MODEL, "--tools", "", "--strict-mcp-config",
                               "--output-format", "text"], input=prompt, capture_output=True, text=True,
-                             timeout=600, env={**os.environ, "HANZ_MACHINE_SESSION": "1"}, cwd=os.path.expanduser("~"))
+                             timeout=600, env={**os.environ, "CCM_MACHINE_SESSION": "1"}, cwd=os.path.expanduser("~"))
     except (subprocess.TimeoutExpired, OSError) as e:
         return None, f"model call: {e}"
     m = re.search(r"\[.*\]", res.stdout, re.S)

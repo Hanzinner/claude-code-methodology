@@ -89,7 +89,31 @@ already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS
    commands in the shared folder) need root and are installed only on request:
    `./install.sh --with-releaser`, `./install.sh --with-git-guard`.
 
-## 5. Keeping it up to date
+## 5. What looks after the system (upkeep)
+
+Runs from the crontab block the installer added; nothing to start by hand.
+
+- **The supervisor** (every 15 min) runs 18 checks of whether the mechanisms still do their job: hooks present
+  and not timing out, the watchman alive, reminders delivered, an agent not stuck on an API error. What is red
+  is in `~/.claude/supervisor/summary.json`; the two that need you (an agent can't answer after your message; a cut-off
+  write left empty objects in git) appear as one line at the top of your next message to any agent. After the machine was off,
+  the "nothing updated for N minutes" checks stay quiet until they can be judged again.
+- **Who fixes it:** by default nobody gets a letter — findings stay in files. Put an agent's name into the
+  "upkeep and supervision" keys at the end of `methodology.conf` (`CCM_INFRA_AGENT`, `CCM_MISTAKES_KEEPER`,
+  …) and that agent gets the finding in its inbox. The weekly mistakes-journal review, for example, tells its
+  keeper which kind of mistake repeated three times and needs a mechanism.
+- **Your quota:** `scripts/quota_status.py` shows how much of your plan is used (it asks Anthropic with your
+  own login, read only); a daily token report is written to a file, not sent anywhere.
+- **History of the mechanisms' code:** every 10 minutes the installed hooks and scripts are committed into a
+  separate git (`~/.claude/mech.git`), so "what changed in this gate since yesterday" has an answer.
+- **Publishing a repo:** `scripts/public_gate.sh <dir>` refuses a push to anywhere public if the repo or any
+  commit in its history has a secret, a name from `CCM_PUBLIC_GATE_NAMES`, an internal swarm file (inbox,
+  briefing, mistakes journal) or Cyrillic text. The last two are defaults for a private swarm: for a repo that
+  ships such files on purpose, set `CCM_PUBLIC_GATE_CYRILLIC=0` or narrow `CCM_PUBLIC_GATE_INTERNAL`.
+- **Spends a model's quota, so off by default:** daily memory consolidation and correction stats —
+  `./install.sh --with-consolidation`.
+
+## 6. Keeping it up to date
 
 `cd ~/claude-code-methodology && git pull && ./install.sh` — then `./check-install.py --user`.
 Your memory, lessons, permissions, model, own hooks and `CLAUDE.md` edits are kept; anything replaced is
