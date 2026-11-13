@@ -66,6 +66,13 @@ You can hand the repo to your own agent and say "install this": it runs `./insta
 `settings.json`. This is tested on a clean machine: fingerprints of those files before and after two
 installs and a run of every hook are compared.
 
+**What runs on a schedule, and the one thing that goes online:** the installer adds one marked block to your
+crontab (supervisor, reminders, quota, reports, stats; `--no-cron` skips it, `--prune-cron` removes blocks of
+deleted installs). One job uses the network: `scripts/quota_status.py` reads your Claude Code login
+(`~/.claude/.credentials.json`, read only, never refreshed) and asks Anthropic's usage endpoint how much of your
+plan is used, at most once every 5 minutes. Jobs that run a model and spend your quota (daily memory
+consolidation, correction stats) are off unless you pass `--with-consolidation`.
+
 Want it for one project only: say `--project <path>` instead of `--user`. The optional extras (system
 packages for PDF/HTML extraction, the Telegram bot) are off by default; ask the agent for them separately.
 
@@ -84,7 +91,7 @@ scripts, and Claude Code on Windows runs PowerShell unless Git Bash is installed
 |---|---|---|---|
 | One agent | `CLAUDE.md`, 30 hooks and gates, scripts and `bin/` tools (linked into `~/.local/bin`), 6 skills, memory template, code lessons, `methodology.conf` (your name, folder, time zone), a marked block in your crontab; installed tests run at the end | mobile bot (offered by the installer), offsite backup (`addons/offsite-backup/`), the search MCP server (the installer prints the `claude mcp add` line) | Telegram alerts from the input guard; cleanup of the trash folder is off unless `--enable-cleanup` |
 | A swarm of agents | 9 more hooks (briefing watchman: an agent recognised by its name in the first message, briefing re-shown when it changes, unread letters every turn; inbox gate; reminders), inbox tools, `/register-as <Name>`, blocker register and story status, project bootstrap (`new_project.sh`), the shared files from `swarm-template/` copied into your workspace. Off until you list agents in `methodology.conf`: the two Stop gates (open work, unproven status). Only with a flag: the releaser (`--with-releaser`, root) and the git wrapper (`--with-git-guard`) | `multi-agent/`: two examples not installed yet (session trimming, tool redirect) | — |
-| Upkeep | — | — | watchdog over all mechanisms, nightly reconciliations, the panel |
+| Upkeep | a supervisor every 15 min with 18 checks (are the hooks, the watchman, reminders, the release queue still doing their job; is an agent stuck on an API error), quota and a daily token report as files, the weekly mistakes-journal review, catalog and broken-link checks, a git history of the mechanisms' own code, a public-repo gate, stats as plain JSON in `~/.claude/stats/`. Findings go to `~/.claude/supervisor/summary.json`, and to an agent's inbox only if you name one in `methodology.conf` | — | the panel (web pages over the stats) |
 
 ## Layout
 
