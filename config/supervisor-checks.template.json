@@ -127,7 +127,8 @@
       "max_age_min": 2160,
       "severity": "archivist",
       "owner": "",
-      "note": "cron 15 * * * *, token_daily_report.py --after 8"
+      "note": "cron 15 * * * *, token_daily_report.py --after 8",
+      "only_if_exists": "__HOME__/.claude/reports/token-daily/latest.md"
     },
     {
       "name": "Mechanism code snapshots",
@@ -135,7 +136,8 @@
       "severity": "archivist",
       "owner": "",
       "cmd": "L=__HOME__/.claude/mech-snapshot.log; [ -f $L ] && [ $(( $(date +%s) - $(stat -c %Y $L) )) -lt 1800 ] && tail -1 $L | grep -qE 'no changes|commit OK|only secrets'",
-      "note": "cron */10; the log is also written on failure, so freshness + last line = success"
+      "note": "cron */10; the log is also written on failure, so freshness + last line = success",
+      "only_if_exists": "__HOME__/.claude/mech-snapshot.log"
     },
     {
       "name": "Swarm stats (data.json)",
@@ -144,7 +146,8 @@
       "max_age_min": 120,
       "severity": "archivist",
       "owner": "",
-      "note": "cron :35, stats_collect.py"
+      "note": "cron :35, stats_collect.py",
+      "only_if_exists": "__HOME__/.claude/stats/data.json"
     },
     {
       "name": "Adoption audit",
@@ -153,7 +156,8 @@
       "max_age_min": 2160,
       "severity": "archivist",
       "owner": "",
-      "note": "stats_adoption.py, hourly"
+      "note": "stats_adoption.py, hourly",
+      "only_if_exists": "__HOME__/.claude/stats/adoption.json"
     },
     {
       "name": "Orphan docs scan",
@@ -162,7 +166,8 @@
       "max_age_min": 2160,
       "severity": "archivist",
       "owner": "",
-      "note": "stats_orphan_docs.py, hourly"
+      "note": "stats_orphan_docs.py, hourly",
+      "only_if_exists": "__HOME__/.claude/stats/orphan-docs.json"
     },
     {
       "name": "Projects overview",
@@ -171,7 +176,8 @@
       "max_age_min": 60,
       "severity": "archivist",
       "owner": "",
-      "note": "cron */15, stats_projects.py"
+      "note": "cron */15, stats_projects.py",
+      "only_if_exists": "__HOME__/.claude/stats/projects.json"
     }
   ]
 }
