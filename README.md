@@ -18,6 +18,7 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 | `curate_memory.py` | Broken wikilinks and orphaned memory files pile up unnoticed. |
 
 **Start here** (a single agent — most readers):
+- [`docs/accounts.md`](docs/accounts.md) — the outside accounts (all optional except Claude Code): where to sign up, what is free, which file each key goes into.
 - [`docs/getting-started.md`](docs/getting-started.md) — after the install: the first day, day-to-day use, what the mechanisms will do in front of you, and how to add more agents.
 - [`docs/methodology.md`](docs/methodology.md) — the full writeup of the approach (memory, skills, hooks, permissions, communication, workflow rituals, lessons).
 - [`docs/examples.md`](docs/examples.md) — before/after dialogues showing what the rules do to agent behavior.
@@ -59,7 +60,9 @@ You can hand the repo to your own agent and say "install this": it runs `./insta
 > nobody answers; that is fine). Then run `./check-install.py --user` and show me its full output.
 > It is not installed until that check ends with "0 missing or broken"; if anything is missing, fix it and
 > run the check again. Do not delete or move anything in ~/.claude yourself. Tell me which of my existing
-> files the installer backed up or kept (`*.bak-*`, `CLAUDE.md.new`), then tell me to restart Claude Code.
+> files the installer backed up or kept (`*.bak-*`, `CLAUDE.md.new`). Then read docs/accounts.md and tell me,
+> one line each, which optional accounts I might want (web search, offsite backup, phone bot): where to sign up
+> and which file the key goes into. Never ask me for a key in the chat. Finally tell me to restart Claude Code.
 
 **What it never touches:** your chats and session history (`~/.claude/projects/`, `history.jsonl`),
 `~/.claude.json`, your own commands, agents and MCP servers. It writes only its own folders and merges

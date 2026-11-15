@@ -11,7 +11,9 @@ For a person, not for the agent. Each step says what you do and what you will se
    edits (you get `CLAUDE.md.new` next to it).
 3. **Check `~/.claude/methodology.conf`.** The installer asked for your name, working folder and time zone;
    the hints agents read use them ("ask <your name>"). Change a line and it applies on the next prompt.
-4. **Work as usual.** You will start seeing the mechanisms — see "What you will notice" below.
+4. **Optional accounts** — web search (Tavily/Exa), offsite backup, the phone bot: [`accounts.md`](accounts.md)
+   lists where to sign up, what is free and which file each key goes into. Nothing else depends on them.
+5. **Work as usual.** You will start seeing the mechanisms — see "What you will notice" below.
 
 ## 2. Day to day with one agent
 
