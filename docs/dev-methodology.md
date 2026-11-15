@@ -96,7 +96,7 @@ Conversational work (chat/research, not queued) is exempt.
 identical ones are a design hole to mechanize.
 
 **7. ADR — architectural decisions written down.** "Decided X because Y", so a year later you know *why*
-instead of re-deriving it.
+instead of re-deriving it. One file per decision, numbers never reused, a replaced decision is marked, not deleted: [`swarm-template/decisions/`](../swarm-template/decisions/README.md).
 
 **8. Reliability: mechanism > briefing > rules-file.** A rule that must hold gets mechanized (a hook / gate
 / script), not left to briefing discipline. A briefing is forgotten; a hook isn't.
