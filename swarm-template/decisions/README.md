@@ -10,6 +10,6 @@ A decision journal in the ADR format (Architecture Decision Record, Nygard): one
 - Statuses: `current`, `replaced by #N`, `deferred` (decided to postpone; say where the work is parked).
 - Who decides: the field "who" names the person or role that made the call. An agent proposing is not deciding.
 
-Why it exists: the first version of this journal was one file inside a methodology document. A review against the ADR practice flagged it: each decision should have a stable number and its own status, so a replaced one stays readable. The norm comes from the ADR practice; there is no source showing one big file does measurable harm, so this is following the established form, not a proven fix. See [`docs/methodology-vs-sources.md`](../../docs/methodology-vs-sources.md).
+Why it exists: the first version of this journal was one file inside a methodology document. A review against the ADR practice flagged it: each decision should have a stable number and its own status, so a replaced one stays readable. The norm comes from the ADR practice; there is no source showing one big file does measurable harm, so this is following the established form, not a proven fix.
 
 Optional: keep an index (one line per decision) in your methodology document; the files stay the source of truth.
