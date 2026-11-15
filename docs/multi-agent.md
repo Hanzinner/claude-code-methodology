@@ -71,7 +71,7 @@ forever, on every command.
 > The agent didn't "forget" — statistically, someone was bound to not remember.
 
 So: don't guard the gap, **remove it**. A transparent `git` wrapper redirects to the owning user
-inside the repo. Nobody has to remember anything; ownership is simply always correct.
+inside the repo. Nobody has to remember anything; ownership is simply always correct. (The shipped `bin/git-guard` carries the blocking half; the owner redirect is specific to a root-run, single-owner setup and is not in the repo.)
 
 The same wrapper also covers what ownership can't: **destructive git in the main repo is blocked
 outright, even for the right user** — correct ownership doesn't stop you shooting someone else's

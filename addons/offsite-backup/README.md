@@ -6,12 +6,12 @@ on one machine. If that machine dies (hardware failure, theft, fire), the
 loss isn't just files — it's the accumulated context that made Claude
 useful to you specifically.
 
-This addon backs the whole thing up nightly to any S3-compatible object
+This addon backs the whole thing up (hourly by default, or nightly) to any S3-compatible object
 storage using restic. Encrypted with a passphrase kept in your password manager.
 
 ## What you get
 
-- **Nightly cron** pushes an incremental snapshot (~5-20 MB per day after
+- **Cron** (hourly by default, `--schedule nightly` for one run a day) pushes an incremental snapshot (~5-20 MB per day after
   the first backup). Full base is 1-3 GB depending on how much sit on disk.
 - **AES-256 encryption** with a passphrase you type once during setup
   (stored in a chmod-600 file on disk so cron can read it, plus in your

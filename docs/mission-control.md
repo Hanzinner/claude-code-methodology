@@ -6,7 +6,7 @@ call is a **cold start** (a fresh context, several percent of quota); an agent t
 a **cheap push into a live session** instead of an expensive spawn.
 
 This is a pattern, not shipped code — the reference implementation is one bespoke server wired to a
-specific project. The ideas below are what transfer.
+specific project. (`addons/dashboard` is only a small read-only status page of the agents, not this panel.) The ideas below are what transfer.
 
 ## The channel
 

@@ -7,9 +7,10 @@ the rules agents follow day to day are in [`coding-standard.md`](coding-standard
 [`project-work.md`](project-work.md).
 
 What is code and what is text: this repository ships the mechanisms (hooks, scripts, the swarm tools) and
-documents the method. It does **not** ship the bootstrap command described below — in the private setup it
-is one script that stamps a project's folders, role briefings, roadmap and blocker register and connects
-the team to the shared services; here it is a description you rebuild for your own stack.
+documents the method. The bootstrap described below is partly shipped: `scripts/new_project.sh` stamps a
+project's `release.toml`, roadmap, blocker register and agent folders (briefing, inbox, todo); the rest
+(CI skeleton, incident log, methodology link in briefings, wiring into your shared services) is a description
+you rebuild for your own stack.
 
 ## The thesis
 
@@ -112,7 +113,7 @@ the source**, don't quote their todo.
 estimate the unknown, sync ten people, report to a manager. A tireless agent swarm needs none of it; it's
 pure overhead. Keep the connective tissue and the computed status; drop the planning ceremony.
 
-## Bootstrap: "deploy the infrastructure for project X" (described here, not shipped)
+## Bootstrap: "deploy the infrastructure for project X" (`scripts/new_project.sh` does the core; the rest is described here)
 
 The **orchestrator** runs it (the project's HQ doesn't exist yet); the **mechanisms dev agent** builds the
 mechanism and the **infra agent** wires it into the live system. One command → a project-specific team raised and **connected** to the shared services (which are

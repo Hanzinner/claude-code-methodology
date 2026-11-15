@@ -3,8 +3,8 @@
 > Two failures this prevents: "done but not documented" (someone rebuilds it) and "documented but not done"
 > (someone trusts it). **Rule:** you create a shared document or mechanism (hook, cron job, script, skill,
 > service) → add its line here in the same turn; rename or delete → fix the line.
-> A nightly check should compare this file with the disk, the hook config and the crontab, and send the
-> differences to whoever owns this file. (The repo doesn't ship that check; until you build one, check by hand.)
+> A nightly check compares this file with the disk, the hook config and the crontab, and sends the
+> differences to whoever owns this file: `scripts/library_check.py` (cron daily; `CCM_LIBRARY_KEEPER` names the owner).
 
 **Line format (machine-readable):** `- <code> [<name>](<path>) — <what it does> {tags}`
 **Tags:** `{hook:<Event>}` · `{cron}` · `{tool}` · `{skill}` · `{systemd}` · `{doc}` · `{config}` · `{stale?}` · `{orphan}`

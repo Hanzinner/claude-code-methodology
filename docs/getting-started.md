@@ -38,7 +38,7 @@ For a person, not for the agent. Each step says what you do and what you will se
 |---|---|---|
 | `[now: … \| gap since previous: …]` at the top of your messages to the agent | the agent knows the time and how long you were away | — |
 | The agent refuses `pkill -f`, `rm` on system files | gates: those commands killed agent sessions and a machine before | intended |
-| "Done" is refused until it runs the code | proof-guard: a claim of "fixed" after editing code needs a run in the same turn | intended |
+| A hint on your next message: "you declared done without running anything" | proof-guard: a claim of "fixed" after editing code with no successful run in the same turn is flagged | intended |
 | The reply doesn't end with "shall we stop for today?" | pause-guard blocks that ending | remove the Stop branch (below) |
 | A hint to expand an abbreviation, to give a source for a price or a law, not to restate your view | detectors on the finished reply; they flag, the hint comes on the next turn | add terms you know to `CCM_GLOSSARY` |
 | "3 failed commands in a row — stop and look it up" | stuck-detector | — |

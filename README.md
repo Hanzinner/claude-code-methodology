@@ -104,7 +104,7 @@ scripts, and Claude Code on Windows runs PowerShell unless Git Bash is installed
 | `CLAUDE.md` | Operating core — behavioral rules loaded into every conversation |
 | `hooks/` | Shell/Python hooks on `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PreCompact`, `PostCompact`, `PermissionDenied`, `Stop` |
 | `scripts/` | Utilities called from hooks, skills, or directly |
-| `skills/` | Slash commands (`/recap`, `/audit`) |
+| `skills/` | Slash commands (`/recap`, `/audit`, `/register-as`, `/grill`, `/pulse`, `/dossier`, `/edit`) |
 | `memory-template/` | Seed for `memory/` (trigger index + 4 type examples) |
 | `swarm-template/` | Empty shared files for a swarm: mistakes journal with the classes that repeated, agent registry, mechanism catalog, one agent's folder |
 | `code-pitfalls/` | Technical lessons already paid for, one file per technology — shown to the agent before it edits that kind of code |
@@ -157,7 +157,7 @@ Full text: `CLAUDE.md`. Before/after dialogues: `docs/examples.md`.
 | `check-prompt-gap.sh` | UserPromptSubmit | Prepends `[now: <ts> \| gap since previous: <delta>]`. |
 | `memory-curation-check.sh` | SessionStart | Weekly `curate_memory.py` run. Silent if clean. |
 
-Plus the hardening layer — gates that block a command (`selfkill-gate`, `sysfile-gate`, `fable-gate`, `memory-write-gate` opt-in, `mistakes-format-gate`), detectors on the finished reply that flag and hint on the next turn (`proof-guard`, `pause-guard`, `abbr-guard`, `source-guard`, `strawman-guard`, `link-guard`, `draft-guard`, `cost-guard`, `reply-guard`), and helpers around them (`hook-safe` wrapper, `stop-dispatch`, `surface-flags`, `stuck-detector`, `code-pitfalls-hint`, `input-guard`, `source-hint`, `trash-guard`, `order-capture-hint`, compaction steering). One line each, with the event: [`hooks/README.md`](hooks/README.md).
+Plus the hardening layer — gates that block a command (`selfkill-gate`, `sysfile-gate`, `fable-gate`, `memory-write-gate` opt-in, `mistakes-format-gate`), detectors on the finished reply that flag and hint on the next turn (`proof-guard`, `abbr-guard`, `source-guard`, `strawman-guard`, `link-guard`, `draft-guard`, `cost-guard`, `reply-guard`), Stop gates that keep a reply from ending (`pause-guard`; `work-guard` and `status-guard` for the agents you list), and helpers around them (`hook-safe` wrapper, `stop-dispatch`, `surface-flags`, `stuck-detector`, `code-pitfalls-hint`, `input-guard`, `source-hint`, `trash-guard`, `order-capture-hint`, compaction steering). One line each, with the event: [`hooks/README.md`](hooks/README.md).
 
 Mobile-bot addon adds two more (no-ops outside the bot):
 - `addons/mobile-bot/hooks/mobile-restrict.sh` — PreToolUse Write/Edit allowlist
@@ -201,7 +201,7 @@ See `docs/memory-system.md` and `memory-template/examples/`.
 ## After install
 
 - Hooks run automatically in new sessions.
-- Slash skills are available: `/recap`, `/audit`.
+- Slash skills are available: `/recap`, `/audit`, `/register-as`, `/grill`, `/pulse`, `/dossier`, `/edit`.
 - Edit `~/.claude/CLAUDE.md` to change the operating core.
 - Edit `~/.claude/memory/MEMORY.md` to add trigger pointers.
 

@@ -17,13 +17,13 @@ agents; the right-hand column is what guards each one in this repo.
 | № | Class | Guard in this repo |
 |---|---|---|
 | 1 | "Done / works / proven" without a run (a signal is not proof; tested by another path than production) | `hooks/proof-guard.py` |
-| 2 | A fact about the world without a primary source | none shipped |
-| 3 | A command killed itself (`pkill -f` matches its own shell) | lesson in `code-pitfalls/shell.md` |
+| 2 | A fact about the world without a primary source | `hooks/source-guard.py` |
+| 3 | A command killed itself (`pkill -f` matches its own shell) | `hooks/selfkill-gate.py`, lesson in `code-pitfalls/shell.md` |
 | 4 | A shared file written without a lock (inbox, log, git index) | `scripts/inbox_post.sh` + `hooks/foreign-inbox-gate.py` |
 | 5 | Wrong direction: started without looking at how it is done | `hooks/stuck-detector.py` |
 | 6 | Self-review by the same model | `scripts/cross-review.sh` |
 | 7 | Ignored a written mandatory file or an explicit constraint from the human | none |
-| 8 | Strawman / risk invented on neutral input | none shipped |
+| 8 | Strawman / risk invented on neutral input | `hooks/strawman-guard.py` (flags the strawman only) |
 | 9 | Fixed `sleep` against an event of variable length | lesson in `code-pitfalls/shell.md` |
 | 10 | Silent death: something broke and nobody shouted (empty log, hook without +x) | `hooks/hook-safe.sh` + `hooks/surface-flags.sh` |
 | 11 | An alert arrived, nobody acted | none |

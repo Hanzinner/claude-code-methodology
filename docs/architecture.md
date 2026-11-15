@@ -6,13 +6,13 @@
 CLAUDE.md         Behavioral rules loaded into every conversation.
 hooks/            Shell/Python scripts run by the harness at lifecycle events.
 scripts/          Utilities called from hooks, skills, or directly.
-skills/           Slash commands (/recap, /audit).
+skills/           Slash commands (/recap, /audit, /register-as, /grill, /pulse, /dossier, /edit).
 memory/           Per-topic markdown files + MEMORY.md trigger index.
 code-pitfalls/    Per-technology lessons, shown (headings only) before a matching edit.
 mcp/              MCP server config (Tavily, etc).
 multi-agent/      Two hand-made examples not installed yet (session trimming, tool redirect).
 swarm-template/   Shared files for several agents: registry, mistakes journal, catalog, one agent folder.
-addons/           Optional extensions (mobile-bot, offsite-backup).
+addons/           Optional extensions (mobile-bot, offsite-backup, agent-browser, net-change, dashboard; reader is a concept only).
 ```
 
 ## Flow per turn
@@ -34,7 +34,7 @@ addons/           Optional extensions (mobile-bot, offsite-backup).
 | `PostToolUseFailure` | After a failed tool call | Stuck-detector (3 failed Bash calls in a row → stop and look it up) |
 | `PreCompact` / `PostCompact` | Around compaction | Steer what the summary keeps; archive the summary |
 | `PermissionDenied` | A tool call was denied | "Don't hop channels" hint |
-| `Stop` | Reply finished | Dispatcher → reply-guard, proof-guard |
+| `Stop` | Reply finished | Dispatcher → blocking branches (pause-guard; work-guard, status-guard when agents are listed), then detectors (proof-guard, reply-guard, abbr-guard, ...) |
 
 Hooks read JSON from stdin and answer with JSON on stdout (a deny decision, extra context) or exit 2 to block where the event allows it. Exit codes and output: [hooks-guide.md](hooks-guide.md).
 

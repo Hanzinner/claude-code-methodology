@@ -85,7 +85,7 @@ First real test: three restarts healed a service; the fourth attempt stopped and
 ## 5. Nightly memory review — read-only, on purpose
 
 Shared memory rots: contradictions, stale dates, duplicates, broken links. A nightly job hands it to a fresh
-model that may **only read** and writes a report. It never edits. The memory's checksum is taken before and
+model that may **only read** and writes a report (`scripts/memory_consolidation.sh`, on with `./install.sh --with-consolidation`). It never edits. The memory's checksum is taken before and
 after — any change is an alarm. Auto-fixing memory is exactly how a wrong guess becomes a shared "fact" for
 every agent (memory poisoning), so the fix step stays with an owner who reads the report.
 
