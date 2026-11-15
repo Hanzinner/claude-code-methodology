@@ -14,7 +14,8 @@
 #   --name NAME                  # who the agents work for (shown in their hints)
 #   --workspace DIR              # folder the agents work in (journal, agent folders)
 #   --timezone ZONE              # IANA zone for timestamps, e.g. Europe/Berlin
-#   --no-verify                  # skip running the installed tests at the end
+#   --no-verify                  # skip the checks at the end
+#   --verify-all                 # also run every installed test (~5 min) instead of the quick check
 #   --enable-cleanup             # also schedule deleting trash items older than CCM_TRASH_DAYS (off by default)
 #   --with-releaser              # (root) release queue: a system user merges into master after gates; cron as root
 #   --with-git-guard             # put a git wrapper first in PATH: blocks destructive git in the shared workspace
@@ -34,6 +35,7 @@ SCOPE=""
 PROJECT_DIR=""
 YES=0
 VERIFY=1
+VERIFY_ALL=0
 CLEANUP=0
 WITH_RELEASER=0
 WITH_GIT_GUARD=0
@@ -53,6 +55,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)     DRY_RUN=1 ;;
     --yes|-y)      YES=1 ;;
     --no-verify)   VERIFY=0 ;;
+    --verify-all)  VERIFY_ALL=1 ;;
     --enable-cleanup) CLEANUP=1 ;;
     --with-releaser) WITH_RELEASER=1 ;;
     --with-git-guard) WITH_GIT_GUARD=1 ;;
@@ -502,8 +505,28 @@ if [[ $WITH_RELEASER -eq 1 ]]; then
 fi
 
 # ---- verify: run the installed tests against the installed copies -----------
+# Quick by default (seconds): check-install item by item + one supervisor run, PASS = 0 problems + 0 broken.
+# --verify-all: every installed test (~5 min; each runs in its own temp sandbox).
 TESTS_FAILED=0
-if [[ $VERIFY -eq 1 && $DRY_RUN -eq 0 ]] && compgen -G "$TARGET/tests/*-test.*" >/dev/null; then
+if [[ $VERIFY -eq 1 && $DRY_RUN -eq 0 ]]; then
+  if [[ "$SCOPE" == "user" ]]; then CHECK=(--user); else CHECK=(--project "$PROJECT_DIR"); fi
+  echo
+  say "Checking the installation item by item…"
+  if out=$(python3 "$REPO_DIR/check-install.py" "${CHECK[@]}" 2>&1); then ok "$(printf '%s\n' "$out" | grep -E 'ok, .* missing' | tail -1)"
+  else TESTS_FAILED=$((TESTS_FAILED + 1)); printf '%s\n' "$out" | grep -E '^MISS|missing or broken' | head -12 >&2; fi
+  if [[ -f "$TARGET/scripts/supervisor.py" ]]; then
+    say "One supervisor run on the fresh install…"
+    python3 "$TARGET/scripts/supervisor.py" >/dev/null 2>&1
+    sv=$(python3 -c 'import json,os,sys
+p=os.path.join(os.path.expanduser("~"),".claude","supervisor","summary.json")
+try: d=json.load(open(p))
+except Exception as e: print("no summary:", type(e).__name__); sys.exit(1)
+pr,br=d.get("problems",[]),d.get("broken_checks",[])
+print(f"supervisor: {len(pr)} problems, {len(br)} broken" + ("" if not pr+br else " - " + "; ".join(pr+br)))
+sys.exit(1 if pr or br else 0)' 2>&1) && ok "$sv" || { TESTS_FAILED=$((TESTS_FAILED + 1)); warn "$sv"; }
+  fi
+fi
+if [[ $VERIFY -eq 1 && $VERIFY_ALL -eq 1 && $DRY_RUN -eq 0 ]] && compgen -G "$TARGET/tests/*-test.*" >/dev/null; then
   echo
   say "Checking the installed mechanisms (each test runs in a temp sandbox)…"
   for t in "$TARGET"/tests/*-test.*; do
@@ -520,16 +543,11 @@ fi
 # ---- done ---------------------------------------------------------------
 echo
 if [[ $TESTS_FAILED -gt 0 ]]; then
-  warn "Installed, but $TESTS_FAILED test(s) failed — see above. The failing mechanism may not work on this machine."
+  warn "Installed, but $TESTS_FAILED check(s) failed — see above. The failing mechanism may not work on this machine."
 else
   ok "Install complete."
 fi
-echo
-echo "Checking the installation item by item…"
-if [[ $DRY_RUN -eq 0 ]]; then
-  if [[ "$SCOPE" == "user" ]]; then CHECK=(--user); else CHECK=(--project "$PROJECT_DIR"); fi
-  python3 "$REPO_DIR/check-install.py" "${CHECK[@]}" | tail -n 4 || warn "Some items are missing — see above: python3 $REPO_DIR/check-install.py ${CHECK[*]}"
-fi
+[[ $VERIFY_ALL -eq 1 ]] || echo "  (quick check done; every mechanism's own test: ./install.sh --verify-all … — about 5 min)"
 echo
 echo "Next steps:"
 echo "  1) Review $TARGET/CLAUDE.md — edit to fit"

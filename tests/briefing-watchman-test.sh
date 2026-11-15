@@ -96,7 +96,8 @@ out=$(hook s1 "go on"); ok "a detector flag file is neither printed nor removed 
 
 # supervisor dead-man line
 echo $(( $(date +%s) - 7200 )) > "$T/hb"
-out=$(CCM_SUPERVISOR_HEARTBEAT="$T/hb" hook s1 "go on"); ok "stale supervisor heartbeat -> one line" '[[ "$out" == *"supervisor"*"silent for"* ]]'
+out=$(WATCHMAN_UPTIME_S=99999 CCM_SUPERVISOR_HEARTBEAT="$T/hb" hook s1 "go on"); ok "stale supervisor heartbeat -> one line" '[[ "$out" == *"supervisor"*"silent for"* ]]'
+out=$(WATCHMAN_UPTIME_S=600 CCM_SUPERVISOR_HEARTBEAT="$T/hb" hook s1 "go on"); ok "machine just started (pulse older than the boot, up 10 min) -> silent" '[ -z "$out" ]'
 date +%s > "$T/hb"; out=$(CCM_SUPERVISOR_HEARTBEAT="$T/hb" hook s1 "go on"); ok "fresh heartbeat -> silent" '[ -z "$out" ]'
 echo $(( $(date +%s) - 7200 )) > "$T/hb"; out=$(hook s1 "go on"); ok "key not set -> off, silent" '[ -z "$out" ]'
 
