@@ -3,7 +3,7 @@
 #
 # Detects Claude Code, asks where to install (user vs project scope),
 # copies hooks/scripts/skills with path-rewriting, generates settings.json,
-# offers optional Python deps, offers optional addons (mobile-bot).
+# offers optional Python deps, offers optional add-ons (mobile-bot, offsite-backup, agent-browser, net-change, dashboard — each only with its flag).
 #
 # Usage:
 #   ./install.sh                 # interactive
@@ -20,6 +20,11 @@
 #   --with-releaser              # (root) release queue: a system user merges into master after gates; cron as root
 #   --with-git-guard             # put a git wrapper first in PATH: blocks destructive git in the shared workspace
 #   --with-consolidation         # daily memory consolidation + correction stats: each runs a model (your quota)
+#   --with-mobile-bot            # Telegram bridge to Claude Code: copy to <dir>/mobile-bot/; the system part (service, secrets file, sudoers) is setup-mobile-bot.sh (root)
+#   --with-offsite-backup        # restic backup of your files to S3-compatible storage: copy to <dir>/addons/offsite-backup/, run its setup (own crontab, no root)
+#   --with-agent-browser         # a headless browser the agents drive: copy to <dir>/addons/agent-browser/, fetch its engine (no root); service/links = setup-agent-browser.sh (root, optional)
+#   --with-net-change            # safe network changes (snapshot, apply, roll back unless confirmed): copy to <dir>/addons/net-change/; setup-net-change.sh needs root
+#   --with-dashboard             # local read-only status page of the agents (127.0.0.1:8765): copy to <dir>/addons/dashboard/ (nothing to set up)
 #   --no-cron                    # do not touch the crontab (also automatic for an install under a temp dir)
 #   --prune-cron                 # remove OUR crontab blocks whose install dir no longer exists, then exit
 #
@@ -40,6 +45,11 @@ CLEANUP=0
 WITH_RELEASER=0
 WITH_GIT_GUARD=0
 WITH_CONSOLIDATION=0
+WITH_MOBILE_BOT=0
+WITH_OFFSITE_BACKUP=0
+WITH_AGENT_BROWSER=0
+WITH_NET_CHANGE=0
+WITH_DASHBOARD=0
 NO_CRON=0
 PRUNE_CRON=0
 OPT_NAME=""
@@ -60,6 +70,11 @@ while [[ $# -gt 0 ]]; do
     --with-releaser) WITH_RELEASER=1 ;;
     --with-git-guard) WITH_GIT_GUARD=1 ;;
     --with-consolidation) WITH_CONSOLIDATION=1 ;;
+    --with-mobile-bot) WITH_MOBILE_BOT=1 ;;
+    --with-offsite-backup) WITH_OFFSITE_BACKUP=1 ;;
+    --with-agent-browser) WITH_AGENT_BROWSER=1 ;;
+    --with-net-change) WITH_NET_CHANGE=1 ;;
+    --with-dashboard) WITH_DASHBOARD=1 ;;
     --no-cron)     NO_CRON=1 ;;
     --prune-cron)  PRUNE_CRON=1 ;;
     --name|--workspace|--timezone)
@@ -448,20 +463,6 @@ if [[ "$yn" =~ ^[Yy]$ ]]; then
   fi
 fi
 
-# ---- mobile-bot addon (optional) ----------------------------------------
-echo
-say "Optional addon: mobile-bot (Telegram bridge to Claude Code)"
-yn=$(ask "Install mobile-bot? (y/N)" "N")
-if [[ "$yn" =~ ^[Yy]$ ]]; then
-  ADDON_DIR="$TARGET/mobile-bot"
-  do_or_show mkdir -p "$ADDON_DIR"
-  do_or_show cp -r "$REPO_DIR/addons/mobile-bot/." "$ADDON_DIR/"   # "/." copies .env.template too (a * glob skips dotfiles)
-  ok "mobile-bot installed at $ADDON_DIR"
-  echo
-  warn "Next: copy $ADDON_DIR/.env.template → .env, fill TELEGRAM_BOT_TOKEN/PIN/etc"
-  warn "Then: see $ADDON_DIR/README.md for systemd setup"
-fi
-
 # ---- scheduled jobs (cron) ---------------------------------------------------
 # One marked block in the user's crontab, replaced on every run (no duplicates; other lines untouched).
 CRON_BEGIN="# >>> claude-code-methodology ($TARGET)"
@@ -518,6 +519,98 @@ else
   printf '%s\n' "$CRON_LINES" >&2
 fi
 
+# ---- add-ons (each only with its own flag) -----------------------------------
+# An add-on is copied to <dir>/addons/<name>/ (mobile-bot: <dir>/mobile-bot/). Its non-root setup runs here; setup that needs
+# root runs only when this installer is root already - otherwise the exact sudo line is printed (we never call sudo here).
+# Its supervisor entries are merged into the registry by name: missing ones are added, existing ones are never touched.
+REGISTRY="$(python3 "$TARGET/lib/ccm_conf.py" CCM_SUPERVISOR_DIR 2>/dev/null || echo "$HOME/.claude/supervisor")/checks.json"
+SETUP_DRY=(); [[ $DRY_RUN -eq 1 ]] && SETUP_DRY=(--dry-run)
+ADDONS_DONE=()
+SEC=$(python3 "$TARGET/lib/ccm_conf.py" CCM_SECRETS_DIR 2>/dev/null || echo "$HOME/.config/claude-secrets")
+# Scripts to run: the installed copies - on a dry run nothing is copied, so the repo's own copies stand in.
+if [[ $DRY_RUN -eq 1 ]]; then MB_DIR="$REPO_DIR/addons/mobile-bot"; AD_DIR="$REPO_DIR/addons"
+else MB_DIR="$TARGET/mobile-bot"; AD_DIR="$TARGET/addons"; fi
+
+copy_addon() {  # copy_addon <name> <dest dir>
+  do_or_show mkdir -p "$2"
+  do_or_show cp -r "$REPO_DIR/addons/$1/." "$2/"   # "/." copies dotfiles too (.env.template)
+  ADDONS_DONE+=("$1")
+}
+merge_checks() {  # merge_checks <name> — supervisor-checks.json of the add-on into the registry, by "name"; existing entries stay
+  local src="$REPO_DIR/addons/$1/supervisor-checks.json"
+  [[ -f "$src" ]] || return 0
+  if [[ $DRY_RUN -eq 1 ]]; then echo "  DRY: would merge the supervisor checks of $1 into $REGISTRY"; return 0; fi
+  python3 - "$src" "$REGISTRY" "$1" <<'PYMERGE' || warn "could not merge the supervisor checks of $1 into $REGISTRY"
+import json, os, sys
+src, dst, name = sys.argv[1:]
+new = json.load(open(src, encoding="utf-8")).get("checks", [])
+try:
+    reg = json.load(open(dst, encoding="utf-8"))
+except FileNotFoundError:
+    reg = {"checks": []}
+have = {c.get("name") for c in reg.get("checks", [])}
+added = [c for c in new if c.get("name") not in have]
+reg.setdefault("checks", []).extend(added)
+if added:
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    tmp = dst + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(reg, f, indent=2, ensure_ascii=False); f.write("\n")
+    os.replace(tmp, dst)
+print(f"  supervisor: {name}: {len(added)} check(s) added, {len(new) - len(added)} already there")
+PYMERGE
+}
+root_setup() {  # root_setup <script> <args...> — run as root, or print the exact sudo command
+  if [[ $DRY_RUN -eq 1 ]]; then bash "$@" --dry-run || warn "dry run of $(basename "$1") failed — see above"
+  elif [[ $(id -u) -eq 0 ]]; then bash "$@" || warn "$(basename "$1") failed — see above"
+  else warn "needs root, run: sudo bash $(printf '%q ' "$@")"; fi
+}
+
+# The old y/N question is the same thing as --with-mobile-bot; asked only when nothing says otherwise.
+if [[ $WITH_MOBILE_BOT -eq 0 && $YES -eq 0 ]]; then
+  echo
+  say "Optional add-on: mobile-bot (Telegram bridge to Claude Code)"
+  yn=$(ask "Install mobile-bot? (y/N)" "N")
+  [[ "$yn" =~ ^[Yy]$ ]] && WITH_MOBILE_BOT=1
+fi
+
+if [[ $WITH_MOBILE_BOT -eq 1 ]]; then
+  echo; say "add-on mobile-bot…"
+  copy_addon mobile-bot "$TARGET/mobile-bot"
+  merge_checks mobile-bot
+  ok "mobile-bot copied to $TARGET/mobile-bot"
+  warn "mobile-bot is not running yet. 1) put the bot token and your Telegram id into $SEC/mobile-bot.env (template: $TARGET/mobile-bot/.env.template, every key explained)"
+  root_setup "$MB_DIR/setup-mobile-bot.sh"
+  warn "2) then see $TARGET/mobile-bot/README.md (/setpin, optional --with-swarm for letters to agents)"
+fi
+if [[ $WITH_OFFSITE_BACKUP -eq 1 ]]; then
+  echo; say "add-on offsite-backup…"
+  copy_addon offsite-backup "$TARGET/addons/offsite-backup"
+  OB=(bash "$AD_DIR/offsite-backup/setup-offsite-backup.sh" ${SETUP_DRY[@]+"${SETUP_DRY[@]}"} --dest "$TARGET/scripts/backup")
+  [[ $NO_CRON -eq 1 ]] && OB+=(--no-cron)
+  "${OB[@]}" || warn "offsite-backup setup stopped (rc $?) — restic missing? See above; re-run the same line after fixing"
+  merge_checks offsite-backup
+  warn "offsite-backup needs your storage keys: copy restic.env.template (in $SEC) to restic.env and fill it — see $TARGET/addons/offsite-backup/README.md"
+fi
+if [[ $WITH_AGENT_BROWSER -eq 1 ]]; then
+  echo; say "add-on agent-browser…"
+  copy_addon agent-browser "$TARGET/addons/agent-browser"
+  bash "$AD_DIR/agent-browser/install-engine.sh" ${SETUP_DRY[@]+"${SETUP_DRY[@]}"} || warn "browser engine not installed (needs node + npm) — re-run: bash $TARGET/addons/agent-browser/install-engine.sh"
+  merge_checks agent-browser
+  warn "optional, root: sudo bash $TARGET/addons/agent-browser/setup-agent-browser.sh --link --browser-service   (links br into /usr/local/bin, runs a headless Chrome as a service; skip if you already run Chrome with remote debugging and set CCM_BR_CDP)"
+fi
+if [[ $WITH_NET_CHANGE -eq 1 ]]; then
+  echo; say "add-on net-change…"
+  copy_addon net-change "$TARGET/addons/net-change"
+  root_setup "$AD_DIR/net-change/setup-net-change.sh"
+  merge_checks net-change
+fi
+if [[ $WITH_DASHBOARD -eq 1 ]]; then
+  echo; say "add-on dashboard…"
+  copy_addon dashboard "$TARGET/addons/dashboard"
+  ok "dashboard copied — start it: python3 $TARGET/addons/dashboard/dashboard.py (read-only, 127.0.0.1:8765)"
+fi
+
 # ---- optional system parts (explicit flags only) -----------------------------
 if [[ $WITH_GIT_GUARD -eq 1 ]]; then
   say "git guard (wrapper first in PATH)…"
@@ -568,6 +661,25 @@ if [[ $VERIFY -eq 1 && $VERIFY_ALL -eq 1 && $DRY_RUN -eq 0 ]] && compgen -G "$TA
   done
 fi
 
+if [[ $VERIFY -eq 1 && $VERIFY_ALL -eq 1 && $DRY_RUN -eq 0 ]]; then
+  # add-on tests: addons/<name>/tests/*-test.*  and  mobile-bot/tests/test_*.py (each runs from its own folder, in a temp sandbox)
+  ADDON_TESTS=()
+  for t in "$TARGET"/addons/*/tests/*-test.* "$TARGET"/mobile-bot/tests/test_*.py; do [[ -f "$t" ]] && ADDON_TESTS+=("$t"); done
+  if [[ ${#ADDON_TESTS[@]} -gt 0 ]]; then
+    echo
+    say "Checking the installed add-ons…"
+    for t in "${ADDON_TESTS[@]}"; do
+      case "$t" in *.py) runner=python3 ;; *.sh) runner=bash ;; *) continue ;; esac
+      if out=$(cd "$(dirname "$t")/.." && "$runner" "$t" 2>&1); then
+        ok "$(basename "$(dirname "$(dirname "$t")")"): $(printf '%s\n' "$out" | tail -1)"
+      else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        warn "$t FAILED:"; printf '%s\n' "$out" | tail -8 >&2
+      fi
+    done
+  fi
+fi
+
 # ---- done ---------------------------------------------------------------
 echo
 if [[ $TESTS_FAILED -gt 0 ]]; then
@@ -583,8 +695,8 @@ echo "  2) Start a new Claude Code session (existing sessions won't pick up the 
 echo "  3) Read $REPO_DIR/docs/architecture.md"
 echo
 echo "To undo: in $TARGET, restore the *.bak-${TIMESTAMP} copies over the files they back up, and remove"
-echo "what this repo added (hooks/, scripts/, skills/, code-pitfalls/, lib/, bin/, mcp/, tests/, methodology.conf,"
-echo "(with --with-git-guard: scripts/setup-git-guard.sh --uninstall; with --with-releaser: /etc/cron.d/ccm-releaser and the releaser user)"
+echo "what this repo added (hooks/, scripts/, skills/, code-pitfalls/, lib/, bin/, mcp/, tests/, methodology.conf, addons/, mobile-bot/,"
+echo "(add-ons: each has setup-<name>.sh --uninstall; with --with-git-guard: scripts/setup-git-guard.sh --uninstall; with --with-releaser: /etc/cron.d/ccm-releaser and the releaser user)"
 echo ".methodology-installed/), the ~/.local/bin links to bin/ and the marked block in crontab -l."
 echo "Do NOT delete $TARGET as a whole: it also holds your own Claude Code settings, memory and history."
 [[ $TESTS_FAILED -eq 0 ]] || exit 3

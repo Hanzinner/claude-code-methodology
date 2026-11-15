@@ -76,3 +76,22 @@ CCM_SUPERVISOR_PAUSED=""                # file with project names whose checks a
 CCM_PRESENCE_CMD=""                     # command printing the desktop idle time in seconds (presence check); empty = prompts only
 CCM_PUBLIC_GATE_NAMES=""                # names that must never reach a public repo (public_gate.sh), comma-separated
 CCM_PRUNE_WATCHMAN_STATE=0              # 1 = weekly delete of the watchman's own state files older than CCM_PRUNE_DAYS
+
+# ---- add-ons (each is installed only with its own install.sh --with-<name> flag) ----
+CCM_BACKUP_STATE=""                     # offsite-backup: where the backup keeps its log, size and last-run markers; empty = ~/.claude/offsite-backup
+CCM_BACKUP_PATHS=""                     # offsite-backup: folders to back up, colon-separated; empty = ~/.claude, the workspace, ~/.ssh, the secrets dir
+CCM_TG_OUTBOX=""                        # mobile-bot: spool folder where agents drop answers for the phone; empty = /var/spool/ccm-tg-outbox
+CCM_BR_CDP=""                           # agent-browser: debugging endpoint of the browser the agents drive (http://127.0.0.1:9333); empty = the add-on's default
+# net-change reads these keys itself (environment or this file); the defaults are in the comments. Uncomment to change.
+# CCM_NETCHANGE_FILES=""                # config files/dirs snapshotted before a network change; default = the config places of all common stacks + resolv.conf, hosts
+# CCM_NETCHANGE_RESTART=""              # command that applies the network config; default = detected (netplan, networkd, NetworkManager, ifupdown)
+# CCM_NETCHANGE_CHECK=""                # command whose exit 0 means "network is good"; default = built-in check
+# CCM_NETCHANGE_CHECK_HOST="example.com" # name that must resolve in the built-in check
+# CCM_NETCHANGE_CHECK_TCP=""            # host:port that must accept a connection - put the host you SSH in from; default = none
+# CCM_NETCHANGE_RESCUE=""               # script run after a rollback (e.g. re-add a static address); default = none
+# CCM_NETCHANGE_STATE="/var/lib/net-change"  # snapshots and the pending-change state
+# CCM_NETCHANGE_LOG="/var/log/net-change.log"
+# CCM_NETCHANGE_MIN_WAIT=3              # least minutes --wait may be (restart plus three checks take ~2 min)
+# CCM_NETCHANGE_SETTLE=5                # seconds to let the network settle after a restart
+# CCM_NETCHANGE_RETRY_S=10              # seconds between the three checks
+# CCM_NETCHANGE_SCHED="systemd"         # what runs the rollback timer: systemd | none (none is for tests)

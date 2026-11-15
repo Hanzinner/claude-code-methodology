@@ -46,6 +46,10 @@ DEFAULTS = {
     "CCM_SUPERVISOR_DIR": os.path.join(HOME, ".claude", "supervisor"),   # supervisor state, registry, summary
     "CCM_MECH_OWNER": "",                             # agent told when mechanism-code snapshots fail; empty = log only
     "CCM_STATS_OWNER": "",                            # agent told about stats findings; empty = files only
+    "CCM_BACKUP_STATE": os.path.join(HOME, ".claude", "offsite-backup"),   # offsite-backup add-on: log, size and last-run markers
+    "CCM_BACKUP_PATHS": "",                           # offsite-backup add-on: folders to back up, colon-separated; empty = ~/.claude, the workspace, ~/.ssh, the secrets dir
+    "CCM_TG_OUTBOX": "/var/spool/ccm-tg-outbox",      # mobile-bot add-on: spool where agents drop answers for the phone
+    "CCM_BR_CDP": "",                                 # agent-browser add-on: debugging endpoint of the browser (e.g. http://127.0.0.1:9333); empty = the add-on's default
     "CCM_LANG_EXTRA": "",                             # extra phrase lists the detectors also match (besides English)
 }
 

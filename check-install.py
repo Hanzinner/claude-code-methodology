@@ -104,7 +104,7 @@ if s is not None:
               f"exit {r.returncode}: {(r.stderr or r.stdout).strip()[:160]}")
 
 print("\nOptional (not required):")
-print(f"  Telegram bot: {'installed' if os.path.isdir(target + '/mobile-bot') else 'not installed'}")
+print(f"  Telegram bot: {'installed' if os.path.exists(target + '/mobile-bot/bot.py') else 'not installed'}")
 for tool, why in (("pdftotext", "PDF extraction"), ("pandoc", "HTML to markdown"), ("lynx", "HTML to text")):
     found = any(os.access(os.path.join(p, tool), os.X_OK) for p in os.environ.get("PATH", "").split(":"))
     print(f"  {tool} ({why}): {'found' if found else 'not found'}")
@@ -148,10 +148,10 @@ else:
             "search" in ((v or {}).get("mcpServers") or {}) for v in (cj.get("projects") or {}).values() if isinstance(v, dict)):
         todo.append(f"web search: keys are there but the server is not registered: claude mcp add --scope user search "
                     f"-- python3 {target}/mcp/search_mcp.py -> {DOC}#tavily-and-exa--web-search")
-if os.path.isdir(f"{target}/offsite-backup") and not any(
+if os.path.exists(f"{target}/scripts/backup/backup-restic.sh") and not any(
         os.path.exists(os.path.join(secrets, f)) for f in ("restic.env", "s3-credentials.json")):
     todo.append(f"offsite backup: installed, no storage keys in {secrets} -> {DOC}#s3-compatible-storage--offsite-backup")
-if os.path.isdir(f"{target}/mobile-bot") and not os.path.exists(os.path.join(secrets, "mobile-bot.env")):
+if os.path.exists(f"{target}/mobile-bot/bot.py") and not os.path.exists(os.path.join(secrets, "mobile-bot.env")):
     todo.append(f"mobile bot: installed, no {secrets}/mobile-bot.env -> {DOC}#telegram--mobile-bot")
 if todo:
     print("\nAccounts still to set up (optional; each line points to the how-to):")
