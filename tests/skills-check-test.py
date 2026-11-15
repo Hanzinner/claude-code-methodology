@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """skills-check: validates every skills/*/SKILL.md in the repo.
 Checks: frontmatter parses, has name (= folder) + description, referenced repo files exist
-(scripts/, hooks/, lib/, bin/ paths, also via $CLAUDE_METHODOLOGY_DIR), no Cyrillic, no personal/project names.
+(scripts/, hooks/, lib/, bin/ paths, also via $CLAUDE_METHODOLOGY_DIR), no Cyrillic, none of the names listed in CCM_PUBLIC_GATE_NAMES (machine settings).
 SKILLS_DIR=<path> overrides the skills directory. Read-only."""
 import glob, os, re, sys
 
@@ -9,7 +9,15 @@ ROOT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..")
 SKILLS = os.environ.get("SKILLS_DIR") or os.path.join(ROOT, "skills")
 # paths under these roots must exist in the repo; anything else (memory/, ~/.claude/skills, /tmp) is a runtime dir
 REPO_DIRS = ("scripts", "hooks", "lib", "bin")
-FORBIDDEN = []  # names come from the machine settings (CCM_PUBLIC_GATE_NAMES), never from this file
+# Names that must not appear: taken from the machine's settings, never written here — a deny-list in public code
+# publishes the very names it guards. Same key as scripts/public_gate.sh (regex alternation "Alice|Acme").
+sys.path.insert(0, os.path.join(ROOT, "lib"))
+try:
+    from ccm_conf import conf
+    _names = conf("CCM_PUBLIC_GATE_NAMES", "") or ""
+except Exception:
+    _names = os.environ.get("CCM_PUBLIC_GATE_NAMES", "")
+FORBIDDEN = [w for w in _names.split("|") if w.strip()]
 CYR = re.compile(r"[Ѐ-ӿ]")
 PATH = re.compile(r"(?:\$\{?CLAUDE_METHODOLOGY_DIR(?::-[^}]*)?\}?|\$CCM_CLAUDE_DIR|~/\.claude)?/?((?:%s)/[\w.\-]+\.(?:py|sh|md|json))" % "|".join(REPO_DIRS))
 
