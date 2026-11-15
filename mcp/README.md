@@ -11,8 +11,11 @@ same query goes to the next provider — the agent does nothing. When all are ex
 built-in `WebSearch` is let through (`hooks/websearch-to-tavily.sh` reads the same state). Python standard
 library only, no packages.
 
+**The installer does both steps for you** when you paste a key at its prompt (or, with `--yes`, when
+`TAVILY_API_KEY` / `EXA_API_KEY` are set in the environment). By hand:
+
 **1. Keys** — either one is enough, both give the rotation. Free tiers: Tavily (https://tavily.com,
-1000 searches a month), Exa (https://exa.ai, free credits on sign-up). Put them into `search.env` in your
+1000 searches a month), Exa (https://exa.ai, $10 of credits a month, checked 2026-11-15). Put them into `search.env` in your
 secrets folder (`CCM_SECRETS_DIR` in `methodology.conf`, default `~/.config/claude-secrets/`), never into the
 workspace:
 
@@ -34,9 +37,9 @@ claude mcp list        # search: ✓ Connected
 
 Restart Claude Code; `/mcp` in a session lists the tool.
 
-**Do both steps or neither.** With a key in `search.env`, `hooks/websearch-to-tavily.sh` refuses the built-in
-`WebSearch` and points the agent at `mcp__search__search`. If the server is not registered, the agent then has no
-search at all. No keys → the hook lets `WebSearch` through and nothing changes.
+`hooks/websearch-to-tavily.sh` refuses the built-in `WebSearch` and points the agent at `mcp__search__search`
+only when the server is registered and a provider with a key is not on cooldown; otherwise `WebSearch` goes
+through as usual.
 
 Test without spending credits: `tests/search-mcp-test.sh` (runs against a local mock of both APIs).
 

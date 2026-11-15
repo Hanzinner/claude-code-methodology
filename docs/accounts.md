@@ -27,8 +27,10 @@ Check: `claude --version`. The quota monitor (`scripts/quota_status.py`) reads t
 1. Sign up: https://tavily.com and/or https://exa.ai. One is enough; both give rotation (when Tavily's month
    runs out, the same query goes to Exa).
 2. Copy the **API key** from the provider's dashboard.
-3. Put it into `search.env` in your secrets folder (`CCM_SECRETS_DIR` in `~/.claude/methodology.conf`,
-   default `~/.config/claude-secrets/`), mode 600:
+3. **Easiest: paste the key when `./install.sh` asks for it** (input is hidden). The installer writes it to
+   `search.env` and, if the `claude` CLI is there, registers the server — steps 3 and 4 done. To add a key
+   later by hand, put it into `search.env` in your secrets folder (`CCM_SECRETS_DIR` in
+   `~/.claude/methodology.conf`, default `~/.config/claude-secrets/`), mode 600:
    ```
    TAVILY_API_KEY=tvly-...
    EXA_API_KEY=...
@@ -36,8 +38,7 @@ Check: `claude --version`. The quota monitor (`scripts/quota_status.py`) reads t
 4. Register the server once: `claude mcp add --scope user search -- python3 ~/.claude/mcp/search_mcp.py`
 5. Check: `claude mcp list` shows `search: ✓ Connected`; restart Claude Code.
 
-Do steps 3 and 4 together: a key without the registered server makes the agent lose search entirely
-(details in [`mcp/README.md`](../mcp/README.md)).
+Until the server is registered, the built-in `WebSearch` keeps working (details in [`mcp/README.md`](../mcp/README.md)).
 
 ## S3-compatible storage — offsite backup
 
@@ -63,7 +64,8 @@ Do steps 3 and 4 together: a key without the registered server makes the agent l
 
 ## For the agent doing the install
 
-After `./install.sh` and `./check-install.py`, tell the person in one short list:
+`./install.sh` and `./check-install.py` end with the accounts that are still missing, one line each, with a
+link into this file. Pass that to the person in one short list:
 - which optional accounts above they might want, one line each with the link and what it's for;
 - for each one they say yes to: the exact file and the line to put in it, and that they do it themselves;
 - then run the row's check yourself and report the result.
