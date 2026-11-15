@@ -288,7 +288,32 @@ for f in "$REPO_DIR"/mcp/*.py; do
   [[ -f "$f" ]] || continue
   do_or_show cp "$f" "$TARGET/mcp/$(basename "$f")"
 done
-[[ -f "$TARGET/mcp/search_mcp.py" || $DRY_RUN -eq 1 ]] && warn "web search MCP: put TAVILY_API_KEY= and/or EXA_API_KEY= into the secrets dir's search.env, then: claude mcp add --scope user search -- python3 \"$TARGET/mcp/search_mcp.py\""
+# Web search keys (Tavily, Exa): asked once, empty = skip; --yes skips (or takes TAVILY_API_KEY / EXA_API_KEY from
+# the environment). Keys go to <secrets>/search.env (0600), never into the workspace. With a key and the claude CLI,
+# the server is registered right away — a key without the registration would leave the agent with no search at all.
+if [[ -f "$REPO_DIR/mcp/search_mcp.py" && $DRY_RUN -eq 0 ]]; then
+  SECRETS=$(python3 "$TARGET/lib/ccm_conf.py" CCM_SECRETS_DIR); SENV="$SECRETS/search.env"
+  t_key="${TAVILY_API_KEY:-}"; e_key="${EXA_API_KEY:-}"
+  if [[ $YES -eq 0 && ! -s "$SENV" ]]; then
+    echo; say "Web search for agents (optional; free tiers exist): paste keys, Enter to skip"
+    read -r -s -p "  Tavily API key: " t_key; echo
+    read -r -s -p "  Exa API key: " e_key; echo
+  fi
+  if [[ -n "$t_key$e_key" ]]; then
+    mkdir -p "$SECRETS" && chmod 700 "$SECRETS"
+    ( umask 077; { [[ -n "$t_key" ]] && echo "TAVILY_API_KEY=$t_key"; [[ -n "$e_key" ]] && echo "EXA_API_KEY=$e_key"; } > "$SENV" )
+    ok "search keys written to $SENV (mode 600)"
+  fi
+  if [[ -s "$SENV" ]]; then
+    if command -v claude >/dev/null 2>&1; then
+      if claude mcp get search >/dev/null 2>&1; then ok "search MCP server already registered"
+      elif claude mcp add --scope user search -- python3 "$TARGET/mcp/search_mcp.py" >/dev/null 2>&1; then ok "search MCP server registered (claude mcp add --scope user search)"
+      else warn "could not register the search server: claude mcp add --scope user search -- python3 \"$TARGET/mcp/search_mcp.py\""; fi
+    else
+      warn "keys saved; register the search server once the claude CLI is installed: claude mcp add --scope user search -- python3 \"$TARGET/mcp/search_mcp.py\""
+    fi
+  fi
+fi
 
 say "Copying skills…"
 for d in "$REPO_DIR"/skills/*/; do

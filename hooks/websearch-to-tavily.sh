@@ -2,7 +2,7 @@
 # PreToolUse hook on WebSearch: steer the agent to the rotating search tool mcp__search__search
 # (Tavily -> Exa, mcp/search_mcp.py). The built-in WebSearch is the LAST resort: it is allowed only when every
 # provider that has a key is on cooldown (same state file search_mcp.py maintains). No key at all -> allowed too
-# (there is no alternative). Meaningful only together with the search MCP server.
+# (there is no alternative), and so is a key whose server is not registered with Claude Code (no tool to use).
 # Keys: $CCM_SECRETS_DIR/search.env  (TAVILY_API_KEY=..., EXA_API_KEY=...). State: ~/.claude/search-state.json
 eval "$(python3 "$(dirname "$(readlink -f "$0")")/../lib/ccm_conf.py" --shell)"
 cat >/dev/null
@@ -19,6 +19,17 @@ try:
     st = json.load(open(os.environ["SEARCH_STATE"]))
 except Exception:
     st = {}
+# A key without the server registered with Claude Code = the agent has no mcp__search__search at all:
+# denying WebSearch then leaves it with no search. Registered = "search" in mcpServers of ~/.claude.json
+# (user scope, or any project entry there).
+try:
+    cj = json.load(open(os.environ.get("CLAUDE_JSON") or os.path.expanduser("~/.claude.json")))
+except Exception:
+    cj = {}
+registered = "search" in (cj.get("mcpServers") or {}) or any(
+    "search" in ((p or {}).get("mcpServers") or {}) for p in (cj.get("projects") or {}).values() if isinstance(p, dict))
+if not registered:
+    keys = {}
 conf = [p for p, e in (("tavily", "TAVILY_API_KEY"), ("exa", "EXA_API_KEY")) if keys.get(e)]
 live = [p for p in conf if st.get(p, {}).get("until", 0) <= time.time()]
 print("yes" if not live else "no")

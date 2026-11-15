@@ -37,6 +37,7 @@ call() { printf '%s\n%s\n%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","p
          '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search","arguments":{"query":"test","max_results":3}}}' \
          | python3 "$SM" | tail -1; }
 hook() { echo '{"tool_name":"WebSearch"}' | bash "$WH" | grep -q '"deny"' && echo deny || echo allow; }
+echo '{"mcpServers":{"search":{"type":"stdio","command":"python3","args":["x"]}}}' > "$HOME/.claude.json"   # registered
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; echo "   out=$out"; echo "   hits=$(tr '\n' ' ' < $T/hits) state=$(cat $T/state.json 2>/dev/null)"; fi; }
 
@@ -63,4 +64,10 @@ ok "7 no Exa key: Tavily 432 -> exhausted at once, Exa not poked" 'echo "$out" |
 out=$(hook); ok "7b no Exa key + Tavily exhausted -> WebSearch allowed" '[ "$out" = allow ]'
 out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 "$SM")
 ok "8 tools/list returns search with a schema" 'echo "$out" | python3 -c "import json,sys;d=json.load(sys.stdin);assert d[\"result\"][\"tools\"][0][\"name\"]==\"search\""'
+# a key in search.env but the server not registered -> the agent has no search tool -> WebSearch must pass
+mv "$HOME/.claude.json" "$HOME/.claude.json.off"; rm -f "$SEARCH_STATE"
+printf 'TAVILY_API_KEY=k1\n' > "$SEARCH_ENV"
+out=$(hook); ok "8 key present, server NOT registered -> WebSearch allowed" '[ "$out" = allow ]'
+echo '{"projects":{"/w":{"mcpServers":{"search":{}}}}}' > "$HOME/.claude.json"
+out=$(hook); ok "8b registered in a project entry -> WebSearch denied while the key is alive" '[ "$out" = deny ]'
 echo "search-mcp: $pass pass, $fail fail"; [ $fail = 0 ]
