@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# br-ask "<task>" - tactical level: a small model (default haiku) with minimal instructions and ONE tool, br.
+# Prints the answer; stderr gets the cost (turns, tokens). Log: ~/.claude/browser/ask.log
+# Settings: BR_ASK_MODEL (default haiku), BR_ASK_FLAGS (extra `claude` flags), BR_STATE, BR_AGENT.
+set -euo pipefail
+[ $# -ge 1 ] || { echo 'br-ask "<task>"' >&2; exit 1; }
+here=$(dirname "$(readlink -f "$0")")
+state=${BR_STATE:-$HOME/.claude/browser}
+mkdir -p "$state"
+sys="$(cat "$here/walker-prompt.md")
+$("$here/br" recipes)"
+# shellcheck disable=SC2086
+out=$(BR_AGENT=${BR_AGENT:-walker} claude -p "$1" --model "${BR_ASK_MODEL:-haiku}" --system-prompt "$sys" --tools Bash \
+      --allowedTools "Bash(br:*)" "Bash(br *)" --strict-mcp-config --disable-slash-commands --no-session-persistence \
+      --max-turns 8 --output-format json --setting-sources "" ${BR_ASK_FLAGS:-} </dev/null)
+python3 - "$out" "$1" "$state/ask.log" <<'PY'
+import json, sys, time
+d = json.loads(sys.argv[1])
+if isinstance(d, list):
+    d = [e for e in d if e.get("type") == "result"][0]
+u = d.get("usage", {})
+tot = sum(u.get(k, 0) for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens"))
+line = (f"turns {d.get('num_turns')} - tokens {tot} (new {u.get('input_tokens',0)}+{u.get('cache_creation_input_tokens',0)}, "
+        f"cached {u.get('cache_read_input_tokens',0)}, output {u.get('output_tokens',0)}) - {d.get('duration_ms',0)//1000} s")
+print(d.get("result", ""))
+print("[cost] " + line, file=sys.stderr)
+open(sys.argv[3], "a", encoding="utf-8").write(f"{time.strftime('%F %T')}\t{line}\t{sys.argv[2][:100]}\n")
+sys.exit(1 if d.get("is_error") else 0)
+PY

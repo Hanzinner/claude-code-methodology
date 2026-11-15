@@ -23,10 +23,9 @@ target
 **/.cache/huggingface
 **/.cache/pip
 **/.cache/uv
-# Trash + user-scoped tmp (NOT global /tmp — we DO back up /tmp/system-manifest)
+# Trash + user-scoped tmp (NOT global /tmp — we DO back up /tmp/ccm-system-manifest)
 **/.Trash
-/home/<user>/tmp
-/root/tmp
+**/tmp-scratch
 # .git/objects INCLUDED for local-only repos (a repo with no remote —
 # losing objects/ = losing all commit history). Trade-off: +1-3 GB. If your
 # repo holds sensitive commits you don't want on GitHub even privately,
@@ -37,7 +36,16 @@ target
 # **/SomeLargeGenerated.xml
 # Obsidian plugin build artifacts (regenerable via reinstall)
 **/.obsidian/plugins/*/main.js.map
-# Backup script's own staging (would create recursion)
-/tmp/recovery-staging
-# The passphrase file itself — chicken-and-egg
-/home/<user>/.claude/secrets/backup-passphrase.txt
+# The passphrase file itself - chicken-and-egg (the repo it opens must not hold its own key)
+**/backup-passphrase.txt
+# Python environments - rebuilt from requirements*.txt; bytecode caches
+**/.venv
+**/venv
+**/__pycache__
+# Claude Code's per-file edit history (large, not needed to rebuild the setup)
+**/.claude/file-history
+# Local database backups that regenerate by themselves
+**/*.db.bak*
+**/*.db.pre-*.bak
+# Add your own: one line per path. Measure first - `restic diff` of two snapshots shows what grows. The free tiers
+# (B2 10 GB) fill up with test runs and generated data long before they fill up with your notes.

@@ -9,9 +9,13 @@ home, work = f"{tmp}/home", f"{tmp}/work"
 os.makedirs(f"{home}/.ssh"); os.makedirs(work)
 
 
-def run(payload, raw=None, bot="1", allow=None):
+W = "/usr/local/sbin/ccm-bot-inbox"
+
+
+def run(payload, raw=None, bot="1", allow=None, wrapper=W, secrets=None):
     env = {**os.environ, "HOME": home, "CLAUDE_MOBILE_BOT": bot,
-           "CLAUDE_MOBILE_BOT_ALLOW_PATHS": allow or f"{work}/notes"}
+           "CLAUDE_MOBILE_BOT_ALLOW_PATHS": allow or f"{work}/notes", "CLAUDE_MOBILE_BOT_INBOX_WRAPPER": wrapper,
+           "CCM_SECRETS_DIR": secrets or f"{home}/.config/claude-secrets", "CLAUDE_METHODOLOGY_CONF": "/nonexistent"}
     inp = raw if raw is not None else json.dumps({"cwd": work, **payload})
     return subprocess.run(["bash", str(HOOK)], input=inp, env=env, capture_output=True, text=True).returncode
 
@@ -51,6 +55,15 @@ DENY += [write(f"{work}/other/a.md"), write(f"{work}/notes/id_rsa.PEM"), write(f
          {"tool_name": "Grep", "tool_input": {"path": home, "pattern": "x"}},
          {"tool_name": "Glob", "tool_input": {"pattern": "/etc/*"}}]
 
+# The swarm letter: the ONE write form (only when the bot passes the helper's path to the gate)
+N = f"{work}/notes/l.md"
+ALLOW += [bash(c) for c in (f"cat {N} | sudo -n {W} Alpha", f"sudo -n {W} Alpha < {N}", f"cat {N} | {W} Gear-Picker", f"{W} Alpha < {N}")]
+DENY += [bash(c) for c in (f"cat /etc/hostname | sudo -n {W} Alpha", f"cat {N} | sudo -n {W} ../x", f"cat {N} | sudo -n {W} Alpha; id",
+                           f"cat {N} | sudo -n {W} Alpha extra", f"sudo -n {W} Alpha < {home}/.ssh/id_rsa", f"cat {home}/.ssh/id_rsa | sudo -n {W} Alpha",
+                           f"cat {N} | sudo {W} Alpha", f"cat {N} | sudo -n {W} Alpha > x", f"cat {N} | sudo -n {W} --wake Alpha",
+                           f"cat {N} {N} | sudo -n {W} Alpha", f"echo hi | sudo -n {W} Alpha", f"sudo -n {W} Alpha < {N} < {N}",
+                           f"cat {N} | sudo -n {W} Alpha | cat", f"cat {N} | sudo -n {W} _dep", f"sudo -n /bin/sh < {N}")]
+DENY += [write(f"{work}/notes/Agents/A/inbox.md"), write(f"{work}/notes/Project/BLOCKERS.md"), write(f"{work}/notes/x/inbox-pending/a.md")]
 bad = [("allow", p) for p in ALLOW if run(p) != 0] + [("deny", p) for p in DENY if run(p) != 2]
 # Own code is protected even when the allowlist covers it: this fixture tests only that rule.
 addon = str(HOOK.parent.parent)
@@ -60,6 +73,12 @@ for f in (HOOK.parent / "mobile_restrict.py", HOOK.parent.parent / "bot.py"):
 for c in ("grep -r token", "ls -R", "tree", "du"):
     if run({**bash(c), "cwd": home}) != 2: bad.append(("deny", f"{c} from HOME"))
 if run({"tool_name": "Grep", "tool_input": {"pattern": "x"}, "cwd": home}) != 2: bad.append(("deny", "Grep from HOME"))
+# no helper path given -> the letter form is refused like any other sudo; the gate's own secrets dir is closed
+if run(bash(f"cat {N} | sudo -n {W} Alpha"), wrapper="") != 2: bad.append(("deny", "letter form without a helper path"))
+os.makedirs(f"{tmp}/sec", exist_ok=True)
+if run(read(f"{tmp}/sec/mobile-bot.env"), secrets=f"{tmp}/sec") != 2: bad.append(("deny", "CCM_SECRETS_DIR read"))
+if run(bash(f"cat {tmp}/sec/mobile-bot-auth.json"), secrets=f"{tmp}/sec") != 2: bad.append(("deny", "CCM_SECRETS_DIR cat"))
+if run({"tool_name": "NotebookRead", "tool_input": {"notebook_path": f"{home}/.ssh/x.ipynb"}}) != 2: bad.append(("deny", "NotebookRead of a secret"))
 if run(None, raw="not json") != 2: bad.append(("deny", "garbage stdin"))     # fail-closed
 if run(bash("rm x"), bot="") != 0: bad.append(("allow", "outside the bot"))  # no-op
 # [SEND:] shares the gate's definition of "secret"
@@ -68,7 +87,7 @@ from mobile_restrict import refuse_send
 for p in (f"{work}/.env", f"{work}/id_rsa", f"{work}/a.pem", f"{work}/.git/config"):
     if not refuse_send(p): bad.append(("refuse send", p))
 if refuse_send(f"{work}/report.pdf"): bad.append(("allow send", "report.pdf"))
-total = len(ALLOW) + len(DENY) + 2 + 5 + 2 + 5
+total = len(ALLOW) + len(DENY) + 2 + 5 + 2 + 5 + 4
 for want, p in bad: print(f"WRONG, wanted {want}: {p}")
-print(f"{total} cases, {len(bad)} wrong")
+print(f"mobile-bot gate: {total - len(bad)} pass, {len(bad)} fail")
 sys.exit(1 if bad or total < 100 else 0)

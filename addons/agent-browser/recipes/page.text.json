@@ -1,0 +1,22 @@
+{
+ "about": "title and main text of the page at an address (up to 2500 characters)",
+ "params": [
+  "url"
+ ],
+ "steps": [
+  {
+   "do": "open",
+   "url": "{url}"
+  },
+  {
+   "do": "js",
+   "expr": "(()=>{const m=document.querySelector('article, main, [role=main]')||document.body; return document.title+'\\n'+m.innerText.replace(/\\n{3,}/g,'\\n\\n').slice(0,2500)})()"
+  }
+ ],
+ "check": {
+  "args": {
+   "url": "https://example.com"
+  },
+  "expect": "Example Domain"
+ }
+}

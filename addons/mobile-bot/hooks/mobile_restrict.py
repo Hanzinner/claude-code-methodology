@@ -24,7 +24,24 @@ OSM = os.environ.get("OSM_NEARBY_SCRIPT") or os.path.join(os.path.dirname(HERE),
 HEADS = {"ls", "grep", "cat", "head", "tail", "wc", "sort", "uniq", "du", "df", "stat", "file",
          "which", "echo", "tree", "date", "pwd", "whoami", "git", OSM}
 GIT_OK = {"log", "status", "diff", "show"}
-SECRET_DIRS = [f"{HOME}/.claude/secrets", f"{HOME}/.claude/projects", f"{HOME}/.ssh",
+# The root helper that puts a letter into an agent's inbox (set by the bot only when the swarm integration is on;
+# empty = the only write form below is refused).
+INBOX_W = os.environ.get("CLAUDE_MOBILE_BOT_INBOX_WRAPPER", "")
+
+
+def _secrets_dir():
+    d = os.environ.get("CCM_SECRETS_DIR")
+    if not d:
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(HERE), "..", "lib"))
+            from ccm_conf import conf
+            d = conf("CCM_SECRETS_DIR")
+        except Exception:
+            d = None
+    return os.path.realpath(os.path.expanduser(d or "~/.config/claude-secrets"))
+
+
+SECRET_DIRS = [_secrets_dir(), f"{HOME}/.claude/secrets", f"{HOME}/.claude/projects", f"{HOME}/.ssh",
                f"{HOME}/.gnupg", f"{HOME}/.config", f"{HOME}/.aws", f"{HOME}/.docker", "/proc", "/etc/shadow", "/etc/gshadow",
                "/etc/sudoers", "/etc/sudoers.d"] + (["/root"] if HOME != "/root" else [])
 SECRET_RE = re.compile(r"(\.pem|\.key|\.p12|\.pfx|\.kdbx|\.jks)$|(^|/)\.env(\.[^/]*)?$|credential"
@@ -34,7 +51,7 @@ SECRET_RE = re.compile(r"(\.pem|\.key|\.p12|\.pfx|\.kdbx|\.jks)$|(^|/)\.env(\.[^
 CLAUDE_HOME = f"{HOME}/.claude"
 CLAUDE_OK = (f"{HOME}/.claude/scripts", f"{HOME}/.claude/skills")
 PROTECTED_RE = re.compile(r"/\.git(/|$)|/\.claude/(hooks|mobile-bot|settings|agents|commands|skills|rules|output-styles)"
-                          r"|/secrets/|/CLAUDE(\.local)?\.md$")
+                          r"|/secrets/|/CLAUDE(\.local)?\.md$|/BLOCKERS\.md$")
 CWD = os.getcwd()
 
 
@@ -214,6 +231,32 @@ def check_bash(cmd):
     segs, meta = split_unquoted(cmd)
     if "||" in meta or "unclosed quote" in meta or any(s == "" for s in segs):
         deny(f"chaining or broken syntax ({', '.join(sorted(meta)) or 'empty segment'})")
+    # -- The one write form: a letter to an agent --
+    if INBOX_W and INBOX_W in cmd:
+        name_ok = lambda n: re.fullmatch(r"[^\s/\\.;&|<>`$]{1,64}", n) is not None and not n.startswith(("-", "_"))
+        heads = (["sudo", "-n", INBOX_W], [INBOX_W])
+        form = "'cat <file> | [sudo -n] " + INBOX_W + " <agent>' or '[sudo -n] " + INBOX_W + " <agent> < <file>'"
+        src = None
+        if meta == set() and len(segs) == 2:                      # cat FILE | [sudo -n] W NAME
+            a, b = shlex.split(segs[0]), shlex.split(segs[1])
+            if len(a) == 2 and a[0] == "cat" and any(b[:-1] == h for h in heads) and name_ok(b[-1]):
+                src = a[1]
+        elif meta == {"<"} and len(segs) == 1 and segs[0].count("<") == 1:   # [sudo -n] W NAME < FILE
+            left, right = segs[0].split("<", 1)
+            b, r = shlex.split(left), shlex.split(right)
+            if any(b[:-1] == h for h in heads) and name_ok(b[-1]) and len(r) == 1:
+                src = r[0]
+        if src is None:
+            deny(f"a letter to an agent is exactly one of: {form}")
+        if src.startswith("~") and src != "~" and not src.startswith("~/"):
+            deny(f"the form {src} is not allowed")     # the shell expands ~+ and ~-, expanduser does not
+        sp = absp(src)
+        if is_secret(src):
+            deny(f"the text of a letter is not from a secret ({sp})")
+        if not any(prefix and (sp == absp(prefix) or sp.startswith(absp(prefix) + "/"))
+                   for prefix in os.environ.get("CLAUDE_MOBILE_BOT_ALLOW_PATHS", "").split(":")):
+            deny(f"the text of a letter comes only from a file inside CLAUDE_MOBILE_BOT_ALLOW_PATHS ({sp})")
+        return
     if meta:
         deny(f"metacharacters outside quotes are not allowed ({' '.join(sorted(meta))}); only the pipe is")
     for seg in segs:
@@ -235,6 +278,8 @@ def check_write(p):
     a = absp(p)
     if is_secret(a) or PROTECTED_RE.search(a) or a == ADDON or a.startswith(ADDON + "/"):
         deny(f"protected path ({a})")
+    if a.endswith("/inbox.md") or "/inbox-pending/" in a:
+        deny("an inbox is written only through the letter form: cat <file> | [sudo -n] <inbox helper> <agent>")
     for prefix in os.environ.get("CLAUDE_MOBILE_BOT_ALLOW_PATHS", "").split(":"):
         if prefix and (a == absp(prefix) or a.startswith(absp(prefix) + "/")):
             return
@@ -250,7 +295,7 @@ def main():
         check_bash(ti.get("command", ""))
     elif tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
         check_write(ti.get("file_path") or ti.get("notebook_path", ""))
-    elif tool in ("Read", "Grep", "Glob"):
+    elif tool in ("Read", "Grep", "Glob", "NotebookRead"):
         for k in ("file_path", "path", "notebook_path"):
             if ti.get(k) and is_secret(ti[k], recursive=tool in ("Grep", "Glob")):
                 deny(f"read from a secret zone ({absp(ti[k])})")

@@ -43,47 +43,38 @@ storage using restic. Encrypted with a passphrase kept in your password manager.
    sudo apt-get install restic     # or brew install restic on macOS
    ```
 
-3. Create credentials file (root:root, chmod 600) at
-   `~/.claude/secrets/s3-credentials.json`:
-   ```json
-   {"accessKey": "...", "secretKey": "...",
-    "bucket": "your-bucket", "endpoint": "https://s3.filebase.io"}
-   ```
+3. Create the keys file `${CCM_SECRETS_DIR}/restic.env` (default `~/.config/claude-secrets/restic.env`, chmod 600) from
+   `restic.env.template` (Backblaze B2 by default; S3-compatible storage with `BACKUP_BACKEND=s3`).
 
-4. Create passphrase file at `~/.claude/secrets/backup-passphrase.txt`
-   (chmod 600). **Keep a copy in a password manager, not in your head** — it's the
-   ultimate decryption key, losing both means losing the archive. We kept ours "in
-   the head": a broken heredoc overwrote the file, the owner remembered the words but
-   not the exact spelling, a search through variants failed, and two months of
-   snapshots were gone. Use a random passphrase, and overwrite-protect the file.
+4. Create the passphrase file `${CCM_SECRETS_DIR}/backup-passphrase.txt` (chmod 600). **Keep a copy in a password
+   manager, not in your head** - it's the ultimate decryption key, losing both means losing the archive. We kept ours "in
+   the head": a broken heredoc overwrote the file, the owner remembered the words but not the exact spelling, a search
+   through variants failed, and two months of snapshots were gone. Use a random passphrase.
+   (Old locations `~/.claude/secrets/s3-credentials.json` and `backup-passphrase.txt` still work with a warning.)
 
-5. Copy scripts and the recovery guide from this addon to `~/.claude/scripts/backup/`:
+5. Run the setup script (as the user whose files are backed up; no root needed; `--dry-run` first to see everything):
    ```bash
-   mkdir -p ~/.claude/scripts/backup
-   cp scripts/*.sh scripts/*.txt ~/.claude/scripts/backup/
-   cp RECOVERY.md.template ~/.claude/scripts/backup/RECOVERY.md   # then fill in the <placeholders>
-   chmod +x ~/.claude/scripts/backup/*.sh
+   ./setup-offsite-backup.sh --dry-run
+   ./setup-offsite-backup.sh            # `install.sh --with-offsite-backup` runs this for you
    ```
-
-6. Different creds/passphrase paths? Set `RESTIC_S3_CREDS` / `RESTIC_PASSPHRASE_FILE`.
-
-7. Initialize the repo (first time only):
+   It copies the scripts to `~/.claude/scripts/backup/` (your `RECOVERY.md` copy is never overwritten), checks that `restic`
+   is installed, and writes this block into your crontab (`--schedule nightly` writes only the nightly line, `--uninstall` removes the block):
+   ```
+   17 0-2,4-23 * * * SKIP_PRUNE=1 ... backup-restic.sh      # hourly: backup only (prune is heavy)
+   17 3 * * *          ...          backup-restic.sh        # nightly: backup + prune (only if BACKUP_PRUNE=1)
+   @reboot sleep 180 && backup-catchup.sh                   # a run missed while the machine was off
+   ```
+   Fill in `RECOVERY.md` (the `<placeholders>`), then run the first backup by hand:
    ```bash
-   source ~/.claude/scripts/backup/restic-env.sh
-   restic init
+   ~/.claude/scripts/backup/backup-restic.sh      # creates the repo on first run
    ```
 
-8. Run the first backup manually to verify:
-   ```bash
-   bash ~/.claude/scripts/backup/backup-restic.sh
-   ```
+6. Supervisor: `supervisor-checks.json` has two checks - the age of the last SUCCESSFUL backup (not log freshness: a
+   broken backup also writes to the log) and the real storage size vs the free-tier cap. `install.sh --with-offsite-backup`
+   merges them into the registry; both stay off until the backup log exists.
 
-9. Install cron:
-   ```bash
-   ( crontab -l 2>/dev/null; \
-     echo "17 2 * * * /root/.claude/scripts/backup/backup-restic.sh >> /var/log/restic-backup.log 2>&1" \
-   ) | crontab -
-   ```
+Nothing is deleted from the repository unless you set `BACKUP_PRUNE=1` in `restic.env` (retention keys are in the template).
+State (log, last-success stamp, size history) lives in `~/.claude/offsite-backup/` (`CCM_BACKUP_STATE`).
 
 ## Recovery drill
 

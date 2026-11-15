@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# A letter from the mobile bot (a Telegram user) into an agent's inbox, through the CANONICAL inbox_post.sh
+# (flock, idempotency, pending queue). Installed root-owned by setup-mobile-bot.sh --with-swarm; the bot calls it
+#   sudo -n ccm-bot-inbox <agent>   < text          (a letter)
+#   sudo -n ccm-bot-inbox --wake <agent>            (only wake the agent's open tab)
+#
+# Why a wrapper and not a direct call: the canonical script accepts ANY existing file as a target, which under
+# root is a write anywhere. Here only an AGENT NAME is taken, the path is resolved under the agents dir, and
+# the canonical script gets an absolute inbox.md under it. The signature "from <human> via Telegram" is forced:
+# a letter cannot be passed off as one from another agent. Placeholders are filled by the setup script.
+set -euo pipefail
+AGENTS="__AGENTS_DIR__"
+CANON="__CLAUDE_DIR__/scripts/inbox_post.sh"
+OWNER_HOME="__OWNER_HOME__"
+HUMAN="__HUMAN_NAME__"
+REPLY_CMD="__REPLY_CMD__"
+WAKE_ENABLED="__WAKE__"
+cd /
+# The methodology settings and the owner's home, as the canonical scripts expect them (sudo scrubs the environment).
+export HOME="__OWNER_HOME__" CLAUDE_METHODOLOGY_CONF="__CONF_FILE__"
+
+# Waker: a letter in an open tab that has no alarm running -> wake that tab. The official way: a short
+# `claude -p` on Haiku with a single SendMessage call (about 3.6k tokens), not our own code into the socket
+# (it has tokens and sender checks; we do not go around the protection). Twins are never started: only a
+# LIVE tab from <home>/.claude/sessions; none - say so.
+wake_tab() {   # $1 agent, $2 = 1 if a letter has just been left
+  [[ "$WAKE_ENABLED" == "1" ]] || { echo "WAKE: off"; return 0; }
+  OWNER_HOME="$OWNER_HOME" REPLY_CMD="$REPLY_CMD" HUMAN="$HUMAN" python3 - "$1" "${2:-0}" <<'PY'
+import glob, json, os, subprocess, sys, time
+a, has_letter = sys.argv[1], sys.argv[2] == "1"
+home, reply_cmd, human = os.environ["OWNER_HOME"], os.environ["REPLY_CMD"], os.environ["HUMAN"]
+IDENT = f"{home}/.claude/agent-identity"   # root-owned side only: the bot's own folders could be planted
+try:
+    p = open(f"{home}/.claude/inbox-wait/{a}").read().strip()
+    if p.isdigit() and os.path.exists(f"/proc/{p}"):
+        print("WAKE: listening (an alarm is running)"); sys.exit()
+except OSError:
+    pass
+# The agent's sessions - by identity: a tab name can be a derived "<workspace>-xx".
+sids = set()
+for f in glob.glob(f"{IDENT}/*"):
+    try:
+        if os.path.basename(open(f).read().strip().rstrip("/")) == a:
+            sids.add(os.path.basename(f))
+    except OSError:
+        pass
+def alive(d):   # the pid is alive AND it is the same process (start time), not a reused pid
+    try:
+        return open(f"/proc/{d['pid']}/stat").read().rsplit(")", 1)[1].split()[19] == str(d.get("procStart"))
+    except (OSError, IndexError, KeyError):
+        return False
+found, busy = None, False
+for f in glob.glob(f"{home}/.claude/sessions/*.json"):
+    try:
+        d = json.load(open(f))
+    except (OSError, ValueError):
+        continue
+    if not isinstance(d, dict) or not alive(d):
+        continue
+    n = str(d.get("name") or "")
+    if d.get("sessionId") in sids or n.lower() == a.lower() or n.lower().startswith(a.lower() + " "):
+        if d.get("status") == "busy":
+            busy = True
+        elif not found:
+            found = d
+if busy and not found:
+    print("WAKE: busy - the tab is working right now, it will see the letter itself"); sys.exit()
+if not found:
+    print("WAKE: no live tab found"); sys.exit()
+stamp = f"/run/ccm-bot-wake.{found['pid']}"
+if os.path.exists(stamp) and time.time() - os.path.getmtime(stamp) < 120:
+    print(f"WAKE: waking tab \"{found.get('name')}\" (just woken already)"); sys.exit()
+if os.environ.get("WAKE_DRY") == "1":   # a check without waking a live tab
+    print(f"WAKE: waking tab \"{found.get('name')}\" (dry run)"); sys.exit()
+open(stamp, "w").close()
+msg = (f"There is a letter from {human} (Telegram) in your inbox. Read your inbox.md and answer with "
+       f"{reply_cmd} {a} - the answer goes to them in Telegram." if has_letter else
+       f"{human} asks you from Telegram to get in touch: look at your inbox.md and write to them with "
+       f"{reply_cmd} {a}.")
+prompt = (f"Call SendMessage exactly once: to = {json.dumps(str(found.get('name')))}, "
+          f"message = {json.dumps(msg)}. Then answer OK or FAIL with the reason.")
+log_path = "/var/log/ccm-bot-wake.log"
+with open(log_path, "a") as log:
+    log.write(f"{time.strftime('%F %T')} waking \"{found.get('name')}\" pid {found['pid']} ({a})\n")
+    subprocess.Popen(["timeout", "120", "claude", "-p", prompt, "--model", "haiku", "--tools", "SendMessage",
+                      "--strict-mcp-config", "--output-format", "text",
+                      "--system-prompt", "You are a service alarm of the agent swarm. Make exactly one tool call, as asked."],
+                     cwd="/tmp", stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                     start_new_session=True, env={**os.environ, "HOME": home})
+print(f"WAKE: waking tab \"{found.get('name')}\"")
+PY
+}
+
+wake_only=0
+if [[ "${1:-}" == "--wake" ]]; then wake_only=1; shift; fi
+[[ $# -eq 1 ]] || { echo "usage: ccm-bot-inbox [--wake] <agent>   (the text is on stdin)" >&2; exit 2; }
+a="$1"
+case "$a" in ""|.*|_*|-*|*/*|*\\*|*..*) echo "ccm-bot-inbox: invalid agent name: '$a'" >&2; exit 2 ;; esac
+[[ ${#a} -le 64 ]] || { echo "ccm-bot-inbox: the name is too long" >&2; exit 2; }
+
+hits=()
+[[ -f "$AGENTS/$a/inbox.md" ]] && hits+=("$AGENTS/$a/inbox.md")
+for f in "$AGENTS"/[!_]*/"$a"/inbox.md; do [[ -f "$f" ]] && hits+=("$f"); done   # _deprecated/ is an archive, not an addressee
+[[ ${#hits[@]} -eq 1 ]] || { echo "ccm-bot-inbox: agent '$a' - found ${#hits[@]} inboxes (need exactly 1). Use the exact folder name from the agents dir." >&2; exit 2; }
+inbox="${hits[0]}"
+if (( wake_only )); then wake_tab "$a" 0 || echo "WAKE: failed"; exit 0; fi
+real=$(realpath -e -- "$inbox")
+[[ "$real" == "$inbox" && "$real" == "$AGENTS"/* && "$(basename "$real")" == inbox.md ]] \
+  || { echo "ccm-bot-inbox: the inbox is not what it claims to be (a symlink?): $inbox" >&2; exit 2; }
+
+# Too long: refuse with a reason, no silent truncation (and do not cut UTF-8 in the middle of a character).
+raw=$(head -c 20001)
+[[ ${#raw} -le 20000 && $(printf '%s' "$raw" | wc -c) -le 20000 ]] \
+  || { echo "ccm-bot-inbox: the letter is too long (>20 KB) - shorten it or put the text in a file and give the agent the path" >&2; exit 2; }
+text="$raw"
+# The last barrier against laundering a secret into an inbox (inboxes are under git + backups): token/key formats.
+if printf '%s' "$text" | grep -qE -- '-----BEGIN [A-Z ]*PRIVATE KEY-----|[0-9]{8,10}:AA[A-Za-z0-9_-]{30,}|sk-ant-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}'; then
+  echo "ccm-bot-inbox: the text looks like a secret (a key/token) - not sending" >&2; exit 2
+fi
+# A letter = ONE item. The watchman and the canonical script cut sections and items by the start of a line
+# (^## , ^- [ ]): without this `\n## Urgent` became a section of its own and `\n- [ ] from another agent` a
+# separate "letter from someone else". Lines from the 2nd on: indent 2 (a continuation of the item) and
+# escape a leading # and "- [".
+text=$(printf '%s' "$text" | tr -d '\r' | sed -e '2,$s/^[[:space:]]*\(#\|- \[\)/\\\1/' -e '2,$s/^/  /')
+[[ -n "${text//[[:space:]]/}" ]] || { echo "ccm-bot-inbox: empty text" >&2; exit 2; }
+
+# A reply hint: the agent may not know the letter came from a phone and that the answer goes there too.
+hint="  ↩ $HUMAN waits for the answer in Telegram: \`$REPLY_CMD $a <<'EOF'\` ⏎ text ⏎ \`EOF\`"
+out=$("$CANON" "$real" "📱 **from $HUMAN (Telegram bot)** · $text
+$hint" 2>&1) || { rc=$?; printf '%s\n' "$out"; exit $rc; }
+printf '%s\n' "$out"
+chown --reference="$real" "$real.lock" 2>/dev/null || true
+# The letter is delivered: a waker failure must not turn into "not delivered". Wake always, not only on "not
+# listening": that heuristic says "listening" to a tab that has just answered and sits idle. wake_tab itself
+# skips busy tabs, a running alarm and duplicates within 2 minutes.
+wake_tab "$a" 1 || echo "WAKE: failed (the letter is delivered)"
+exit 0

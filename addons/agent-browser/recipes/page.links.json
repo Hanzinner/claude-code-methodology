@@ -1,0 +1,24 @@
+{
+ "about": "links on a page whose text or address contains the word match: [text, address]",
+ "params": [
+  "url",
+  "match"
+ ],
+ "steps": [
+  {
+   "do": "open",
+   "url": "{url}"
+  },
+  {
+   "do": "js",
+   "expr": "[...document.querySelectorAll('a[href]')].filter(a=>(a.innerText+' '+a.href).toLowerCase().includes({match}.toLowerCase())).slice(0,20).map(a=>[a.innerText.trim().slice(0,80), a.href])"
+  }
+ ],
+ "check": {
+  "args": {
+   "url": "https://example.com",
+   "match": "more"
+  },
+  "expect": "iana.org"
+ }
+}

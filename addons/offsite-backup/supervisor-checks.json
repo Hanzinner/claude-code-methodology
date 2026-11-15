@@ -1,0 +1,23 @@
+{
+  "_about": "Supervisor entries of the offsite-backup add-on. install.sh --with-offsite-backup merges them into the registry (<supervisor dir>/checks.json). __CLAUDE_DIR__ and __HOME__ are filled in when the registry is read. only_if_exists: a machine without the add-on (no backup log yet) stays at 0 problems.",
+  "checks": [
+    {
+      "name": "Offsite backup (hourly)",
+      "kind": "cmd",
+      "severity": "human",
+      "owner": "",
+      "cmd": "\"__CLAUDE_DIR__/scripts/backup/restic_last_ok_check.sh\"",
+      "note": "age of the last SUCCESSFUL backup (the 'done' line), not the freshness of the log - a broken backup writes to the log too (21 h of green with a dead offsite copy). Limit 150 min = two missed hourly runs; for a nightly-only schedule set MAX_MIN=1560 in the cmd.",
+      "only_if_exists": "__HOME__/.claude/offsite-backup/backup.log"
+    },
+    {
+      "name": "Offsite backup: storage size",
+      "kind": "cmd",
+      "severity": "human",
+      "owner": "",
+      "cmd": "\"__CLAUDE_DIR__/scripts/backup/restic_size_check.sh\"",
+      "note": "real size of the storage (backup-restic.sh measures it on every run) vs the free-tier cap, plus growth per day; a measurement older than 3 h is red too",
+      "only_if_exists": "__HOME__/.claude/offsite-backup/size"
+    }
+  ]
+}

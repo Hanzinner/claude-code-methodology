@@ -1,0 +1,14 @@
+{
+  "checks": [
+    {
+      "name": "net-change: no rollback left pending",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "cmd": "! systemctl list-timers --all --no-legend 'net-change-rollback-*' | grep -q .",
+      "note": "a pending net-change-rollback-* timer means a network change was neither accepted nor rolled back yet; it should disappear within --wait minutes. Skipped unless net-change is installed.",
+      "grace_min": 15,
+      "only_if_exists": "/var/lib/net-change"
+    }
+  ]
+}

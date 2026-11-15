@@ -3,7 +3,7 @@
 You are Claude, running on a NEW machine because the previous VM was lost
 (hardware failure, physical destruction, stolen laptop). The user in front
 of you is **the primary user**. His previous Claude memory lives in an
-encrypted backup on **Filebase** (S3-compatible cloud storage). Your job:
+encrypted backup on **<your storage provider: Backblaze B2 / S3-compatible>**. Your job:
 pull that backup down, decrypt it, and put every file back in the right
 place so he can talk to you the way he did on the old machine.
 
@@ -14,8 +14,8 @@ Total time on a decent laptop: **~15 minutes**.
 1. **Backup passphrase** — from the password manager, known to only a few people.
    Do NOT log it, print it, or write it to any file except the temporary
    passphrase file used below. When done, `shred -u` that file.
-2. **Filebase Access Key** and **Secret Key** for bucket `<your-bucket>`.
-   He may need to log into filebase.com and go to Access Keys.
+2. **Storage keys** for bucket `<your-bucket>`: for Backblaze B2 the application key ID + key (he may need to log into
+   the provider's website and create a new application key); for S3-compatible storage the Access Key + Secret Key.
 
 ## Step 0 — sanity check the environment
 
@@ -39,13 +39,17 @@ restic version         # confirm >= 0.16
 
 ## Step 2 — set up credentials as environment variables
 
-Ask the user for Access Key + Secret Key. Paste them into these env vars
+Ask the user for the keys. Paste them into these env vars
 (replace the placeholders — do not commit these to any file):
 
 ```bash
-export AWS_ACCESS_KEY_ID='<paste-access-key>'
-export AWS_SECRET_ACCESS_KEY='<paste-secret-key>'
-export RESTIC_REPOSITORY='s3:https://s3.filebase.io/<your-bucket>'
+# Backblaze B2:
+export B2_ACCOUNT_ID='<paste-key-id>'
+export B2_ACCOUNT_KEY='<paste-key>'
+export RESTIC_REPOSITORY='b2:<your-bucket>:/restic'
+# S3-compatible instead:
+#   export AWS_ACCESS_KEY_ID=...  AWS_SECRET_ACCESS_KEY=...
+#   export RESTIC_REPOSITORY='s3:https://<endpoint>/<your-bucket>'
 ```
 
 Ask the user for the passphrase, save to a temp file readable only by you:
@@ -84,7 +88,7 @@ machine. You should see:
 /var/tmp/recovered/home/<user>/.ssh/
 /var/tmp/recovered/root/.claude/
 /var/tmp/recovered/root/.ssh/
-/var/tmp/recovered/tmp/system-manifest/
+/var/tmp/recovered/tmp/ccm-system-manifest/
 ```
 
 ## Step 5 — recreate the `<user>` user (if it doesn't exist)
@@ -132,14 +136,11 @@ If you run a job that syncs these credentials between users, re-enable it now.
 
 ```bash
 # Cron
-sudo crontab /var/tmp/recovered/tmp/system-manifest/root-crontab.txt
-sudo -u <user> crontab /var/tmp/recovered/tmp/system-manifest/<user>-crontab.txt
+# the manifest holds the crontab of the user who ran the backup; or simply re-run setup-offsite-backup.sh
+crontab /var/tmp/recovered/tmp/ccm-system-manifest/crontab.txt
 
-# Mobile bot systemd unit
-sudo cp /var/tmp/recovered/tmp/system-manifest/<your-systemd-service>.service \
-        /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now <your-systemd-service>
+# Services you run (a systemd unit, if any) - restore their unit files and enable them:
+# sudo cp <unit file> /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now <your-systemd-service>
 ```
 
 ## Step 9 — install Python + Node deps
@@ -147,25 +148,25 @@ sudo systemctl enable --now <your-systemd-service>
 ```bash
 # Python (from <user>'s pip freeze)
 sudo -u <user> pip install --break-system-packages -r \
-    /var/tmp/recovered/tmp/system-manifest/<user>-pip.txt
+    /var/tmp/recovered/tmp/ccm-system-manifest/pip.txt
 
 # System packages (optional — install what you need on demand instead)
 # The apt list is a reference, not a bulk-install command.
-cat /var/tmp/recovered/tmp/system-manifest/apt-packages.txt | head
+cat /var/tmp/recovered/tmp/ccm-system-manifest/apt-packages.txt | head
 ```
 
 ## Step 10 — save creds permanently + clean temp
 
-Save the Filebase credentials permanently for the daily backup script:
+Save the storage keys and the passphrase permanently for the backup script (the keys file is `restic.env`, see `restic.env.template`):
 
 ```bash
-sudo mkdir -p /home/<user>/.claude/secrets
-sudo tee /home/<user>/.claude/secrets/filebase-credentials.json > /dev/null <<EOF
-{"accessKey":"<key>","secretKey":"<secret>","bucket":"<your-bucket>"}
-EOF
-sudo tee /home/<user>/.claude/secrets/backup-passphrase.txt > /dev/null <<< "<passphrase>"
-sudo chown -R <user>:<user> /home/<user>/.claude/secrets
-sudo chmod 600 /home/<user>/.claude/secrets/*
+S=/home/<user>/.config/claude-secrets      # = CCM_SECRETS_DIR
+sudo mkdir -p $S
+sudo cp /var/tmp/recovered/home/<user>/.config/claude-secrets/restic.env $S/ 2>/dev/null \
+    || echo "restic.env was not in the archive - recreate it from restic.env.template"
+sudo tee $S/backup-passphrase.txt > /dev/null <<< "<passphrase>"
+sudo chown -R <user>:<user> $S
+sudo chmod 600 $S/*
 ```
 
 Then wipe temp state:
@@ -177,7 +178,7 @@ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY RESTIC_REPOSITORY RESTIC_PASSWORD_
 ```
 
 Now the daily backup cron on this new machine will keep pushing snapshots
-to the same Filebase bucket.
+to the same bucket.
 
 ## Sanity checks — did it work?
 
@@ -201,9 +202,9 @@ is up, memory is back, and any services (mobile bot, cron) are running again.
 ## If something fails
 
 - **`restic: wrong password`** — passphrase mistyped. Try again.
-- **`Get s3.filebase.io: no such host`** — no internet or DNS. Fix network.
+- **`no such host` (storage endpoint)** — no internet or DNS. Fix network.
 - **`Fatal: connection is unauthorized (403)`** — wrong Access/Secret Key.
-  Have the user regenerate on Filebase → Access Keys.
+  Have the user create a new key in the provider's console.
 - **`gh auth status: not logged in`** — run `sudo -u <user> gh auth login`.
 - **`claude: not logged in`** — run `claude /login` as that user.
 
@@ -217,3 +218,11 @@ Restored separately, not from this archive:
 - **Docker / rustup / cargo** toolchains — reinstall as needed.
 - **Anything whose primary source is a git remote** (e.g. an Obsidian vault
   synced to GitHub) — clone from the remote instead of restoring here.
+
+## Storage ceiling (free tier, e.g. Backblaze B2 10 GB) - what to do when the storage is full
+Symptom: every restic command fails with `403 ... storage cap exceeded` - even the lock cannot be written, so `forget/prune`
+cannot run. Prevention: backup-restic.sh measures the REAL bucket size on every run (b2_usage.py), with `BACKUP_PRUNE=1` it
+cleans by itself above BACKUP_SOFT_BYTES, and the supervisor check goes red at 8.5 GB or at growth > 0.5 GB/day.
+If it is full anyway: raise the cap in the provider's console for a moment (or delete old snapshot files by hand with the
+provider's tool, only with the owner's yes), then `restic unlock`, `restic forget --prune --keep-daily 7 --keep-weekly 4`,
+and put whatever grew into `restic-exclude.txt` (find it with `restic diff <old> <new>`).

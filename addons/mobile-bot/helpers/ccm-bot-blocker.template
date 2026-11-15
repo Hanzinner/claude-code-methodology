@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# The human writes the bot "B2 yes" -> the bot calls this through sudo. A narrow root wrapper: it only clears a
+# blocker by the human's word; the project and the number are validated HERE, the "who/how" field is set by the
+# wrapper, not by the bot. The bot cannot see the register and cannot write BLOCKERS.md.
+# Installed root-owned by setup-mobile-bot.sh --with-swarm.
+set -euo pipefail
+# The methodology settings and the owner's home, as the canonical scripts expect them (sudo scrubs the environment).
+export HOME="__OWNER_HOME__" CLAUDE_METHODOLOGY_CONF="__CONF_FILE__"
+[[ $# -eq 2 ]] || { echo "usage: ccm-bot-blocker <project> B<n>" >&2; exit 2; }
+[[ "$1" =~ ^[A-Za-z0-9-]{1,32}$ && "$2" =~ ^B[0-9]{1,4}$ ]] || { echo "invalid project or number" >&2; exit 2; }
+exec /usr/bin/python3 "__CLAUDE_DIR__/scripts/blockers.py" clear "$1" "$2" "__HUMAN_NAME__ in the bot, $(date '+%Y-%m-%d %H:%M')"

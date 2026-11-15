@@ -1,0 +1,26 @@
+{
+ "about": "web search through DuckDuckGo: up to 8 results {t: title, u: address, s: snippet}",
+ "params": [
+  "q"
+ ],
+ "steps": [
+  {
+   "do": "open",
+   "url": "https://duckduckgo.com/?q={q|url}&ia=web"
+  },
+  {
+   "do": "waitfor",
+   "css": "[data-testid=result-title-a]"
+  },
+  {
+   "do": "js",
+   "expr": "[...document.querySelectorAll('[data-testid=result-title-a]')].slice(0,8).map(a=>({t:a.innerText.slice(0,90), u:a.href, s:((a.closest('article')||{}).innerText||'').split('\\n').slice(-1)[0].slice(0,160)}))"
+  }
+ ],
+ "check": {
+  "args": {
+   "q": "example domain iana reserved"
+  },
+  "expect": "iana.org"
+ }
+}

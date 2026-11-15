@@ -1,0 +1,31 @@
+{
+ "about": "find a user's repository by a word and return the start of its README",
+ "params": [
+  "user",
+  "q"
+ ],
+ "steps": [
+  {
+   "do": "run",
+   "recipe": "github.repos",
+   "args": {
+    "user": "{user}",
+    "q": "{q}"
+   }
+  },
+  {
+   "do": "run",
+   "recipe": "github.readme",
+   "args": {
+    "repo": "{last}"
+   }
+  }
+ ],
+ "check": {
+  "args": {
+   "user": "octocat",
+   "q": "hello"
+  },
+  "expect": "Hello"
+ }
+}

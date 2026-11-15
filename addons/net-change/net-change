@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# net-change [--wait MIN] [--no-restart] [--dry-run] -- <command that changes network config...>
+# Apply a network configuration change with an automatic rollback unless it is proven good.
+#
+#   1. Lock (one run at a time); snapshot of the config files/dirs in FILES to <state>/<time>/. Snapshot failed -> the
+#      change is NOT made.
+#   2. The rollback is scheduled BEFORE the change, as a separate systemd timer (systemd-run --on-active): if the change
+#      cuts your connection and kills this script (and your session with it), the rollback still fires after --wait minutes.
+#   3. Change -> RESTART of the network stack (a non-zero exit = failure: the config was not parsed, the running state is
+#      the old one and would not come up after a reboot) -> check: gateway, DNS, and optionally one TCP endpoint.
+#   4. All green -> the timer is stopped AND it is verified that the rollback has not already fired -> exit 0.
+#      Otherwise -> rollback now (directories are restored WHOLE, so new files in them disappear too; restart; optional
+#      rescue script), exit 1.
+# Only FILES roll back. Runtime changes (`ip addr add`, iptables) are not covered - use this for config changes.
+#
+# Exit codes: 0 accepted - 1 rolled back - 2 usage - 3 not started (lock / snapshot / scheduler).
+# Log: /var/log/net-change.log. Needs root. Which network stack: it auto-detects netplan, NetworkManager,
+# systemd-networkd or ifupdown (/etc/network/interfaces); override with CCM_NETCHANGE_RESTART / CCM_NETCHANGE_FILES.
+#
+# Settings (env or methodology.conf; every key optional):
+#   CCM_NETCHANGE_FILES      files/dirs to snapshot (default: the config locations of all four stacks + resolv.conf, hosts)
+#   CCM_NETCHANGE_RESTART    command that applies the config (default: detected, see --dry-run)
+#   CCM_NETCHANGE_CHECK      full "is the network good" command; replaces the default check
+#   CCM_NETCHANGE_CHECK_HOST name that must resolve (default example.com)
+#   CCM_NETCHANGE_CHECK_TCP  host:port that must accept a TCP connection - put the host you SSH in from (default none)
+#   CCM_NETCHANGE_RESCUE     optional script run after a rollback (e.g. re-add a static address)
+#   CCM_NETCHANGE_STATE, _LOG, _MIN_WAIT (3), _SETTLE (5 s), _RETRY_S (10 s), _SCHED (systemd | none - none is for tests)
+set -uo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+here=$(dirname "$(readlink -f "$0")")
+cfg() {   # cfg KEY DEFAULT : environment, then methodology.conf (if the methodology lib is around), then DEFAULT
+    local k=$1 d=$2 v=""
+    if [[ -n "${!k:-}" ]]; then printf '%s' "${!k}"; return; fi
+    for lib in "$here/../../lib/ccm_conf.py" "$here/../lib/ccm_conf.py" "$here/ccm_conf.py"; do
+        [[ -f "$lib" ]] && { v=$(python3 "$lib" "$k" 2>/dev/null); break; }
+    done
+    printf '%s' "${v:-$d}"
+}
+FILES=$(cfg CCM_NETCHANGE_FILES "/etc/network /etc/netplan /etc/systemd/network /etc/NetworkManager/system-connections /etc/resolv.conf /etc/hosts /etc/dhcpcd.conf")
+STATE=$(cfg CCM_NETCHANGE_STATE /var/lib/net-change)
+LOG=$(cfg CCM_NETCHANGE_LOG /var/log/net-change.log)
+SCHED=$(cfg CCM_NETCHANGE_SCHED systemd)
+MIN_WAIT=$(cfg CCM_NETCHANGE_MIN_WAIT 3)    # min: restart + 3 checks with timeouts take ~2 min - the timer must not outrun them
+CHECK_HOST=$(cfg CCM_NETCHANGE_CHECK_HOST example.com)
+CHECK_TCP=$(cfg CCM_NETCHANGE_CHECK_TCP "")
+RESCUE=$(cfg CCM_NETCHANGE_RESCUE "")
+
+detect_restart() {
+    if command -v netplan >/dev/null 2>&1 && ls /etc/netplan/*.yaml >/dev/null 2>&1; then echo "netplan apply"
+    elif systemctl is-active -q NetworkManager 2>/dev/null; then echo "systemctl restart NetworkManager"
+    elif systemctl is-active -q systemd-networkd 2>/dev/null; then echo "systemctl restart systemd-networkd"
+    elif [[ -f /etc/network/interfaces ]]; then echo "systemctl restart networking"
+    else echo ""; fi
+}
+NET_RESTART=$(cfg CCM_NETCHANGE_RESTART "")
+[[ -n "$NET_RESTART" ]] || NET_RESTART=$(detect_restart)
+
+default_check() {   # the default gateway answers, a name resolves, and (optionally) one TCP endpoint is reachable
+    local gw; gw=$(ip -4 route show default 2>/dev/null | awk '{print $3; exit}')
+    [[ -n "$gw" ]] || { echo "check: no default route" >&2; return 1; }
+    ping -c1 -W3 "$gw" >/dev/null 2>&1 || { echo "check: gateway $gw does not answer" >&2; return 1; }
+    getent hosts "$CHECK_HOST" >/dev/null || { echo "check: $CHECK_HOST does not resolve" >&2; return 1; }
+    if [[ -n "$CHECK_TCP" ]]; then timeout 5 bash -c "</dev/tcp/${CHECK_TCP%:*}/${CHECK_TCP##*:}" 2>/dev/null || { echo "check: $CHECK_TCP unreachable" >&2; return 1; }; fi
+}
+CHECK=$(cfg CCM_NETCHANGE_CHECK "")
+if [[ -z "$CHECK" ]]; then
+    CHECK="$(declare -f default_check); CHECK_HOST=$(printf %q "$CHECK_HOST"); CHECK_TCP=$(printf %q "$CHECK_TCP"); default_check"
+    CHECK_LABEL="default (gateway, DNS${CHECK_TCP:+, TCP $CHECK_TCP})"
+else CHECK_LABEL="custom: $CHECK"; fi
+
+usage() { echo "net-change [--wait MIN>=$MIN_WAIT] [--no-restart] [--dry-run] -- <command...>" >&2; exit 2; }
+wait_min=5; restart=1; dry=0
+while [[ $# -gt 0 && "$1" != "--" ]]; do
+    case "$1" in
+        --wait) [[ "${2:-}" =~ ^[0-9]+$ ]] || usage; wait_min=$((10#$2)); shift 2 ;;
+        --no-restart) restart=0; shift ;;
+        --dry-run) dry=1; shift ;;
+        *) usage ;;
+    esac
+done
+[[ "${1:-}" == "--" && $# -ge 2 ]] || usage
+shift
+(( wait_min >= MIN_WAIT )) || { echo "net-change: --wait $wait_min < $MIN_WAIT min - the rollback timer would outrun the check" >&2; exit 2; }
+if (( dry )); then
+    echo "net-change dry run - nothing is changed"
+    echo "  snapshot : $FILES  (into $STATE)"
+    echo "  change   : $*"
+    echo "  restart  : $( (( restart )) && echo "${NET_RESTART:-<none detected - set CCM_NETCHANGE_RESTART or use --no-restart>}" || echo "(--no-restart)")"
+    echo "  check    : $CHECK_LABEL"
+    echo "  rollback : timer after $wait_min min via $SCHED${RESCUE:+, then rescue $RESCUE}"
+    exit 0
+fi
+[[ "$SCHED" != systemd || "$(id -u)" == 0 ]] || { echo "net-change: run as root (sudo) - it edits network config and schedules a systemd timer. --dry-run previews without root." >&2; exit 3; }
+(( restart == 0 )) || [[ -n "$NET_RESTART" ]] || { echo "net-change: no network stack detected - set CCM_NETCHANGE_RESTART or pass --no-restart" >&2; exit 2; }
+[[ "$SCHED" != systemd ]] || command -v systemd-run >/dev/null 2>&1 || { echo "net-change: systemd-run not found - the automatic rollback needs systemd" >&2; exit 3; }
+say() { echo "$(date '+%F %T') $*" | tee -a "$LOG"; }
+
+mkdir -p "$STATE" || { echo "net-change: cannot create $STATE" >&2; exit 3; }
+exec 9>"$STATE/.lock"
+flock -n 9 || { say "FAIL another net-change is running (lock $STATE/.lock) - wait for it"; exit 3; }
+# the rollback of a PREVIOUS run whose wrapper died is still pending -> a snapshot now would capture the broken state
+if [[ "$SCHED" == systemd ]] && systemctl list-units --all --plain --no-legend 'net-change-rollback-*' 2>/dev/null \
+        | awk '$3=="active"||$4=="waiting"||$4=="running"' | grep . >/dev/null; then
+    say "FAIL a rollback from a previous run is pending (net-change-rollback-*) - wait for it (<= --wait min), then retry"; exit 3
+fi
+
+snap="$STATE/$(date +%Y%m%d-%H%M%S)-$$"
+fail_snap() { say "FAIL snapshot not made ($1) - the change is NOT applied"; exit 3; }
+mkdir -p "$snap/files" || fail_snap "mkdir"
+: > "$snap/absent" || fail_snap "absent"
+: > "$snap/dirs" || fail_snap "dirs"
+for f in $FILES; do
+    # a symlink (resolvconf / systemd-resolved): snapshot and rollback must cover the TARGET, not only the link
+    [[ -L "$f" && -e "$f" ]] && { t=$(readlink -f "$f"); cp -a --parents "$t" "$snap/files/" || fail_snap "cp $t"; }
+    if [[ -e "$f" || -L "$f" ]]; then
+        cp -a --parents "$f" "$snap/files/" || fail_snap "cp $f"
+        [[ -d "$f" && ! -L "$f" ]] && echo "$f" >> "$snap/dirs"
+    else
+        echo "$f" >> "$snap/absent"
+    fi
+done
+# the rollback script is self-contained: systemd runs it even if we are gone. A second run cannot overlap it (the
+# "rollback pending" check above); its own lock only prevents a double rollback. Directories are restored WHOLE.
+NR=$(printf '%q' "$NET_RESTART"); RS=$(printf '%q' "$RESCUE")
+cat > "$snap/rollback.sh" <<RB || fail_snap "rollback.sh"
+#!/bin/bash
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+exec 9>"$STATE/.rollback.lock"; flock 9
+[[ -e "$snap/rolled-back" ]] && exit 0
+echo "\$(date '+%F %T') ROLLBACK from snapshot $snap" >> "$LOG"
+while read -r f; do [[ -n "\$f" ]] && rm -rf "\$f"; done < "$snap/absent"
+while read -r d; do [[ -n "\$d" ]] && rm -rf "\$d"; done < "$snap/dirs"
+if cp -a "$snap/files/." / 2>>"$LOG"; then
+    touch "$snap/rolled-back"
+else
+    echo "\$(date '+%F %T') WARNING ROLLBACK INCOMPLETE: cp failed - files NOT restored, the network may not come up after a reboot" >> "$LOG"
+    touch "$snap/rolled-back" "$snap/rollback-incomplete"
+fi
+[[ -n $NR ]] && bash -c $NR >>"$LOG" 2>&1 9>&-
+[[ -n $RS && -x $RS ]] && $RS >>"$LOG" 2>&1 9>&-
+true
+RB
+chmod 700 "$snap/rollback.sh" || fail_snap "chmod"
+[[ -s "$snap/rollback.sh" ]] || fail_snap "rollback.sh is empty"
+
+unit="net-change-rollback-$$"
+if [[ "$SCHED" == systemd ]]; then
+    systemd-run --unit="$unit" --on-active="${wait_min}min" --timer-property=AccuracySec=1s \
+        /bin/bash "$snap/rollback.sh" >/dev/null 2>&1 \
+        || { say "FAIL could not schedule the rollback (systemd-run) - the change is NOT applied"; exit 3; }
+    say "rollback scheduled in ${wait_min} min (unit $unit), snapshot $snap"
+fi
+# stop ONLY the timer (not the service: it may be rolling back right now - killing it mid-cp is the worst case)
+cancel_timer() {
+    [[ "$SCHED" == systemd ]] || return 0
+    systemctl stop "$unit.timer" >/dev/null 2>&1
+    ! systemctl is-active -q "$unit.timer"
+}
+# the timer is cancelled AFTER the rollback: if we are killed mid-rollback the timer finishes it (the rolled-back flag makes a repeat a no-op)
+rollback_now() { bash "$snap/rollback.sh" 9>&-; cancel_timer; }
+
+say "change: $*"
+"$@" 9>&-; rc=$?
+if (( rc != 0 )); then
+    say "FAIL the change command failed (rc $rc) - rolling back"; rollback_now; exit 1
+fi
+if (( restart )); then
+    say "restarting the network: $NET_RESTART"
+    if ! bash -c "$NET_RESTART" >>"$LOG" 2>&1 9>&-; then
+        say "FAIL network restart failed - the config was not parsed (running state is the old one, it would not survive a reboot) - rolling back"
+        rollback_now; exit 1
+    fi
+    sleep "$(cfg CCM_NETCHANGE_SETTLE 5)"
+fi
+RETRY_S=$(cfg CCM_NETCHANGE_RETRY_S 10)
+check_ok() { for _ in 1 2 3; do bash -c "$CHECK" >/dev/null 2>&1 9>&- && return 0; sleep "$RETRY_S"; done; return 1; }
+if check_ok; then
+    if ! cancel_timer; then
+        say "FAIL the rollback timer did not stop - cannot guarantee the change is not rolled back later; rolling back now"
+        rollback_now; exit 1
+    fi
+    if [[ -e "$snap/rolled-back" ]] || { [[ "$SCHED" == systemd ]] && systemctl is-active -q "$unit.service"; }; then
+        say "FAIL the rollback timer fired before the check finished - the change was ROLLED BACK (raise --wait)"
+        exit 1
+    fi
+    say "ACCEPTED: network checks pass$( (( restart )) && echo ' AFTER a network restart' || echo ' (WITHOUT a restart - "survives a reboot" is NOT verified)'). Rollback cancelled; snapshot kept: $snap"
+    exit 0
+fi
+say "FAIL checks are red after the change - rolling back now"
+rollback_now
+sleep "$(cfg CCM_NETCHANGE_SETTLE 5)"
+[[ -e "$snap/rollback-incomplete" ]] && say "WARNING rollback INCOMPLETE (cp failed) - config files not restored; snapshot: $snap"
+check_ok && say "ROLLED BACK: the network is back" || say "WARNING the network is still down after the rollback - use the console / your rescue procedure"
+exit 1

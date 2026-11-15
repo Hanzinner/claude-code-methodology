@@ -1,0 +1,23 @@
+{
+  "_about": "Supervisor entries of the mobile-bot add-on. The installer merges them into the registry on --with-mobile-bot. only_if_exists keeps a machine without the add-on at 0 problems + 0 broken. __CLAUDE_DIR__ and __HOME__ are filled when the registry is read.",
+  "checks": [
+    {
+      "name": "Mobile bot: the safety gate holds",
+      "kind": "cmd",
+      "severity": "human",
+      "owner": "",
+      "cmd": "bash \"__CLAUDE_DIR__/mobile-bot/scripts/mobile_gate_check.sh\"",
+      "only_if_exists": "__CLAUDE_DIR__/mobile-bot/bot.py",
+      "note": "functional: a secret read and rm -rf are blocked under CLAUDE_MOBILE_BOT=1, a plain read passes; hooks present and executable; the bot switches the flag on. Add `--user <bot user>` to the cmd when the bot runs as another account and the supervisor runs as root."
+    },
+    {
+      "name": "Mobile bot: service is running",
+      "kind": "cmd",
+      "severity": "human",
+      "owner": "",
+      "cmd": "systemctl is-active --quiet ccm-mobile-bot.service",
+      "only_if_exists": "/etc/systemd/system/ccm-mobile-bot.service",
+      "note": "the unit written by setup-mobile-bot.sh; a stopped bot means the phone cannot reach the agent"
+    }
+  ]
+}

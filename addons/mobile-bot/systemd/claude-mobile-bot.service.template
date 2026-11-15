@@ -5,15 +5,24 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-# Replace these placeholders for your install:
+# Placeholders are filled by setup-mobile-bot.sh (or by hand for a manual install).
 User=__USER__
-WorkingDirectory=__INSTALL_DIR__
-EnvironmentFile=__INSTALL_DIR__/.env
+WorkingDirectory=__WORKDIR__
+# The bot token and the user allowlist live in CCM_SECRETS_DIR (a file only the bot's user can read), never in this unit.
+EnvironmentFile=__ENV_FILE__
+Environment=HOME=__BOT_HOME__
+Environment=CLAUDE_BOT_CWD=__WORKDIR__
+Environment=CLAUDE_MOBILE_BOT_ALLOW_PATHS=__ALLOW_PATHS__
+Environment=MOBILE_BOT_SWARM=__SWARM__
+Environment="MOBILE_BOT_SUDO=__SUDO__"
+Environment=CCM_TG_OUTBOX=__OUTBOX__
 ExecStart=/usr/bin/python3 __INSTALL_DIR__/bot.py
-Restart=always
+# The bot stops claude children itself on TERM; a restart must not wait long for a hung one.
+TimeoutStopSec=30
+Restart=on-failure
 RestartSec=5
-StandardOutput=append:/var/log/claude-mobile-bot.log
-StandardError=append:/var/log/claude-mobile-bot.log
+StandardOutput=append:__LOG__
+StandardError=append:__LOG__
 
 [Install]
 WantedBy=multi-user.target

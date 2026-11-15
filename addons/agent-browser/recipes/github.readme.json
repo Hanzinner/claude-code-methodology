@@ -1,0 +1,26 @@
+{
+ "about": "start of a GitHub repository README (repo = owner/name), up to 1500 characters",
+ "params": [
+  "repo"
+ ],
+ "steps": [
+  {
+   "do": "open",
+   "url": "https://github.com/{repo}"
+  },
+  {
+   "do": "waitfor",
+   "css": "article.markdown-body"
+  },
+  {
+   "do": "js",
+   "expr": "document.querySelector('article.markdown-body').innerText.slice(0,1500)"
+  }
+ ],
+ "check": {
+  "args": {
+   "repo": "octocat/Hello-World"
+  },
+  "expect": "Hello"
+ }
+}

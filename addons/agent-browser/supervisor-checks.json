@@ -1,0 +1,13 @@
+{
+  "checks": [
+    {
+      "name": "Agent browser answers",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "cmd": "BR_AGENT=supervisor \"__CLAUDE_DIR__/addons/agent-browser/br\" health",
+      "note": "br health: debugging endpoint reachable, page awake (exit 4 = browser down, 5 = page asleep). Skipped unless the add-on's browser service is installed.",
+      "only_if_exists": "/etc/systemd/system/agent-browser.service"
+    }
+  ]
+}

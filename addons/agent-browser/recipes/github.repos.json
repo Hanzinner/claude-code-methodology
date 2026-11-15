@@ -1,0 +1,28 @@
+{
+ "about": "a GitHub user's repositories by a word: list of 'owner/name'",
+ "params": [
+  "user",
+  "q"
+ ],
+ "steps": [
+  {
+   "do": "open",
+   "url": "https://github.com/search?q=user%3A{user|url}+{q|url}&type=repositories"
+  },
+  {
+   "do": "waitfor",
+   "css": "[data-testid=results-list]"
+  },
+  {
+   "do": "js",
+   "expr": "[...document.querySelectorAll('[data-testid=results-list] a[href]')].map(a=>a.getAttribute('href')).filter(h=>/^\\/[^\\/]+\\/[^\\/]+$/.test(h)).filter((v,i,a)=>a.indexOf(v)==i).map(h=>h.slice(1))"
+  }
+ ],
+ "check": {
+  "args": {
+   "user": "octocat",
+   "q": "hello"
+  },
+  "expect": "octocat/Hello-World"
+ }
+}
