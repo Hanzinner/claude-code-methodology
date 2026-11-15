@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Memory health check — finds orphans, broken index links, unresolved wikilinks.
+"""Memory health check — orphans, broken index links, unresolved wikilinks, frontmatter problems, files untouched for
+a long time, and possibly-related groups (same name prefix). Read-only: it reports, the agent reviews and acts.
 
 Run weekly via the SessionStart hook (`memory-curation-check.sh`). Exit code:
   0 — memory is clean (no report emitted)
@@ -27,6 +28,9 @@ MEMORY_DIR = pathlib.Path(
     )
 )
 
+STALE_DAYS = int(os.environ.get("MEMORY_STALE_DAYS") or 60)
+VALID_TYPES = {"user", "feedback", "project", "reference"}
+SKIP = ("MEMORY.md", "feedback-index.md")
 findings = []
 
 
@@ -74,6 +78,60 @@ def check_wikilinks():
                 findings.append(f"unresolved wikilink in {f.name}: [[{ref}]]")
 
 
+def frontmatter(text):
+    """→ dict of the frontmatter's keys (nested `metadata:` keys flattened), or None when there is no frontmatter."""
+    m = re.match(r"^---\s*\n(.*?)\n---\s*\n", text, re.S)
+    if not m:
+        return None
+    fm = {}
+    for line in m.group(1).splitlines():
+        k, sep, v = line.partition(":")
+        if sep:
+            fm.setdefault(k.strip(), v.strip().strip("\"'"))
+    return fm
+
+
+def check_frontmatter():
+    """name / description / type present (type may sit under metadata:), type one of the four."""
+    for f in sorted(MEMORY_DIR.glob("*.md")):
+        if f.name in SKIP:
+            continue
+        fm = frontmatter(f.read_text(encoding="utf-8", errors="replace"))
+        if fm is None:
+            findings.append(f"no frontmatter: {f.name}")
+            continue
+        missing = [k for k in ("name", "description", "type") if not fm.get(k)]
+        if missing:
+            findings.append(f"frontmatter of {f.name} lacks: {', '.join(missing)}")
+        elif fm["type"] not in VALID_TYPES:
+            findings.append(f"frontmatter of {f.name}: unknown type '{fm['type']}' (one of {', '.join(sorted(VALID_TYPES))})")
+
+
+def check_stale():
+    """Untouched for STALE_DAYS — not wrong by itself; a prompt to re-check that it is still true."""
+    import time
+    for f in sorted(MEMORY_DIR.glob("*.md")):
+        if f.name in SKIP:
+            continue
+        days = int((time.time() - f.stat().st_mtime) // 86400)
+        if days > STALE_DAYS:
+            findings.append(f"untouched {days} days: {f.name} — still true?")
+
+
+def check_related():
+    """Same type_topic prefix in several files — possibly one fact written twice; a human look, not an error."""
+    groups = {}
+    for f in MEMORY_DIR.glob("*.md"):
+        if f.name in SKIP:
+            continue
+        parts = f.stem.split("_", 2)
+        if len(parts) >= 2:
+            groups.setdefault("_".join(parts[:2]), []).append(f.name)
+    for key, names in sorted(groups.items()):
+        if len(names) > 1:
+            findings.append(f"possibly related ({key}_*): {', '.join(sorted(names))}")
+
+
 def main():
     if not MEMORY_DIR.exists():
         print(f"memory dir not found: {MEMORY_DIR}", file=sys.stderr)
@@ -83,6 +141,9 @@ def main():
         check_orphans(idx_text)
         check_broken_links(idx_text)
     check_wikilinks()
+    check_frontmatter()
+    check_stale()
+    check_related()
 
     if not findings:
         sys.exit(0)

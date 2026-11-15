@@ -11,24 +11,38 @@
 #   cross-review.sh [--model M]... [--req FILE] [--why FILE] [--repo DIR] --git <range>
 #   cross-review.sh [--model M]... [--req FILE] [--why FILE] <file>...
 #     --model  a model alias or full id; repeatable (each is a separate reviewer).
-#              Default: sonnet. Pick a model OTHER than the one that wrote the code.
+#              Default: sonnet. Pick a model OTHER than the one that wrote the code. A model in
+#              CCM_FORBIDDEN_SUBAGENT_MODELS (the fable-gate list) is refused (rc 2) unless
+#              CROSS_REVIEW_ALLOW_FORBIDDEN=1.
 #     --req    a "requirement → where it's checked" table
 #     --why    a "why it's like this" log, so the reviewer doesn't advise reverting
 #              fixes you already paid for
 #     --git    a range for `git diff` (e.g. HEAD~1..HEAD, main..feature)
 # Output: one report per model in ~/.claude/cross-reviews/; the last line printed
 # is the report path. The reviewer only has Read/Grep/Glob — it changes nothing.
+# rc: 0 reviewed · 2 usage error / forbidden model / material too big · 3 a reviewer returned NOTHING (an empty
+# answer with rc 0 looked like "no findings" — it is "no review"; run it again).
 set -euo pipefail
+export LC_ALL=C.UTF-8
+HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+forbidden=$(python3 "$HERE/../lib/ccm_conf.py" CCM_FORBIDDEN_SUBAGENT_MODELS 2>/dev/null || true)
 
 models=(); req=""; why=""; repo="$PWD"; range=""; files=()
 while (($#)); do
     case "$1" in
-        --model) models+=("$2"); shift 2 ;;
+        --model)
+            # a reviewer never runs on a model the human ruled out for subagents (cost); the critical review -> opus
+            for fm in ${forbidden//,/ }; do
+                if [[ "${2,,}" == *"${fm,,}"* && "${CROSS_REVIEW_ALLOW_FORBIDDEN:-0}" != 1 ]]; then
+                    echo "cross-review: --model $2 refused — '$fm' is in CCM_FORBIDDEN_SUBAGENT_MODELS; take sonnet, or opus for a critical review" >&2; exit 2
+                fi
+            done
+            models+=("$2"); shift 2 ;;
         --req)   req="$2"; shift 2 ;;
         --why)   why="$2"; shift 2 ;;
         --repo)  repo="$2"; shift 2 ;;
         --git)   range="$2"; shift 2 ;;
-        -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
         *) files+=("$1"); shift ;;
     esac
 done
@@ -36,25 +50,28 @@ done
 [[ -n "$range" || ${#files[@]} -gt 0 ]] || { echo "cross-review: give --git <range> or files (--help)" >&2; exit 2; }
 
 outdir="$HOME/.claude/cross-reviews"; mkdir -p "$outdir"
-ts=$(date +%Y%m%d-%H%M%S)
+ts=$(date +%Y%m%d-%H%M%S)-$$   # +PID: two runs in the same second wrote into one report, and one review was lost
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 
 # ── material under review
+# The fence is one backtick longer than the longest backtick run inside the content (CommonMark): otherwise a file with
+# ``` inside (markdown, a heredoc) closes the block, and the reviewer reads the rest as instructions.
+# A function in $(…): there `set -e` doesn't apply, so a file with no backtick at all (grep rc 1 under pipefail) still
+# gets a fence — written inline in the main shell, that grep killed the whole script silently on every such file.
+fence() { local n; n=$(grep -o '`\+' "$1" 2>/dev/null | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')
+          (( n < 3 )) && n=2; printf '`%.0s' $(seq $((n + 1))); }
 {
     if [[ -n "$range" ]]; then
         echo "## Diff: git -C $repo diff $range"
-        echo '```diff'
-        git -C "$repo" diff "$range"
-        echo '```'
+        git -C "$repo" diff "$range" > "$work/diff.txt"
+        fd=$(fence "$work/diff.txt")
+        echo "${fd}diff"; cat "$work/diff.txt"; echo "$fd"
     fi
     for f in "${files[@]}"; do
         [[ -f "$f" ]] || { echo "cross-review: no such file $f" >&2; exit 2; }
-        # fence longer than the longest backtick run inside the file, so embedded ``` can't close it
-        fence=$(grep -o '`\+' "$f" | awk '{ if (length > m) m = length } END { n = (m < 3 ? 3 : m + 1); while (n--) printf "`" }')
         echo "## File: $(readlink -f "$f")"
-        echo "$fence"
-        cat "$f"
-        echo "$fence"
+        fd=$(fence "$f")
+        echo "$fd"; cat "$f"; echo "$fd"
     done
 } > "$work/material.md"
 size=$(wc -c < "$work/material.md")
@@ -94,7 +111,7 @@ Answer format (markdown):
 ## Verdict
 Exactly one line: VERDICT: PASS | FAIL | PARTIAL"
 
-last=""
+last=""; empty=0
 for m in "${models[@]}"; do
     out="$outdir/$ts-$m.md"
     echo "cross-review: reviewer $m working (material ${size} bytes)…" >&2
@@ -106,11 +123,19 @@ for m in "${models[@]}"; do
         # --tools sets the ONLY available tools. Without it, a global allow of Bash in
         # settings.json leaks into the child session: the first run of this script
         # wrote test lines into live logs. --allowedTools only ADDS permissions.
-        timeout 1200 claude -p "$prompt" </dev/null --model "$m" \
+        # claude_machine.py: no saved session per review (they cluttered the session list), spend logged as "service"
+        timeout 1200 "${CROSS_REVIEW_RUNNER:-$HERE/claude_machine.py}" cross_review -p "$prompt" </dev/null --model "$m" \
             --tools "Read,Grep,Glob" --output-format text \
             || echo "⚠ claude -p exited with an error (rc=$?) — report is incomplete."
     } > "$out"
-    grep -m1 -o 'VERDICT: [A-Z]*' "$out" >&2 || echo "cross-review: $m — no VERDICT line found" >&2
+    if [[ $(sed -n '5,$p' "$out" | grep -c '[^[:space:]]') -eq 0 ]]; then
+        echo "⚠ THE REVIEWER RETURNED NOTHING — this is NOT \"no findings\": no review happened. Run it again." >> "$out"
+        empty=1
+    fi
+    # the verdict is the LAST non-empty line, as the prompt asks — a "VERDICT:" quoted mid-report doesn't count
+    awk 'NF{l=$0} END{print l}' "$out" | grep -o 'VERDICT: [A-Z]*' >&2 || echo "cross-review: $m — no VERDICT line found" >&2
     last="$out"
     echo "$out"
 done
+if [[ $empty == 1 ]]; then exit 3; fi
+exit 0

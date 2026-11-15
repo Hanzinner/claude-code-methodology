@@ -56,7 +56,11 @@ CCM_BLOCKERS_LEAD="{project}-HQ"        # agent told about a blocker whose check
 CCM_INFRA_AGENT=""                      # agent told when the machine is low on memory (work-guard); empty = nobody
 CCM_SUPERVISOR_HEARTBEAT="__SUPERVISOR_HEARTBEAT__"   # the supervisor touches it every run; the watchman warns when it is older than 1 h; empty = off
 CCM_CODING_STANDARD=""                  # coding standard with "**Version: N"; empty = <workspace>/CODING-STANDARD.md
+PROOF_GUARD_BLOCK=1                     # proof-guard: 1 = a "done" after a code edit with nothing run after it does not end the turn; 0 = a hint on the next prompt
+CCM_SHARED_DOCS=""                      # proof-guard: rules every agent follows (comma-separated) — a "done" after editing one needs a cross-review; empty = the coding standard, DEV-METHODOLOGY, PROJECT-WORK, PO-INTERFACE in the workspace + ~/.claude/CLAUDE.md
 CCM_WORKTREES_DIR=""                    # agents' git worktrees; empty = <workspace>-wt
+CCM_DECISIONS_DIR=""                    # decision records (ADR) that code-pitfalls-hint names before an edit; empty = <workspace>/decisions
+CCM_PROMPT_REMINDERS=""                 # a file of one-line reminders printed on EVERY prompt (the rule that drifts); empty = none
 # Release queue and git guard — only with install.sh --with-releaser / --with-git-guard:
 CCM_RELEASER_STATE="/var/lib/ccm-release"
 CCM_RELEASER_USER="releaser"

@@ -12,14 +12,17 @@
 
 input=$(cat)
 ERRLOG="$HOME/.claude/hook-errors.log"
+mkdir -p "${ERRLOG%/*}" 2>/dev/null   # a failed 2>>"$ERRLOG" redirection skips the branch itself, block and all
 HOOK_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 BUDGET=${STOP_DISPATCH_BUDGET:-17}     # below hook-safe.sh's 20 s, so this script still gets to write its log
 SLOW=5
 t0=$(date +%s)
 skipped=()
 
-BLOCKING=(pause-guard work-guard status-guard)
-DETECTORS=(proof-guard reply-guard strawman-guard abbr-guard source-guard link-guard input-guard cost-guard draft-guard remind-guard agent-status)
+# proof-guard blocks a "done" after a code edit with nothing run after it (PROOF_GUARD_BLOCK=0 → it only flags);
+# work-guard and status-guard block only for the agents listed in their settings.
+BLOCKING=(pause-guard proof-guard status-guard work-guard)
+DETECTORS=(reply-guard strawman-guard abbr-guard source-guard link-guard input-guard cost-guard draft-guard remind-guard agent-status)
 
 left() { echo $(( BUDGET - ($(date +%s) - t0) )); }
 log() { echo "$(date -Iseconds) stop-dispatch/$*" >> "$ERRLOG" 2>/dev/null; }

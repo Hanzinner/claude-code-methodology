@@ -43,7 +43,14 @@ for src in "${DIRS[@]}"; do
   if [[ -n "$LATEST_PREV" && -d "$LATEST_PREV/$label" ]]; then
     link_opt="--link-dest=$LATEST_PREV/$label"
   fi
-  rsync -a $link_opt "$src/" "$TARGET/$label/" 2>/dev/null || true
+  rc=0
+  rsync -a $link_opt "$src/" "$TARGET/$label/" 2>/dev/null || rc=$?
+  # 24 = a file vanished while copying (live .jsonl being rotated) — normal. Anything else = no copy: say FAIL and stop
+  # BEFORE the retention sweep — a failing backup must not also delete the older good copies, and no "backup:" line.
+  if (( rc != 0 && rc != 24 )); then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] FAIL rsync $src rc=$rc — retention skipped"
+    exit 1
+  fi
 done
 
 find "$BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d -mtime +$RETENTION_DAYS -exec rm -rf {} \; 2>/dev/null || true

@@ -45,13 +45,13 @@ fi
 timeout -k 3 "$t" "$real" "$@" 2>"$stderr_tmp"
 code=$?
 if [ "$code" -ne 0 ]; then
-    {
-        printf '%s %s failed (exit %s)' "$(date -Iseconds)" "$hook_name" "$code"
-        [ "$code" = 124 ] && printf ' [TIMEOUT %ss]' "$t"
-        err=$(tail -c 300 "$stderr_tmp" 2>/dev/null | tr '\n' ' ')
-        [ -n "$err" ] && printf ' :: %s' "$err"
-        printf '\n'
-    } >> "$ERRLOG" 2>/dev/null
+    # the line is built whole and written with ONE write: several printf in a row from hooks running in parallel
+    # interleaved in the log into one line (three timeouts at the same second)
+    line="$(date -Iseconds) $hook_name failed (exit $code)"
+    [ "$code" = 124 ] && line="$line [TIMEOUT ${t}s]"
+    err=$(tail -c 300 "$stderr_tmp" 2>/dev/null | tr '\n' ' ')
+    [ -n "$err" ] && line="$line :: $err"
+    printf '%s\n' "$line" >> "$ERRLOG" 2>/dev/null
 fi
 # If mktemp failed, stderr_tmp is /dev/null — never delete that (as root it would
 # remove the device; this happened).

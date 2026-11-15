@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # UserPromptSubmit hook — the consumer side of things that only write files:
-#   1. proof-guard.py (Stop) leaves ~/.claude/proof-flags/<session_id> when a reply
-#      claimed "done" after code edits with no successful run. Shown once, removed.
+#   1. proof-guard.py of older installs left ~/.claude/proof-flags/<session_id> (just the claim). Shown once,
+#      removed. The current proof-guard writes its finished hint to ~/.claude/proof-guard-flags/ (case 1c).
 #   1b. reply-guard.py (Stop) leaves ~/.claude/reply-guard-flags/<session_id> when a
 #      reply contained a fabricated "User:" turn. Shown once, removed.
 #   1c. any other ~/.claude/<detector>-flags/<session_id> — its text as written. Shown once, removed.
