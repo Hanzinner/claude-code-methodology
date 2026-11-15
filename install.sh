@@ -538,6 +538,7 @@ if [[ $VERIFY -eq 1 && $DRY_RUN -eq 0 ]]; then
   echo
   say "Checking the installation item by item…"
   if out=$(python3 "$REPO_DIR/check-install.py" "${CHECK[@]}" 2>&1); then ok "$(printf '%s\n' "$out" | grep -E 'ok, .* missing' | tail -1)"
+    printf '%s\n' "$out" | sed -n '/^Accounts still/,/^$/p'   # only what is missing, each line -> docs/accounts.md
   else TESTS_FAILED=$((TESTS_FAILED + 1)); printf '%s\n' "$out" | grep -E '^MISS|missing or broken' | head -12 >&2; fi
   if [[ -f "$TARGET/scripts/supervisor.py" ]]; then
     say "One supervisor run on the fresh install…"

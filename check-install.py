@@ -109,6 +109,55 @@ for tool, why in (("pdftotext", "PDF extraction"), ("pandoc", "HTML to markdown"
     found = any(os.access(os.path.join(p, tool), os.X_OK) for p in os.environ.get("PATH", "").split(":"))
     print(f"  {tool} ({why}): {'found' if found else 'not found'}")
 
+# Accounts: print ONLY what is missing — one line per section of docs/accounts.md, with the same anchor.
+def _conf(key):
+    try:
+        return subprocess.run([sys.executable, f"{target}/lib/ccm_conf.py", key], capture_output=True, text=True,
+                              timeout=10).stdout.strip()
+    except Exception:
+        return ""
+
+
+def _has(cmd):
+    return any(os.access(os.path.join(p, cmd), os.X_OK) for p in os.environ.get("PATH", "").split(":"))
+
+
+def _keys(path, names):
+    try:
+        txt = open(path, encoding="utf-8").read()
+    except OSError:
+        return False
+    return any(l.split("=", 1)[0].strip() in names and l.split("=", 1)[1].strip()
+               for l in txt.splitlines() if "=" in l and not l.lstrip().startswith("#"))
+
+
+secrets = _conf("CCM_SECRETS_DIR") or os.path.expanduser("~/.config/claude-secrets")
+DOC = os.path.join(REPO, "docs", "accounts.md")
+todo = []
+if not _has("claude"):
+    todo.append(f"Claude Code: the claude CLI is not on PATH -> {DOC}#claude-code")
+senv = os.path.join(secrets, "search.env")
+if not _keys(senv, ("TAVILY_API_KEY", "EXA_API_KEY")):
+    todo.append(f"web search: no keys in {senv} -> {DOC}#tavily-and-exa--web-search")
+else:
+    try:
+        cj = json.load(open(os.path.expanduser("~/.claude.json")))
+    except Exception:
+        cj = {}
+    if "search" not in (cj.get("mcpServers") or {}) and not any(
+            "search" in ((v or {}).get("mcpServers") or {}) for v in (cj.get("projects") or {}).values() if isinstance(v, dict)):
+        todo.append(f"web search: keys are there but the server is not registered: claude mcp add --scope user search "
+                    f"-- python3 {target}/mcp/search_mcp.py -> {DOC}#tavily-and-exa--web-search")
+if os.path.isdir(f"{target}/offsite-backup") and not any(
+        os.path.exists(os.path.join(secrets, f)) for f in ("restic.env", "s3-credentials.json")):
+    todo.append(f"offsite backup: installed, no storage keys in {secrets} -> {DOC}#s3-compatible-storage--offsite-backup")
+if os.path.isdir(f"{target}/mobile-bot") and not os.path.exists(os.path.join(secrets, "mobile-bot.env")):
+    todo.append(f"mobile bot: installed, no {secrets}/mobile-bot.env -> {DOC}#telegram--mobile-bot")
+if todo:
+    print("\nAccounts still to set up (optional; each line points to the how-to):")
+    for t in todo:
+        print("  -", t)
+
 print(f"\n{ok} ok, {len(bad)} missing or broken")
 for b in bad:
     print("  -", b)
