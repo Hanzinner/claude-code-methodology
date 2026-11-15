@@ -301,7 +301,9 @@ if [[ -f "$REPO_DIR/mcp/search_mcp.py" && $DRY_RUN -eq 0 ]]; then
   fi
   if [[ -n "$t_key$e_key" ]]; then
     mkdir -p "$SECRETS" && chmod 700 "$SECRETS"
-    ( umask 077; { [[ -n "$t_key" ]] && echo "TAVILY_API_KEY=$t_key"; [[ -n "$e_key" ]] && echo "EXA_API_KEY=$e_key"; } > "$SENV" )
+    ( umask 077; : > "$SENV"   # if-blocks, not `[[ ]] && echo`: an empty last key made the subshell fail under set -e
+      if [[ -n "$t_key" ]]; then echo "TAVILY_API_KEY=$t_key" >> "$SENV"; fi
+      if [[ -n "$e_key" ]]; then echo "EXA_API_KEY=$e_key" >> "$SENV"; fi )
     ok "search keys written to $SENV (mode 600)"
   fi
   if [[ -s "$SENV" ]]; then
