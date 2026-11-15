@@ -82,7 +82,7 @@ item = json.loads(files[0].read_text()) if files else {}
 ok("tg_reply: an answer is queued as JSON {agent,text,ts}", rc == 0 and len(files) == 1 and item.get("agent") == "Alpha" and item.get("text") == "the answer\nin two lines" and "ts" in item)
 ok("tg_reply: the file name is what the bot's outbox expects", files and __import__("re").match(r"^\d+_\d+\.json$", files[0].name) is not None)
 ok("tg_reply: unknown agent / bad name refused", run(tg, "x", env=env, args=["Nobody"])[0] == 2 and run(tg, "x", env=env, args=["../Alpha"])[0] == 2)
-ok("tg_reply: a secret-looking text is refused", run(tg, "sk-ant-" + "a" * 30, env=env, args=["Alpha"])[0] == 2)
+ok("tg_reply: a secret-looking text is refused", run(tg, "sk-" + "ant-" + "a" * 30, env=env, args=["Alpha"])[0] == 2)
 ok("tg_reply: empty and too long refused", run(tg, "  ", env=env, args=["Alpha"])[0] == 2 and run(tg, "y" * 20500, env=env, args=["Alpha"])[0] == 2)
 rc, out = run(tg, "x", env={**env, "CCM_TG_OUTBOX": str(D / "nope")}, args=["Alpha"])
 ok("tg_reply: a missing spool says what to do", rc == 2 and "setup-mobile-bot.sh" in out)

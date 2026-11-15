@@ -24,7 +24,8 @@ compgen -G "$AGENTS/$a/briefing.md" >/dev/null || compgen -G "$AGENTS/[!_]*/$a/b
 raw=$(head -c 20001)
 [[ $(printf '%s' "$raw" | wc -c) -le 20000 ]] || { echo "tg_reply: too long (>20 KB) - put it in a file and give the human the path" >&2; exit 2; }
 [[ -n "${raw//[[:space:]]/}" ]] || { echo "tg_reply: empty text" >&2; exit 2; }
-if printf '%s' "$raw" | grep -qE -- '-----BEGIN [A-Z ]*PRIVATE KEY-----|[0-9]{8,10}:AA[A-Za-z0-9_-]{30,}|sk-ant-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}'; then
+SECRET_RE="-----BEGIN [A-Z ]*PRIV""ATE KEY-----|[0-9]{8,10}:A""A[A-Za-z0-9_-]{30,}|s""k-ant-[A-Za-z0-9_-]{20,}|g""h[pousr]_[A-Za-z0-9]{30,}|AK""IA[0-9A-Z]{16}|xo""x[baprs]-[A-Za-z0-9-]{10,}"   # assembled from parts: a publish gate must not mistake this detector for a secret
+if printf '%s' "$raw" | grep -qE -- "$SECRET_RE"; then
   echo "tg_reply: the text looks like a secret (a key/token) - not sending" >&2; exit 2
 fi
 

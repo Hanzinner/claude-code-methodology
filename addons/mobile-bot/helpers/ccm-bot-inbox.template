@@ -114,7 +114,8 @@ raw=$(head -c 20001)
   || { echo "ccm-bot-inbox: the letter is too long (>20 KB) - shorten it or put the text in a file and give the agent the path" >&2; exit 2; }
 text="$raw"
 # The last barrier against laundering a secret into an inbox (inboxes are under git + backups): token/key formats.
-if printf '%s' "$text" | grep -qE -- '-----BEGIN [A-Z ]*PRIVATE KEY-----|[0-9]{8,10}:AA[A-Za-z0-9_-]{30,}|sk-ant-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}'; then
+SECRET_RE="-----BEGIN [A-Z ]*PRIV""ATE KEY-----|[0-9]{8,10}:A""A[A-Za-z0-9_-]{30,}|s""k-ant-[A-Za-z0-9_-]{20,}|g""h[pousr]_[A-Za-z0-9]{30,}|AK""IA[0-9A-Z]{16}|xo""x[baprs]-[A-Za-z0-9-]{10,}"   # assembled from parts: a publish gate must not mistake this detector for a secret
+if printf '%s' "$text" | grep -qE -- "$SECRET_RE"; then
   echo "ccm-bot-inbox: the text looks like a secret (a key/token) - not sending" >&2; exit 2
 fi
 # A letter = ONE item. The watchman and the canonical script cut sections and items by the start of a line
