@@ -42,23 +42,27 @@ Until the server is registered, the built-in `WebSearch` keeps working (details 
 
 ## S3-compatible storage — offsite backup
 
-1. Sign up with any S3-compatible provider. Backblaze B2: https://www.backblaze.com/cloud-storage
-2. Create a **private bucket** and an **application key** limited to that bucket. Copy: bucket name, key ID
-   (access key), application key (secret key), the S3 endpoint URL shown on the bucket page.
-3. Put them into `~/.claude/secrets/s3-credentials.json` (mode 600):
-   `{"accessKey": "...", "secretKey": "...", "bucket": "...", "endpoint": "https://..."}`
+1. Sign up: Backblaze B2 (https://www.backblaze.com/cloud-storage) is the default; any S3-compatible provider
+   works (Cloudflare R2, Wasabi, Filebase, MinIO).
+2. Create a **private bucket** and an **application key** limited to that bucket (not the master key). Copy the
+   bucket name, the key ID and the key.
+3. Install with `./install.sh --with-offsite-backup`, then fill `restic.env` in your secrets folder
+   (`~/.config/claude-secrets/restic.env`, mode 600; the template is `addons/offsite-backup/restic.env.template`):
+   `B2_BUCKET=`, `B2_ACCOUNT_ID=` (the key ID), `B2_ACCOUNT_KEY=` (the key). For S3: `BACKUP_BACKEND=s3` and the
+   `S3_*` / `AWS_*` lines.
 4. Make a random passphrase, keep it in a password manager, and put it into
-   `~/.claude/secrets/backup-passphrase.txt` (mode 600). Losing it means losing the archive.
-5. Set up and check: [`addons/offsite-backup/README.md`](../addons/offsite-backup/README.md)
-   (`restic init`, first backup, `restic snapshots` lists it).
+   `~/.config/claude-secrets/backup-passphrase.txt` (mode 600). Losing it means losing the archive.
+5. Initialise and check: [`addons/offsite-backup/README.md`](../addons/offsite-backup/README.md)
+   (`restic init`, first backup, `restic snapshots` lists it). Nothing is ever deleted from the backup unless
+   you set `BACKUP_PRUNE=1`.
 
 ## Telegram — mobile bot
 
 1. In Telegram, talk to **@BotFather** → `/newbot` → copy the **bot token**.
 2. Talk to **@userinfobot** → copy **your numeric user ID**.
-3. Put both into `~/.claude/mobile-bot/.env` (copy of `.env.template`, mode 600):
-   `TELEGRAM_BOT_TOKEN=...` and `ALLOWED_TG_USERS=<your id>`. An empty list lets anyone who finds the bot
-   reach the PIN prompt.
+3. Install with `./install.sh --with-mobile-bot`, then put both into `mobile-bot.env` in your secrets folder
+   (`~/.config/claude-secrets/mobile-bot.env`, mode 600; template `addons/mobile-bot/.env.template`):
+   `TELEGRAM_BOT_TOKEN=...` and `ALLOWED_TG_USERS=<your id>`. With an empty list the bot refuses to start.
 4. Start it and check: [`addons/mobile-bot/README.md`](../addons/mobile-bot/README.md). The first message to
    the bot asks you to set a PIN with `/setpin`; after that it answers.
 
