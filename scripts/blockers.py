@@ -25,7 +25,8 @@ agent's tab (a cron job can't): the message waits until that agent's next turn.
 
   blockers.py run [--dry]                       - cron: all projects (checks, clearing, consequences); --dry still runs approved checks
   blockers.py approve <project> B<n>            - allow this row's command to be executed (read it first)
-  blockers.py add <project> "<what>" "<who>" "<command | manual>"   - new blocker, prints its number (blocker_add.sh)
+  blockers.py add <project> "<what>" "<who>" "<command | manual>"   - new blocker, prints its number (blocker_add.sh);
+                                                an agent outside any project gives its own name -> <workspace>/BLOCKERS.md
   blockers.py clear <project> B<n> "<who/how>"  - clear by a human's word
   blockers.py list [<project>] [--json]         - open ones with story count and days waiting (for a dashboard)
 <project> is "Bid" or "Project-Bid". rc: 0 ok - 2 usage - 4 not found.
@@ -83,6 +84,36 @@ def short(pd):
     return b[len(PREFIX):] if PREFIX and b.startswith(PREFIX) else b
 
 
+# The shared register <workspace>/BLOCKERS.md - for an agent that works outside any project (decision 0021: with one or
+# two agents and no project folder a blocker had nowhere to go, rc 4). Same table; the last column ("Note") holds the
+# agent's name, which is its "project" in `list`, the snapshot and the waiting line. No stories move (there is no
+# ROADMAP): a cleared blocker reaches that agent as a message.
+def is_shared(pd):
+    return os.path.realpath(pd) == os.path.realpath(REPO)
+
+
+def resolve(name):
+    """register folder: the project, else the shared register when <name> is an agent's folder"""
+    pd = proj_dir(name) if name else None
+    if pd and not is_shared(pd):
+        return pd
+    return REPO if name and "/" not in name and os.path.isdir(os.path.join(AGENTS, name)) else None
+
+
+def agent_of(r):
+    return (r.get("note") or "").split(" ")[0] if r else ""
+
+
+def label(pd, r=None):
+    return (agent_of(r) or "shared") if is_shared(pd) else short(pd)
+
+
+def registers():
+    """every register file: the projects' and the shared one, if it exists"""
+    shared = os.path.join(REPO, "BLOCKERS.md")
+    return sorted(glob.glob(os.path.join(REPO, GLOB, "BLOCKERS.md"))) + ([shared] if os.path.isfile(shared) else [])
+
+
 def cells(line):
     r"""cells of a table row; `\|` is a pipe inside a cell"""
     parts = re.split(r"(?<!\\)\|", line.strip().strip("|"))
@@ -108,7 +139,7 @@ def parse(path):
         cmd = cm.group(1) if cm and cm.group(1) not in MANUAL else None
         out.append((i, {"id": m.group(2), "open": not m.group(1), "what": what, "who": who, "check": cmd or check,
                         "word": cmd is None, "machine": cmd is not None or any(w in check for w in MANUAL),
-                        "since": since, "raw": l}))
+                        "since": since, "note": c[5] if len(c) > 5 else "", "raw": l}))
     return lines, out, bad
 
 
@@ -249,11 +280,11 @@ def tell_unapproved(pd, r, key):
     log(f"{os.path.basename(pd)} {r['id']}: command not approved, not running: {r['check'][:200]}")
     if key in load_approved()["told"]:
         return
-    hq = LEAD.format(project=short(pd))
-    if os.path.isdir(os.path.join(AGENTS, hq)):
+    hq = agent_of(r) if is_shared(pd) else LEAD.format(project=short(pd))
+    if hq and os.path.isdir(os.path.join(AGENTS, hq)):
         post(hq, f"- [ ] [{now()}] blockers watcher · {os.path.basename(pd)} {r['id']}: the check was edited outside blocker_add, "
                  f"so I am not running it. Verify in BLOCKERS.md that the command is yours, then: "
-                 f"`blockers.py approve {short(pd)} {r['id']}`\n")
+                 f"`blockers.py approve {label(pd, r)} {r['id']}`\n")
     update_approved(lambda d: d["told"].__setitem__(key, now()))
 
 
@@ -264,6 +295,10 @@ def consequences(pd, cleared, dry=False):
     rp = os.path.join(pd, "ROADMAP.md")
     moved = {b: [] for b in cleared}
     mail = []
+    if is_shared(pd):   # no stories: the agent who registered it gets a message
+        rp = os.path.join(pd, ".no-roadmap-for-the-shared-register")
+        mail = [(agent_of(r), f"- [ ] [{now()}] blockers watcher · {r['id']} cleared ({r['what'][:80]}) - shared register BLOCKERS.md\n")
+                for _, r in rows if r["id"] in cleared and agent_of(r)]
     # a project without ROADMAP: the blocker is closed, there is no story to move - only the line for the human
     for _ in range(5 if os.path.exists(rp) else 0):
       with Locked(rp):
@@ -289,7 +324,7 @@ def consequences(pd, cleared, dry=False):
             post(a, text)
     for b, codes in moved.items():
         what = next((r["what"] for _, r in rows if r["id"] == b), "")
-        msg = f"✅ {short(pd)} {b} cleared ({what[:80]})" + (f" -> in progress: {', '.join(codes)}" if codes else "")
+        msg = f"✅ {label(pd, next((r for _, r in rows if r['id'] == b), None))} {b} cleared ({what[:80]})" + (f" -> in progress: {', '.join(codes)}" if codes else "")
         log(msg)
         if not dry:
             notify_human(msg)
@@ -298,7 +333,7 @@ def consequences(pd, cleared, dry=False):
 
 def cmd_run(dry):
     rc = 0
-    for path in sorted(glob.glob(os.path.join(REPO, GLOB, "BLOCKERS.md"))):
+    for path in registers():
         try:
             run_project(path, dry)
         except Exception as e:     # a vanished or broken file must not leave the other projects unchecked
@@ -337,19 +372,21 @@ def run_project(path, dry):
 
 
 def cmd_add(proj, what, who, check):
-    pd = proj_dir(proj)
+    pd = resolve(proj)
     if not pd:
-        print(f"no project {proj}"); return 4
+        print(f"no project {proj} (and no agent folder of that name)"); return 4
     path = os.path.join(pd, "BLOCKERS.md")
     if not os.path.exists(path):
-        open(path, "w", encoding="utf-8").write(f"# BLOCKERS - {os.path.basename(pd)}\n\nFormat and rules: see scripts/blockers.py; "
+        title = "shared register (agents outside a project; Note = the agent)" if is_shared(pd) else os.path.basename(pd)
+        open(path, "w", encoding="utf-8").write(f"# BLOCKERS - {title}\n\nFormat and rules: see scripts/blockers.py; "
                                                  "the watcher (cron, every 15 min) is `blockers.py run`.\n")
     with Locked(path):
       for _ in range(5):
         seen = mt(path); lines, rows, _ = parse(path)
         n = max([int(r["id"][1:]) for _, r in rows] or [0]) + 1
         chk = check.strip("`").replace("|", "\\|")
-        row = f"| B{n} | {what.replace('|', '/')} | {who.replace('|', '/')} | `{chk}` | {dt.date.today()} | |"
+        note = proj if is_shared(pd) else ""
+        row = f"| B{n} | {what.replace('|', '/')} | {who.replace('|', '/')} | `{chk}` | {dt.date.today()} | {note} |"
         last = max([i for i, _ in rows] or [-1])
         if last < 0:   # new table
             while lines and not lines[-1].strip():
@@ -359,16 +396,17 @@ def cmd_add(proj, what, who, check):
             lines.insert(last + 1, row)
         if write(path, lines, seen):
             break
-    print(f"B{n}  <- put it in the story line of ROADMAP: \"blockers: B{n}\"")
+    print(f"B{n}  <- shared register {path} (agent {proj}); no story: you get a message when it is cleared" if is_shared(pd)
+          else f"B{n}  <- put it in the story line of ROADMAP: \"blockers: B{n}\"")
     new = next((r for _, r in parse(path)[1] if r["id"] == f"B{n}"), None)
     if new and not new["word"]:
         approve(pd, new["id"], new["check"])   # written through add = the author vouches for the command
-    log(f"{os.path.basename(pd)} ADDED B{n}: {what}")
+    log(f"{proj if is_shared(pd) else os.path.basename(pd)} ADDED B{n}: {what}")
     return 0
 
 
 def cmd_approve(proj, bid):
-    pd = proj_dir(proj)
+    pd = resolve(proj)
     if not pd:
         print(f"no project {proj}"); return 4
     r = next((r for _, r in parse(os.path.join(pd, "BLOCKERS.md"))[1] if r["id"] == bid and r["open"]), None)
@@ -383,7 +421,7 @@ def cmd_approve(proj, bid):
 
 
 def cmd_clear(proj, bid, how):
-    pd = proj_dir(proj)
+    pd = resolve(proj)
     if not pd:
         print(f"no project {proj}"); return 4
     if not close(pd, bid, how):
@@ -395,18 +433,18 @@ def cmd_clear(proj, bid, how):
 
 def open_list(proj=None):
     out = []
-    pds = [proj_dir(proj)] if proj else sorted(os.path.dirname(p) for p in glob.glob(os.path.join(REPO, GLOB, "BLOCKERS.md")))
+    pds = [resolve(proj)] if proj else [os.path.dirname(p) for p in registers()]
     for pd in filter(None, pds):
         _, rows, _ = parse(os.path.join(pd, "BLOCKERS.md"))
-        _, sts = stories(pd)
+        _, sts = stories(pd) if not is_shared(pd) else (None, [])
         for _, r in rows:
-            if not r["open"]:
+            if not r["open"] or (proj and is_shared(pd) and agent_of(r) != proj):
                 continue
             try:
                 days = (dt.date.today() - dt.date.fromisoformat(r["since"][:10])).days
             except ValueError:
                 days = None
-            out.append({"project": short(pd), **{k: r[k] for k in ("id", "what", "who", "check", "word", "since")},
+            out.append({"project": label(pd, r), **{k: r[k] for k in ("id", "what", "who", "check", "word", "since")},
                         "days": days, "stories": [c for _, _, c, refs in sts if r["id"] in refs]})
     return out
 

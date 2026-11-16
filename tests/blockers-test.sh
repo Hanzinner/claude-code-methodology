@@ -79,4 +79,17 @@ ok "18 a crash in one project does not leave the rest: reason in the log, Projec
 mkdir -p "$R/Work-Z"; printf '| B1 | a | b | `manual` | 2026-11-02 | |\n' > "$R/Work-Z/BLOCKERS.md"
 out=$(cd "$R" && CCM_PROJECTS_GLOB='Work-*' BLOCKERS_REPO="$R" BLOCKERS_POST="$T/post" BLOCKERS_STATE="$T/state" python3 "$BL" list Z 2>&1); echo "$out" > "$T/out"
 ok "19 CCM_PROJECTS_GLOB=Work-* -> short name Z finds Work-Z" 'grep -q "^Z B1" "$T/out"'
+# 20-26 the shared register <workspace>/BLOCKERS.md for an agent outside any project (decision 0021)
+mkdir -p "$R/Agents/Solo" "$R/Agents/Solo2" "$R/Agents/Solo3"; : > "$T/post.log"
+rc=$(run add Solo "search API key" "human" "test -e $T/solo-flag")
+ok "20 an agent outside any project -> blocker in the shared register, Note = the agent" '[ "$rc" = 0 ] && grep -q "^| B1 | search API key | human | .* | Solo |" "$R/BLOCKERS.md" && ! grep -q "ROADMAP" "$T/out"'
+rc=$(run add Solo2 "a domain" "human" "manual"); rc=$(run list --json)
+ok "21 list shows the shared register next to the projects, project = the agent" 'grep -q "\"project\": \"Solo\", \"id\": \"B1\"" "$T/out" && grep -q "\"project\": \"Solo2\", \"id\": \"B2\"" "$T/out" && grep -q "\"project\": \"X\"" "$T/out"'
+rc=$(run list Solo --json); ok "22 list <agent> -> only that agent's blockers" 'grep -q "\"B1\"" "$T/out" && ! grep -q "\"B2\"" "$T/out"'
+rc=$(run add Nobody "x" "y" "true"); ok "23 neither a project nor an agent folder -> rc 4, file untouched" '[ "$rc" = 4 ] && [ "$(grep -c "^| B" "$R/BLOCKERS.md")" = 2 ]'
+touch "$T/solo-flag"; rc=$(run run)
+ok "24 the check turns green -> ✅ B1 in the shared register, a message to Solo, no ROADMAP created" 'grep -q "^| ✅ B1 " "$R/BLOCKERS.md" && grep -q "^Solo .*B1 cleared" "$T/post.log" && [ ! -e "$R/ROADMAP.md" ]'
+rc=$(run clear Solo2 B2 "the human said so"); ok "25 clear by word -> ✅ B2, a message to Solo2" '[ "$rc" = 0 ] && grep -q "^| ✅ B2 " "$R/BLOCKERS.md" && grep -q "^Solo2 .*B2 cleared" "$T/post.log"'
+printf '| B3 | by hand | human | `false` | 2026-11-16 | Solo3 |\n' >> "$R/BLOCKERS.md"; rc=$(run run)
+ok "26 a row written by hand is not run; the approve message goes to the agent Solo3, not to a lead" 'grep -q "^Solo3 .*blockers.py approve Solo3 B3" "$T/post.log"'
 echo "blockers: $pass pass, $fail fail"; [ $fail = 0 ]

@@ -67,6 +67,9 @@ blockers("Project-Bid", [("B3", "x" * 300, "2026-11-01")])
 rc, ctx, _ = hook("s14"); ok("14 a long blocker text is cut (the line stays short)", "…" in ctx and len(ctx) < 700, len(ctx))
 rc, ctx, err = hook("s15", CCM_WORKSPACE=str(T / "nope"), CCM_AGENTS_DIR=str(T / "nope")); ok("15 workspace missing -> silent, rc 0", rc == 0 and ctx == "", (rc, err))
 
+(WS / "Agents" / "Solo").mkdir(); (WS / "BLOCKERS.md").write_text(HEAD + "| B1 | search key | human | `manual` | 2026-11-10 | Solo |\n")
+rc, ctx, _ = hook("s16"); ok("16 an agent's blocker in the shared register <workspace>/BLOCKERS.md is in the line", "Solo: B1 search key" in ctx, ctx)
+
 shutil.rmtree(T, ignore_errors=True)
 print(f"waiting-line-test: {passed} pass, {failed} fail")
 sys.exit(1 if failed else 0)
