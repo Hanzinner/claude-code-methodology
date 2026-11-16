@@ -10,9 +10,17 @@ Slash commands. Each folder has a `SKILL.md` with frontmatter (`name`, `descript
 | `edit` | Video edit analysis: scene keyframes + per-frame log + narrative. Uses `scripts/extract_scenes.sh`. |
 | `grill` | Brutalist stress-test of a plan, decision, architecture or position. |
 | `pulse` | Recency snapshot of a topic from Reddit + Hacker News + web. |
+| `update` | Update the installed system from its repo: say in plain words what is new, install the same way, merge `CLAUDE.md`, check. |
 | `register-as` | Register the current chat as a named agent: copies the agent template into `Agents/<Name>/`, adds a row to `AGENTS.md`, records the session identity for the briefing watchman. |
 
 ## Adding your own
+
+Worth a skill when you repeat the same procedure (research, a review, a debugging routine) a few times a month, it
+has known mistakes to avoid, it needs questions asked before starting, or its result has a shape worth fixing. Not
+worth it for a one-off task, a method that changes every time, or "find X" (a search does that).
+
+A good body, in order: questions to ask before starting (if any), the steps, what the result looks like, what not
+to do, when not to use it.
 
 ```
 skills/<name>/SKILL.md
