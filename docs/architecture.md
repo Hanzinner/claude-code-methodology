@@ -10,7 +10,7 @@ skills/           Slash commands (/recap, /audit, /register-as, /grill, /pulse, 
 memory/           Per-topic markdown files + MEMORY.md trigger index.
 code-pitfalls/    Per-technology lessons, shown (headings only) before a matching edit.
 mcp/              MCP server config (Tavily, etc).
-multi-agent/      Two hand-made examples not installed yet (session trimming, tool redirect).
+multi-agent/      Session trimming, not installed yet.
 swarm-template/   Shared files for several agents: registry, mistakes journal, catalog, one agent folder.
 addons/           Optional extensions (mobile-bot, offsite-backup, agent-browser, net-change, dashboard; reader is a concept only).
 ```

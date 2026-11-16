@@ -1,6 +1,6 @@
 # multi-agent examples
 
-Two hand-made mechanisms that `install.sh` does **not** install yet. Read one, understand the failure it
+One hand-made mechanism that `install.sh` does **not** install yet. Read one, understand the failure it
 addresses, and port the idea.
 
 The swarm mechanisms that used to live here are now installed by `install.sh` (layer 2): the inbox writer is
@@ -10,7 +10,6 @@ The swarm mechanisms that used to live here are now installed by `install.sh` (l
 | File | Type | Addresses |
 |------|------|-----------|
 | `session-hygiene.py` | cron | Long chats bloat. Trims old tool outputs from large, inactive session files (cutting *both* copies the harness stores), atomic with a `-cut.jsonl` rollback and a zero-trust "no fresh backup → refuse" interlock. |
-| `tool-redirect.sh` | `PreToolUse` hook | Move the whole fleet from one tool to another with no briefing edits: deny the tool and put the instruction to use the right one in the denial reason. The agent reads it and retries correctly. |
 
 ## A note on trust
 
