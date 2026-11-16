@@ -57,7 +57,7 @@ Loaded into every conversation.
 
 ## Memory
 
-Memory lives in `.claude/memory/`. `MEMORY.md` is a trigger index ("topic X → file Y"). Before answering a topic that matches a trigger, open the linked file.
+Memory lives in the folder Claude Code's own memory points at (`autoMemoryDirectory` in settings; by default `.claude/memory/`). `MEMORY.md` is a trigger index ("topic X → file Y"). Before answering a topic that matches a trigger, open the linked file.
 
 Save: facts about the user, behavioral feedback (corrections + confirmations), current state of active projects, pointers to external systems.
 
