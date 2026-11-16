@@ -138,7 +138,7 @@ if command -v claude >/dev/null 2>&1; then
   ok "claude CLI found: $CLAUDE_VERSION"
 else
   warn "claude CLI not found in PATH. Install from https://code.claude.com/docs and re-run."
-  if [[ $YES -eq 1 ]]; then yn=y; else read -r -p "Continue anyway? [y/N] " yn; fi
+  if [[ $YES -eq 1 ]]; then yn=y; else read -r -p "Continue anyway? [y/N] " yn || yn=""; fi
   [[ "$yn" =~ ^[Yy]$ ]] || exit 1
 fi
 
@@ -311,8 +311,8 @@ if [[ -f "$REPO_DIR/mcp/search_mcp.py" && $DRY_RUN -eq 0 ]]; then
   t_key="${TAVILY_API_KEY:-}"; e_key="${EXA_API_KEY:-}"
   if [[ $YES -eq 0 && ! -s "$SENV" ]]; then
     echo; say "Web search for agents (optional; free tiers exist): paste keys, Enter to skip"
-    read -r -s -p "  Tavily API key: " t_key; echo
-    read -r -s -p "  Exa API key: " e_key; echo
+    read -r -s -p "  Tavily API key: " t_key || t_key=""; echo   # no stdin (an agent runs this) = skip, not abort under set -e
+    read -r -s -p "  Exa API key: " e_key || e_key=""; echo
   fi
   if [[ -n "$t_key$e_key" ]]; then
     mkdir -p "$SECRETS" && chmod 700 "$SECRETS"
