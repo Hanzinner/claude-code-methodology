@@ -134,6 +134,14 @@ def _keys(path, names):
                for l in txt.splitlines() if "=" in l and not l.lstrip().startswith("#"))
 
 
+# the four shared documents in the workspace (install.sh -> lib/ws_docs.py); an unmerged .new = red until merged
+ws = _conf("CCM_WORKSPACE")
+if ws:
+    stamp = f"{target}/.methodology-installed"
+    for n in ("CODING-STANDARD.md", "PROJECT-WORK.md", "DEV-METHODOLOGY.md", "PO-INTERFACE.md"):
+        check(os.path.isfile(os.path.join(ws, n)), f"workspace/{n}", "run ./install.sh")
+        check(not os.path.isfile(os.path.join(ws, n + ".new")), f"workspace/{n}: our text merged into yours",
+              f"merge pending: keep yours, add what it lacks from {n}.changes, then: mv {ws}/{n}.new {stamp}/ws-{n}.base")
 secrets = _conf("CCM_SECRETS_DIR") or os.path.expanduser("~/.config/claude-secrets")
 DOC = os.path.join(REPO, "docs", "accounts.md")
 todo = []

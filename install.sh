@@ -389,6 +389,7 @@ done
 say "Swarm files in the workspace…"
 if [[ $DRY_RUN -eq 1 ]]; then
   echo "  DRY: would copy missing files of swarm-template/ into the workspace and <agents dir>/_example-agent/"
+  echo "  DRY: would put CODING-STANDARD.md, PROJECT-WORK.md, DEV-METHODOLOGY.md, PO-INTERFACE.md into the workspace (yours kept, ours as .new)"
 else
   WS=$(python3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE); AG=$(python3 "$TARGET/lib/ccm_conf.py" CCM_AGENTS_DIR)
   added=0
@@ -399,10 +400,12 @@ else
     [[ -e "$dst" ]] && continue
     mkdir -p "$(dirname "$dst")" && cp "$f" "$dst" && added=$((added + 1))
   done < <(find "$REPO_DIR/swarm-template" -type f -print0)
-  if [[ ! -e "$WS/CODING-STANDARD.md" && -f "$REPO_DIR/docs/coding-standard.md" ]]; then
-    cp "$REPO_DIR/docs/coding-standard.md" "$WS/CODING-STANDARD.md" && added=$((added + 1))
-  fi
-  ok "workspace $WS: $added file(s) added from swarm-template and the coding standard (existing ones kept)"
+  ok "workspace $WS: $added file(s) added from swarm-template (existing ones kept)"
+  # the four documents every agent follows (CODING-STANDARD, PROJECT-WORK, DEV-METHODOLOGY, PO-INTERFACE): links rewritten
+  # to the workspace; an edited one is kept and the new version goes next to it as .new (+ .changes), like CLAUDE.md
+  while IFS= read -r l; do
+    case "$l" in "  "*"is yours"*) warn "${l#  }" ;; "  "*) say "${l#  }" ;; *) ok "$l" ;; esac
+  done < <(python3 "$REPO_DIR/lib/ws_docs.py" install "$REPO_DIR" "$WS" "$STAMP_DIR" || echo "  ws_docs.py failed - workspace documents not updated")
 fi
 
 say "Copying memory template…"
@@ -718,7 +721,7 @@ if [[ $VERIFY -eq 1 && $VERIFY_ALL -eq 1 && $DRY_RUN -eq 0 ]] && compgen -G "$TA
   say "Checking the installed mechanisms (each test runs in a temp sandbox)…"
   for t in "$TARGET"/tests/*-test.*; do
     case "$t" in *.py) runner=python3 ;; *.sh) runner=bash ;; *) continue ;; esac
-    if out=$("$runner" "$t" 2>&1); then
+    if out=$(CCM_REPO_DIR="$REPO_DIR" "$runner" "$t" 2>&1); then   # a test that needs the repo's docs/ finds the clone here
       ok "$(printf '%s\n' "$out" | tail -1)"
     else
       TESTS_FAILED=$((TESTS_FAILED + 1))
