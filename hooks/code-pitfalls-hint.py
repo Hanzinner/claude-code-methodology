@@ -4,7 +4,10 @@
 PreToolUse on Edit|Write: by the file's extension/path → inject ONLY the headings (### …) of the matching
 code-pitfalls/<topic>.md plus its path. The bodies stay out of context; the agent opens the file if a heading looks
 like its case. PreToolUse on Bash: flock/lock files → concurrency.md; git → git.md; ssh/scp/qemu → vm.md;
-adb → android.md. Edit|Write whose new text takes a lock or spawns threads also gets concurrency.md.
+adb → android.md; a network/service change (netplan apply, ip … add/del/set, nmcli … modify/up/down, resolvectl dns,
+systemctl restart networking/systemd-networkd/NetworkManager, a write into resolv.conf/netplan/interfaces) → services.md,
+reading them (ip a, ip route show, systemctl status) stays silent. Edit|Write: .service/.timer and those network config
+files → services.md; new text that takes a lock or spawns threads also gets concurrency.md.
 Text inside a Bash command is not a command: heredoc bodies and quoted strings are cut before matching (an agent
 writing a letter that mentions ssh got the vm lessons), except the argument of `bash -c "…"`, which IS a command.
 
@@ -87,7 +90,7 @@ def topics_for_file(fp):
         t.append("web")
     if ext in (".ps1", ".psm1", ".cmd", ".bat"):
         t.append("windows")
-    if ext in (".service", ".timer"):
+    if ext in (".service", ".timer") or low.startswith(NET_FILES):
         t.append("services")
     if fp.startswith(LIVE_DIRS) or "/.claude/hooks/" in low or "/.claude/scripts/" in low \
             or low.endswith("/settings.json") or low.endswith("/settings.local.json"):
@@ -103,6 +106,29 @@ DASH_C = re.compile(r"(\s-c\s+)(['\"])(.*?)\2", re.S)
 QUOTED = re.compile(r"'[^'\n]*'|\"(?:[^\"\\\n]|\\.)*\"")
 
 
+# network and service changes: the commands that change them and the files that hold the config. Reading them
+# (`ip a`, `ip route show`, `systemctl status`, `resolvectl status`, `nmcli dev status`) stays silent.
+NET_FILES = ("/etc/resolv.conf", "/etc/netplan/", "/etc/network/interfaces", "/etc/systemd/network/", "/etc/systemd/resolved.conf")
+NET_CMD = re.compile(
+    r"(?:^|[\s;&|(])(?:"
+    r"netplan\s+(?:apply|try)\b"
+    r"|ip\s+(?:-\S+\s+)*(?:a|ad|addr|address|r|ro|route|l|li|link|n|neigh|rule)\s+(?:add|del|delete|change|replace|set|flush|append)\b"
+    r"|nmcli\b[^;&|\n]*\s(?:modify|mod|up|down|delete|del|add|reload)\b"
+    r"|resolvectl\s+(?:dns|domain|default-route|revert|llmnr|mdns|dnssec|dnsovertls)\b"
+    r"|systemctl\s+(?:-\S+\s+)*(?:restart|stop|reload|try-restart|reload-or-restart|disable|mask|kill)\s+"
+    r"(?:[^;&|\n]*\s)?(?:networking|systemd-networkd|NetworkManager|systemd-resolved)(?:\.service)?\b"
+    r"|service\s+(?:networking|network-manager|NetworkManager|systemd-networkd)\s+(?:restart|stop|reload)\b"
+    r"|ifdown\b|ifup\b)")
+_NF = "(?:" + "|".join(re.escape(p) for p in NET_FILES) + r")[^\s;&|]*"
+NET_WRITE = re.compile(r"(?:(?<![0-9&])>{1,2}\s*|\btee\s+(?:-a\s+)?|\bsed\s+-i\S*\s[^;&|\n]*?)" + _NF
+                       + r"|\b(?:cp|mv|install|ln)\b[^;&|\n]*\s" + _NF + r"\s*(?=$|[;&|\n])", re.M)   # cp/mv/ln: only the LAST argument (a backup copy FROM it is the right move)
+
+
+def net_change(cmd):
+    """a command that changes the network or a network service, or writes one of its config files"""
+    return bool(NET_CMD.search(strip_text(cmd)) or NET_WRITE.search(HEREDOC.sub(" ", cmd)))
+
+
 def strip_text(cmd):
     """Heredoc bodies and quoted strings are TEXT, not commands. Except `-c "…"` (bash/sh/su/runuser -c): unwrapped."""
     cmd = HEREDOC.sub(" ", cmd)
@@ -111,7 +137,7 @@ def strip_text(cmd):
 
 
 def topics_for_cmd(cmd):
-    t = []
+    t = ["services"] if net_change(cmd) else []   # first: the costliest lesson
     cmd = strip_text(cmd)
     if CONCURRENCY.search(cmd):
         t.append("concurrency")
@@ -122,6 +148,7 @@ def topics_for_cmd(cmd):
     if re.search(r"(^|[\s;&|(])adb(\.exe)?\s", cmd):
         t.append("android")
     return t
+
 
 
 def headings(topic):

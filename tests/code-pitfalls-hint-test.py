@@ -14,7 +14,8 @@ for d in (f"{T}/home/.claude/task-taken", PIT, f"{C}/scripts", f"{WS}/decisions"
     os.makedirs(d, exist_ok=True)
 for topic, h in (("python", "Own file named like a stdlib module"), ("verification", "Green test, broken prod"),
                  ("git", "git add a b c: one bad path adds nothing"), ("vm", "ssh without -F"), ("shell", "set -e in a subshell"),
-                 ("web", "Mobile width"), ("hooks", "A hook without +x"), ("concurrency", "Write without a lock")):
+                 ("web", "Mobile width"), ("hooks", "A hook without +x"), ("concurrency", "Write without a lock"),
+                 ("services", "A network change: rollback first, reboot, read the log")):
     open(f"{PIT}/{topic}.md", "w").write(f"# {topic}\n\n### {h}\nbody\n")
 open(f"{WS}/CODING-STANDARD.md", "w").write("# Coding standard\n\n**Version: 7** (2026-11).\n")
 open(f"{WS}/WEB-playbook.md", "w").write("# web\n")
@@ -121,4 +122,27 @@ ok("25 the same session and hour -> once", "merge-base" in o1 and "merge-base" n
 
 for m in glob.glob(f"/tmp/cph-{TAG}*"):
     os.remove(m)
+# network / service changes -> services (the first heading of services.md); reading them, a backup copy FROM a config
+# file, the words in quotes or a heredoc -> silent
+SV = "A network change: rollback first"
+for c in ("netplan apply", "sudo netplan try --timeout 60", "ip addr add 10.0.0.2/24 dev eth0", "ip -4 route del default",
+          "ip link set eth0 down", "nmcli con modify eth0 ipv4.dns 1.1.1.1", "nmcli connection up eth0",
+          "resolvectl dns eth0 1.1.1.1", "echo nameserver 1.1.1.1 > /etc/resolv.conf",
+          "sed -i 's/a/b/' /etc/netplan/50-cloud-init.yaml", "tee /etc/network/interfaces < new", "cp new.yaml /etc/netplan/01.yaml",
+          "ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf", "systemctl restart networking",
+          "systemctl stop systemd-networkd", "sudo systemctl restart NetworkManager.service", "bash -c \"netplan apply\"",
+          "cd /etc && ifdown eth0"):
+    o = run("Bash", {"command": c})
+    ok(f"26 a network change -> services: {c}", SV in o, o)
+for c in ("ip a", "ip route show", "ip addr show dev eth0", "systemctl status networking", "systemctl restart nginx",
+          "resolvectl status", "nmcli dev status", "cat /etc/resolv.conf", "cp /etc/resolv.conf /tmp/resolv.bak",
+          "grep dns /etc/netplan/50.yaml", "echo 'then netplan apply' > /tmp/note",
+          "cat > /tmp/plan.txt <<'EOF'\nnetplan apply\nsystemctl restart networking\nEOF"):
+    o = run("Bash", {"command": c})
+    ok(f"27 not a change -> no services: {c!r}", SV not in o, o)
+o = run("Edit", {"file_path": "/etc/netplan/50-cloud-init.yaml", "new_string": "dhcp4: true"})
+ok("28 editing a network config file -> services", SV in o, o)
+o = run("Edit", {"file_path": "/x/app.service", "new_string": "[Service]"})
+ok("28b a .service file still -> services", SV in o, o)
+
 print(f"code-pitfalls-hint: {P} pass, {F} fail"); sys.exit(1 if F else 0)
