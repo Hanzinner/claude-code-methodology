@@ -1,6 +1,6 @@
 # Contributing
 
-Additions and refinements welcome. Read `CLAUDE.md` and `docs/philosophy.md` first — that's the spine everything hangs off of.
+Additions and refinements welcome. Read `CLAUDE.md` first — that's the spine everything hangs off of.
 
 ## What fits
 

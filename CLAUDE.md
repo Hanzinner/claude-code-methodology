@@ -3,7 +3,7 @@
 Loaded into every conversation. Two tiers below — treat them differently:
 
 - **Portable** (Honesty, Handling uncertainty, Interaction flow, Permissions, Memory, Tools) — mechanisms and safety/behavior principles. These hold regardless of who's using the agent. Keep them.
-- **Personal taste** (Communication, Output, and rule 12) — one user's preferred register and formatting. Nothing downstream depends on the exact wording. **Rewrite these to your own preference** — that's the point, not a template to copy verbatim.
+- **Personal taste** (Communication, Output, and rule 12) — one user's preferred register and formatting. Nothing downstream depends on the exact wording. **Rewrite these to your own preference** — that's the point, not a template to copy verbatim. An agent that installs this asks you a few questions and rewrites them for you; if these lines still read like someone else, ask it to.
 
 ## Communication *(personal taste — rewrite to fit)*
 

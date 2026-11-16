@@ -64,7 +64,11 @@ You can hand the repo to your own agent and say "install this": it runs `./insta
 > run the check again. Do not delete or move anything in ~/.claude yourself. Tell me which of my existing
 > files the installer backed up or kept (`*.bak-*`, `CLAUDE.md.new`). Then read docs/accounts.md and tell me,
 > one line each, which optional accounts I might want (web search, offsite backup, phone bot): where to sign up
-> and which file the key goes into. Never ask me for a key in the chat. Finally tell me to restart Claude Code.
+> and which file the key goes into. Never ask me for a key in the chat. Then make ~/.claude/CLAUDE.md mine: its
+> "personal taste" sections (Communication, Output, rule 12) are someone else's style. Ask me, one short question
+> each, what language you should answer in, how long and how formal your replies should be, whether I want emojis,
+> and whether you may suggest breaks; rewrite those sections to my answers and show me the diff. Leave the other
+> sections as they are. Finally tell me to restart Claude Code.
 
 **What it never touches:** your chats and session history (`~/.claude/projects/`, `history.jsonl`),
 `~/.claude.json`, your own commands, agents and MCP servers. It writes only its own folders and merges
@@ -117,7 +121,7 @@ scripts, and Claude Code on Windows runs PowerShell unless Git Bash is installed
 | `addons/net-change/` | Network change with snapshot and automatic roll-back unless confirmed |
 | `addons/dashboard/` | Read-only local status page of the agents |
 | `addons/reader/` | Concept only: a reader for documents agents hand to a human |
-| `docs/` | Methodology writeup, architecture, philosophy, memory system, hooks guide, examples, case study, multi-agent, context management, measurement & proof, mistakes journal, mission control, dev methodology, rule to mechanism |
+| `docs/` | Methodology writeup, architecture, memory system, hooks guide, examples, case study, multi-agent, context management, measurement & proof, mistakes journal, mission control, dev methodology, rule to mechanism |
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
 
