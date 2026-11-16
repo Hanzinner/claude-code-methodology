@@ -27,7 +27,7 @@ agents; the right-hand column is what guards each one in this repo.
 | 9 | Fixed `sleep` against an event of variable length | lesson in `code-pitfalls/shell.md` |
 | 10 | Silent death: something broke and nobody shouted (empty log, hook without +x) | `hooks/hook-safe.sh` + `hooks/surface-flags.sh` |
 | 11 | An alert arrived, nobody acted | none |
-| 12 | A test wrote into live state | `TEST_MODE=1` convention, `docs/coding-standard.md` §2.4 |
+| 12 | A test wrote into live state | `CCM_TEST=1` convention, `docs/coding-standard.md` §2.4 |
 | 13 | A mechanism keyed on the text of a command, not on the action or identity | none |
 | 14 | Slop in a text for a human | `docs/hall-of-shame-docs.md` |
 | 15 | A mechanism didn't move to a new project (only the text "how we did it" did) | none shipped |
