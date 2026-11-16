@@ -16,6 +16,7 @@ Next to each rule, who guards it: ⚙ mechanism · 📊 audit (catches only what
 
 1. **Idea → lead → story.** A story has a **"Done when"** (a check that runs) in the project's `ROADMAP.md`, with a **size and priority**. The order of epics is the operator's. **Blocks the operator's work → 95, ahead of everything** ✋ (an audit sees only a letter tagged 🖐/9x that has sat in the inbox over a day). (§1)
 2. **Lead → executor** by letter. The executor **does not block on others**: write it and keep working ✋. (§D-A)
+2a. **Before the first code edit: "I take task N"** — `scripts/take_task.sh <project> <story code>` (a story from `ROADMAP.md`; a fix for a QA finding: the finding's number). A code edit in a project without a task taken is written to a journal ⚙ (`~/.claude/issue-first.log`; for now only a journal, a block once it is calibrated). No more than 2 tasks in progress per agent ✋.
 3. **The executor works the cycle** [coding-standard §2.1](coding-standard.md): look at how it is done → requirements → reference data → code and tests (a test from "Done when"; a bug gets a failing test first) → **3 failures: stop** ⚙.
 4. **Handing in: "done" only with a run in this turn** ⚙. Critical: **review by another model** ✋. ([coding-standard §3, §0](coding-standard.md))
 5. **Verification on the live system by NOT the author**, along the user's path. The verifier has a veto, not the right to accept ✋. (§D-A, §3-P)

@@ -97,7 +97,7 @@ already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS
 2. **Say what it owns.** After the first real conversation the agent fills `briefing.md`: its role in one line,
    what it owns, what it doesn't touch, where its tasks come from. Check the registry row. Ownership is the part
    that matters: two agents owning one file is how work gets lost. An agent that writes code also reads
-   `CODING-STANDARD.md` and confirms it in its briefing (`Standard: v1 read <date>`); with the file listed in its
+   `CODING-STANDARD.md` and confirms it in its briefing (`Standard: v<N> read <date>`); with the file listed in its
    `.watchlist`, it is shown what changed whenever the standard gets a new version.
 3. **Open it:** start a new chat whose **first message is just the agent's name** (`Docs`, `docs-agent`, `Docs v2`
    all work). From then on that chat is that agent: on every message it is shown its briefing again when the
