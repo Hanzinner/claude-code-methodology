@@ -5,7 +5,7 @@ set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 LC=${LC:-$HERE/../scripts/library_check.py}
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
-export HOME="$T/home" HANZ_TEST=1 CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T"; mkdir -p "$HOME"
+export HOME="$T/home" CCM_TEST=1 CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T"; mkdir -p "$HOME"
 C() { python3 "$LC" --dry "$@"; }   # a function: the install path may contain spaces and quotes
 mkdir -p "$T/s" "$T/docs" "$T/nofresh"
 for f in gate.py tagged.py branch.py cronjob.sh; do echo '#' > "$T/s/$f"; done

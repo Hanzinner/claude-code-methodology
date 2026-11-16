@@ -8,7 +8,7 @@ SG = os.environ.get("SG", os.path.join(HERE, "..", "hooks", "selfkill-gate.py"))
 T = tempfile.mkdtemp(prefix="sg-test-")
 CONF = f"{T}/methodology.conf"          # CCM_ALARM_SCRIPTS is a new key: it is read from the config file
 open(CONF, "w").write("CCM_ALARM_SCRIPTS=wait-alarm.sh\n")
-ENV = {**os.environ, "HOME": T, "CLAUDE_METHODOLOGY_CONF": CONF, "HANZ_TEST": "1"}
+ENV = {**os.environ, "HOME": T, "CLAUDE_METHODOLOGY_CONF": CONF, "CCM_TEST": "1"}
 P = F = 0
 
 

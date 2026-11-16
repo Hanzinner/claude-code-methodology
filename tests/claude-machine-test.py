@@ -20,7 +20,7 @@ res = {"type": "result", "result": "the answer", "is_error": mode == "err",
 print(json.dumps([{"type": "system"}, res]))
 ''')
 os.chmod(FAKE, 0o755)
-ENV = {**os.environ, "HOME": T, "CLAUDE_METHODOLOGY_CONF": "/nonexistent", "CLAUDE_BIN": FAKE, "MACHINE_USAGE": LOG, "FAKE_ARGS": ARGS, "HANZ_TEST": "1"}
+ENV = {**os.environ, "HOME": T, "CLAUDE_METHODOLOGY_CONF": "/nonexistent", "CLAUDE_BIN": FAKE, "MACHINE_USAGE": LOG, "FAKE_ARGS": ARGS, "CCM_TEST": "1"}
 P = F = 0
 
 

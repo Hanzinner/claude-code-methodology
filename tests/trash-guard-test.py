@@ -15,7 +15,7 @@ CONF = f"{R}/methodology.conf"          # new keys (limit, board) come from the 
 open(CONF, "w").write(f"CCM_TRASH_LIMIT_GB=0.002\nCCM_TRASH_BOARD={BOARD}\n")   # limit ~2 MB
 ENV = {**os.environ, "HOME": HOME, "CLAUDE_METHODOLOGY_CONF": CONF, "CCM_TRASH_DIR": TR, "CCM_TRASH_DAYS": "14",
        # names the live original reads (so the same test can be pointed at it)
-       "TRASH_DIR": TR, "TRASH_STATE": ST, "TRASH_BOARD": BOARD, "TRASH_LIMIT_GB": "0.002", "HANZ_TEST": "1"}
+       "TRASH_DIR": TR, "TRASH_STATE": ST, "TRASH_BOARD": BOARD, "TRASH_LIMIT_GB": "0.002", "CCM_TEST": "1"}
 P = F = 0
 def ok(n, c, o=""):
     global P, F

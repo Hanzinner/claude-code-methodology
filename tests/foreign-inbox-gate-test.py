@@ -10,7 +10,7 @@ AG = f"{T}/Agents"
 home = f"{T}/h"; os.makedirs(f"{home}/.claude/agent-identity"); os.makedirs(f"{AG}/Alpha"); os.makedirs(f"{AG}/Beta")
 open(f"{home}/.claude/agent-identity/sidA", "w").write(f"{AG}/Alpha\n")
 ENV = {**os.environ, "HOME": home, "CLAUDE_METHODOLOGY_CONF": "/nonexistent", "CCM_AGENTS_DIR": AG,
-       "CCM_CLAUDE_DIR": f"{T}/inst", "HANZ_TEST": "1"}
+       "CCM_CLAUDE_DIR": f"{T}/inst", "CCM_TEST": "1"}
 IB = f"{AG}/Beta/inbox.md"
 SC = f"{T}/inst/scripts"
 P = F = 0

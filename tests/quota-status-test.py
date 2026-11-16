@@ -61,7 +61,7 @@ def creds(home, expires_in_s):
 
 
 def run(home, *a):
-    env = {**os.environ, "HOME": home, "QUOTA_USAGE_URL": URL, "HANZ_TEST": "1", "CLAUDE_METHODOLOGY_CONF": "/nonexistent"}
+    env = {**os.environ, "HOME": home, "QUOTA_USAGE_URL": URL, "CCM_TEST": "1", "CLAUDE_METHODOLOGY_CONF": "/nonexistent"}
     for k in ("QUOTA_ROOTS", "QUOTA_IDENT", "QUOTA_CREDS", "QUOTA_CACHE", "QUOTA_REAL_STATE", "MACHINE_USAGE", "QUOTA_STATUS"):
         env.pop(k, None)
     return subprocess.run([sys.executable, QS, *a], capture_output=True, text=True, env=env, cwd=home)

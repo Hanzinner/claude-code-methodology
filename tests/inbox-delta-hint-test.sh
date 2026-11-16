@@ -5,7 +5,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 H=${H:-$HERE/../hooks/inbox-delta-hint.py}
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
-export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent HANZ_TEST=1; mkdir -p "$HOME/.claude/agent-identity" "$T/Agent"
+export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_TEST=1; mkdir -p "$HOME/.claude/agent-identity" "$T/Agent"
 SID="deltatest-$$"; echo "$T/Agent" > "$HOME/.claude/agent-identity/$SID"
 printf '# X - inbox\n\n## New\n\n- [ ] [2026-09-22] old letter\n\n## Processed\n- [x] ancient\n' > "$T/Agent/inbox.md"
 run() { echo "{\"session_id\":\"$SID\",\"tool_name\":\"Bash\"}" | INBOX_DELTA_THROTTLE="${THR:-0}" python3 "$H"; }

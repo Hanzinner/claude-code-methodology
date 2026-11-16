@@ -6,7 +6,7 @@ set -u
 HERE="$(dirname "$(readlink -f "$0")")"
 M=${M:-$HERE/../scripts/mech_snapshot.sh}
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
-export HANZ_TEST=1 HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent
+export CCM_TEST=1 HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent
 mkdir -p "$HOME"
 W="$T/code"; mkdir -p "$W/scripts" "$W/hooks"
 for i in $(seq 1 12); do printf '#!/bin/bash\necho %s\n' "$i" > "$W/scripts/s$i.sh"; done

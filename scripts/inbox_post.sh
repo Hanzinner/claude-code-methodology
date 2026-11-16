@@ -128,8 +128,9 @@ if [ "$ok" -ne 1 ]; then
     exit 0
 fi
 # The addressee is not listening (no alarm, session silent) -> one line to the sender. Delivery and rc do not change.
-# Off in tests unless asked for (INBOX_LISTEN=1).
-if [[ "${INBOX_LISTEN:-}" == 1 || ( "${HANZ_TEST:-}" != 1 && "${INBOX_LISTEN:-}" != 0 ) ]]; then
+# Off in tests unless asked for (INBOX_LISTEN=1). A test run is marked CCM_TEST=1 (HANZ_TEST=1 is the older name, still honoured).
+TESTING=${CCM_TEST:-${HANZ_TEST:-}}
+if [[ "${INBOX_LISTEN:-}" == 1 || ( "$TESTING" != 1 && "${INBOX_LISTEN:-}" != 0 ) ]]; then
     if command -v timeout >/dev/null 2>&1; then timeout 5 "$HERE/agent_listening.py" "$inbox" 2>/dev/null || true
     else "$HERE/agent_listening.py" "$inbox" 2>/dev/null || true; fi
 fi

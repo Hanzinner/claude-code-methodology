@@ -38,7 +38,7 @@ res = {"type": "result", "result": json.dumps(rows), "is_error": False, "modelUs
 print(json.dumps([{"type": "system"}, res]))
 ''')
 os.chmod(FAKE, 0o755)
-ENV = {**os.environ, "HOME": H, "CLAUDE_METHODOLOGY_CONF": "/nonexistent", "HANZ_TEST": "1", "CCM_WORKSPACE": WS, "CCM_AGENTS_DIR": AG,
+ENV = {**os.environ, "HOME": H, "CLAUDE_METHODOLOGY_CONF": "/nonexistent", "CCM_TEST": "1", "CCM_WORKSPACE": WS, "CCM_AGENTS_DIR": AG,
        "CCM_TIMEZONE": "UTC", "CLAUDE_BIN": FAKE, "CCM_STATS_OWNER": "Alpha", "CCM_MISTAKES": WS + "/MISTAKES.md",
        "CCM_CLAUDE_DIR": H + "/.claude", "STATS_DIR": STATS}
 

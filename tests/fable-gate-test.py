@@ -6,7 +6,7 @@ import json, os, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.realpath(__file__))
 FG = os.environ.get("FG", os.path.join(HERE, "..", "hooks", "fable-gate.py"))
 ENV = {**os.environ, "HOME": tempfile.mkdtemp(prefix="fg-test-"), "CLAUDE_METHODOLOGY_CONF": "/nonexistent",
-       "CCM_FORBIDDEN_SUBAGENT_MODELS": "fable", "HANZ_TEST": "1"}
+       "CCM_FORBIDDEN_SUBAGENT_MODELS": "fable", "CCM_TEST": "1"}
 P = F = 0
 
 

@@ -5,7 +5,7 @@ import json, os, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 SF = os.environ.get("SF", os.path.join(HERE, "..", "hooks", "sysfile-gate.py"))
-ENV = {**os.environ, "HOME": tempfile.mkdtemp(prefix="sf-test-"), "CLAUDE_METHODOLOGY_CONF": "/nonexistent", "HANZ_TEST": "1"}
+ENV = {**os.environ, "HOME": tempfile.mkdtemp(prefix="sf-test-"), "CLAUDE_METHODOLOGY_CONF": "/nonexistent", "CCM_TEST": "1"}
 C = [
     ("rm -f /dev/null", 1), ("sudo rm -f /dev/null", 1), ("sudo -n rm /dev/null", 1),
     ("sudo -u root timeout -k 3 10 rm /dev/null", 1), ("mv /dev/null /tmp/x", 1),

@@ -32,7 +32,7 @@ OUT = H + "/.claude/reports/token-daily"
 
 
 def run(*a, extra=None):
-    env = {**os.environ, "HOME": H, "CCM_TIMEZONE": "UTC", "CLAUDE_METHODOLOGY_CONF": "/nonexistent", "HANZ_TEST": "1", **(extra or {})}
+    env = {**os.environ, "HOME": H, "CCM_TIMEZONE": "UTC", "CLAUDE_METHODOLOGY_CONF": "/nonexistent", "CCM_TEST": "1", **(extra or {})}
     for k in ("TOKEN_REPORT_DIR", "CLAUDE_PROJECTS_DIR", "SUPERVISOR_SUMMARY"):
         env.pop(k, None) if not extra or k not in extra else None
     return subprocess.run([sys.executable, TR, *a], capture_output=True, text=True, env=env)

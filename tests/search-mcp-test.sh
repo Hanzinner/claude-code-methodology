@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-export HANZ_TEST=1
+export CCM_TEST=1
 # Test of search_mcp.py (Tavily -> Exa rotation) + websearch-to-tavily.sh (WebSearch only when all are exhausted).
 # No real API and no network beyond loopback: a local mock server stands in for both providers; a scenario file sets
 # its answer. SM=<path> / WH=<path> test other copies. Sandbox: temp HOME, no config file.

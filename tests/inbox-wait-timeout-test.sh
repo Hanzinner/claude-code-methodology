@@ -4,7 +4,7 @@
 HERE="$(cd "$(dirname "$0")" && pwd)"
 H=${H:-$HERE/../hooks/inbox-wait-timeout.py}
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
-export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_CLAUDE_DIR="$T/inst" HANZ_TEST=1; mkdir -p "$HOME"
+export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_CLAUDE_DIR="$T/inst" CCM_TEST=1; mkdir -p "$HOME"
 pass=0; fail=0
 run() { python3 -c 'import json,sys; ti={"command":sys.argv[1]}; ti.update(json.loads(sys.argv[2])); print(json.dumps({"tool_name":"Bash","tool_input":ti}))' "$1" "${2:-{\}}" | python3 "$H"; }
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; fi; }

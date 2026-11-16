@@ -7,7 +7,7 @@ P=${P:-$HERE/../scripts/inbox_post.sh}
 D=${D:-$HERE/../scripts/inbox_done.sh}
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home"; mkdir -p "$HOME/.claude"
-export CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_AGENTS_DIR="$T/Agents" HANZ_TEST=1
+export CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_AGENTS_DIR="$T/Agents" CCM_TEST=1
 unset INBOX_AGENTS_ROOT
 LOG="$HOME/.claude/inbox-post-repairs.log"
 pass=0; fail=0
@@ -117,7 +117,11 @@ ok "15b a more precise substring -> exactly that one closed" '[ $rc = 0 ] && new
 mkdir -p "$T/li"; out=$(INBOX_LISTEN=1 LISTEN_IDENT="$T/li" LISTEN_ROOTS="$T/li" LISTEN_WAIT="$T/li" AGENT_TAB_SESSIONS="$T/li" "$P" Foo "- [ ] [2026-10-24] to-the-silent-$$" 2>&1); rc=$?
 ok "16 no alarm and no session -> \"⚠ Foo is not listening\", delivered, rc 0" '[ $rc = 0 ] && echo "$out" | grep -q "⚠ Foo is not listening" && grep -q "to-the-silent-$$" "$A/Foo/inbox.md"' "$out"
 out=$("$P" Foo "- [ ] [2026-10-24] test-silence-$$" 2>&1)
-ok "16b under tests (HANZ_TEST=1) without INBOX_LISTEN - silent" '[ -z "$out" ]' "$out"
+ok "16b under tests (CCM_TEST=1) without INBOX_LISTEN - silent" '[ -z "$out" ]' "$out"
+out=$(env -u CCM_TEST HANZ_TEST=1 "$P" Foo "- [ ] [2026-10-24] old-name-$$" 2>&1)
+ok "16c the older name HANZ_TEST=1 still marks a test run - silent" '[ -z "$out" ]' "$out"
+out=$(env -u CCM_TEST -u HANZ_TEST LISTEN_IDENT="$T/li" LISTEN_ROOTS="$T/li" LISTEN_WAIT="$T/li" AGENT_TAB_SESSIONS="$T/li" "$P" Foo "- [ ] [2026-10-24] no-test-mark-$$" 2>&1)
+ok "16d neither name set -> the listening check runs (\"not listening\")" 'echo "$out" | grep -q "⚠ Foo is not listening"' "$out"
 
 # 17. concurrency: 12 parallel writers, nothing lost, nothing doubled
 f="$A/Baz/inbox.md"; printf '# t\n\n## New\n\n## Processed\n' > "$f"
