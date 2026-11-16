@@ -95,7 +95,7 @@ already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS
 
 Runs from the crontab block the installer added; nothing to start by hand.
 
-- **The supervisor** (every 15 min) runs 18 checks of whether the mechanisms still do their job: hooks present
+- **The supervisor** (every 15 min) runs 20 checks of whether the mechanisms still do their job: hooks present
   and not timing out, the watchman alive, reminders delivered, an agent not stuck on an API error. What is red
   is in `~/.claude/supervisor/summary.json`; the two that need you (an agent can't answer after your message; a cut-off
   write left empty objects in git) appear as one line at the top of your next message to any agent. After the machine was off,
@@ -106,6 +106,10 @@ Runs from the crontab block the installer added; nothing to start by hand.
   keeper which kind of mistake repeated three times and needs a mechanism.
 - **Your quota:** `scripts/quota_status.py` shows how much of your plan is used (it asks Anthropic with your
   own login, read only); a daily token report is written to a file, not sent anywhere.
+- **A copy of your chats:** every night at 03:10 the Claude Code transcripts are copied to
+  `~/.claude-backups/<date>/` (unchanged files share disk space). Nothing is deleted unless you enabled cleanup,
+  then copies older than a year. The supervisor turns red if the copy is older than a day.
+  Want your working folder committed to git every night as well: `./install.sh --with-git-snapshot`.
 - **History of the mechanisms' code:** every 10 minutes the installed hooks and scripts are committed into a
   separate git (`~/.claude/mech.git`), so "what changed in this gate since yesterday" has an answer.
 - **Publishing a repo:** `scripts/public_gate.sh <dir>` refuses a push to anywhere public if the repo or any
