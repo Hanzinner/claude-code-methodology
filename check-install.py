@@ -156,6 +156,14 @@ if os.path.exists(f"{target}/scripts/backup/backup-restic.sh") and not any(
     todo.append(f"offsite backup: installed, no storage keys in {secrets} -> {DOC}#s3-compatible-storage--offsite-backup")
 if os.path.exists(f"{target}/mobile-bot/bot.py") and not os.path.exists(os.path.join(secrets, "mobile-bot.env")):
     todo.append(f"mobile bot: installed, no {secrets}/mobile-bot.env -> {DOC}#telegram--mobile-bot")
+if os.path.isfile(f"{target}/addons/session-hygiene/session-hygiene.py"):
+    try:
+        r = subprocess.run([sys.executable, f"{target}/scripts/cron_state_check.py", "session_hygiene", "36"],
+                           capture_output=True, text=True, timeout=15)
+        why = (r.stdout or r.stderr).strip().splitlines()[-1:] or ["?"]
+        print(f"  session-hygiene add-on: {'never ran yet (it waits for the nightly chat backup)' if r.returncode == 3 else why[0]}")
+    except Exception as e:
+        print(f"  session-hygiene add-on: state unknown ({str(e)[:80]})")
 rcheck = f"{target}/addons/reader/reader-check.py"
 if os.path.isfile(rcheck):
     try:

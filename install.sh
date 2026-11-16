@@ -26,6 +26,7 @@
 #   --with-agent-browser         # a headless browser the agents drive: copy to <dir>/addons/agent-browser/, fetch its engine (no root); service/links = setup-agent-browser.sh (root, optional)
 #   --with-net-change            # safe network changes (snapshot, apply, roll back unless confirmed): copy to <dir>/addons/net-change/; setup-net-change.sh needs root
 #   --with-dashboard             # local read-only status page of the agents (127.0.0.1:8765): copy to <dir>/addons/dashboard/ (nothing to set up)
+#   --with-session-hygiene       # daily: trim old tool outputs from large inactive chat files (only sessions the nightly chat backup holds as they are; text never touched): copy to <dir>/addons/session-hygiene/ + a crontab line
 #   --with-reader                # document reader for the workspace (.md/.fb2 in the browser, 127.0.0.1:8001): copy to <dir>/addons/reader/, start it now and after a reboot (crontab, no root)
 #   --no-cron                    # do not touch the crontab (also automatic for an install under a temp dir)
 #   --prune-cron                 # remove OUR crontab blocks whose install dir no longer exists, then exit
@@ -54,6 +55,7 @@ WITH_AGENT_BROWSER=0
 WITH_NET_CHANGE=0
 WITH_DASHBOARD=0
 WITH_READER=0
+WITH_SESSION_HYGIENE=0
 NO_CRON=0
 PRUNE_CRON=0
 OPT_NAME=""
@@ -81,6 +83,7 @@ while [[ $# -gt 0 ]]; do
     --with-net-change) WITH_NET_CHANGE=1 ;;
     --with-dashboard) WITH_DASHBOARD=1 ;;
     --with-reader) WITH_READER=1 ;;
+    --with-session-hygiene) WITH_SESSION_HYGIENE=1 ;;
     --no-cron)     NO_CRON=1 ;;
     --prune-cron)  PRUNE_CRON=1 ;;
     --name|--workspace|--timezone)
@@ -531,6 +534,10 @@ fi
 # the reader add-on is started after a reboot from here (no root, no service manager needed); install.sh starts it now too
 [[ $WITH_READER -eq 1 ]] && CRON_LINES="$CRON_LINES
 @reboot sleep 30 && mkdir -p $(q "$HOME/.claude/logs") && python3 $(q "$TARGET/addons/reader/reader-server.py") >> $(q "$HOME/.claude/logs/reader.log") 2>&1"
+# session hygiene rewrites chat files: only from 04:00 (after the 03:10 chat backup), retried hourly by catchup-run while
+# that backup is not fresh (rc 75); it touches only sessions the backup holds exactly as they are now
+[[ $WITH_SESSION_HYGIENE -eq 1 ]] && CRON_LINES="$CRON_LINES
+7 * * * * $(q "$TARGET/bin/catchup-run") session_hygiene daily --after 4 -- python3 $(q "$TARGET/addons/session-hygiene/session-hygiene.py")"
 [[ $CLEANUP -eq 1 ]] && CRON_LINES="$CRON_LINES
 35 4 * * * python3 $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1"
 CRON_LINES="$CRON_LINES
@@ -661,6 +668,13 @@ if [[ $WITH_READER -eq 1 ]]; then
   fi
   say "  reader: this machine only by default. CCM_READER_BIND=0.0.0.0 opens it to the network with NO password — use a proxy that asks for one"
   say "  reader: a folder for documents agents leave for you to read = CCM_READER_SHARED in methodology.conf (empty = no such section)"
+fi
+if [[ $WITH_SESSION_HYGIENE -eq 1 ]]; then
+  echo; say "add-on session-hygiene…"
+  copy_addon session-hygiene "$TARGET/addons/session-hygiene"
+  merge_checks session-hygiene
+  if [[ $NO_CRON -eq 1 ]]; then warn "session-hygiene: not scheduled (--no-cron or a temp install dir). By hand: python3 $TARGET/addons/session-hygiene/session-hygiene.py --dry-run"
+  else ok "session-hygiene: daily from 04:00 (crontab), log ~/.claude/cron-logs/session_hygiene.log; it waits for the nightly chat backup and never touches a session the backup does not hold as it is"; fi
 fi
 
 # ---- optional system parts (explicit flags only) -----------------------------

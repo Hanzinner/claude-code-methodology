@@ -14,8 +14,8 @@
 #
 # Layout: <BACKUP_DIR>/<date>/<label>/... where label is "home" for
 # $HOME/.claude/projects and the path with "/" -> "_" for any other dir. This is
-# the layout multi-agent/session-hygiene.py checks before it trims anything
-# (its default root is ~/.claude/projects with tag "home").
+# the layout addons/session-hygiene/session-hygiene.py checks before it trims anything
+# (a session is trimmed only if <date>/home/... holds it with the same size and mtime).
 
 set -e
 

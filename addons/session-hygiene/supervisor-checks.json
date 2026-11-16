@@ -1,0 +1,15 @@
+{
+  "_about": "Supervisor entry of the session-hygiene add-on. install.sh --with-session-hygiene merges it into the registry (<supervisor dir>/checks.json). __CLAUDE_DIR__ and __HOME__ are filled in when the registry is read. only_if_exists: a machine without the add-on (no run logged yet) stays at 0 problems.",
+  "checks": [
+    {
+      "name": "Session hygiene ran",
+      "kind": "cmd",
+      "severity": "infra",
+      "owner": "",
+      "cmd": "python3 \"__CLAUDE_DIR__/scripts/cron_state_check.py\" session_hygiene 36",
+      "ok_rc": [0, 3],
+      "note": "session-hygiene runs daily under bin/catchup-run (from 04:00, retried hourly while the nightly chat backup is not fresh yet - rc 75). Red when its last run failed (a session it could not process: see ~/.claude/cron-logs/session_hygiene.log) or the last success is older than 36 working hours. rc 3 = it never succeeded yet (no fresh chat backup so far) - that is the chat backup's check to raise.",
+      "only_if_exists": "__HOME__/.claude/cron-logs/session_hygiene.log"
+    }
+  ]
+}
