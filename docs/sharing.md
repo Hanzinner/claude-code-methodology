@@ -74,7 +74,7 @@ in this repo detects paths written the second way and shows the agent a ready-ma
 
 ## Verify before you use it
 
-Status of services is state that changes (see [`staleness.md`](staleness.md)), so this page must not claim "X is
+Status of services is state that changes, so this page must not claim "X is
 running". Before **using** a channel — a sync folder, a port, a service — run one command that proves it is alive, and
 before **declaring one dead**, check that you knocked on the right address. Real cases:
 

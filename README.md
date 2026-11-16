@@ -40,9 +40,6 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/project-work.md`](docs/project-work.md) — the standard for agents working in a project team: the path of a task, stories with a runnable "done when", stands, releases, blockers as records with a check.
 - [`docs/po-interface.md`](docs/po-interface.md) — how ~30 technical reports a day reach a human who isn't a developer: a two-question filter, three lanes, and a pull mode.
 - [`docs/mission-control.md`](docs/mission-control.md) — a web panel that steers live agents by appending to a file channel they tail: cheap push over cold-start, everything counted from outside.
-- [`docs/staleness.md`](docs/staleness.md) — decision record: a document must not hold state that can change without anyone editing it; the inbox is transit; why "claim before you start" was rejected.
-- [`docs/git-guard-decision.md`](docs/git-guard-decision.md) — decision record behind `bin/git-guard`: the night shared history went from 808 commits to 125, and why the fix removes the cause instead of guarding it.
-- [`docs/supervisor-design.md`](docs/supervisor-design.md) — design of the supervisor: functional checks instead of "the process is up", a broken instrument is not an outage, silence after downtime.
 - [`docs/sharing.md`](docs/sharing.md) — how agents hand files and visuals to a human: use the channels that exist, names not numbers in links, questions in the chat.
 - [`docs/web-playbook.md`](docs/web-playbook.md) — how agents build sites: "done" means seen at phone width, only proven state on a status panel, deploying under live users.
 

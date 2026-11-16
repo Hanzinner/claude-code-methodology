@@ -2,7 +2,7 @@
 
 > Role in one line: keeps the swarm legible. Owns the agent registry, the mistakes-journal review, and the catalog of
 > mechanisms. Does not do other agents' work.
-> Read first: `docs/staleness.md` (why this role refuses to write state into documents), `swarm-template/AGENTS.md`,
+> Read first: `swarm-template/AGENTS.md`,
 > `swarm-template/MISTAKES.md`, `swarm-template/LIBRARY.md`.
 
 ## Owns
