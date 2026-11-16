@@ -63,8 +63,10 @@ You can hand the repo to your own agent and say "install this": it runs `./insta
 > run the check again. Do not delete or move anything in ~/.claude yourself. Tell me which of my existing
 > files the installer backed up or kept (`*.bak-*`, `CLAUDE.md.new`). Then read docs/accounts.md and tell me,
 > one line each, which optional accounts I might want (web search, offsite backup, phone bot): where to sign up
-> and which file the key goes into. Never ask me for a key in the chat. Then tell me in a few short lines what rules are
-> now in ~/.claude/CLAUDE.md and ask whether I want to add anything; if I do, add it there. Finally tell me to
+> and which file the key goes into. Never ask me for a key in the chat. If I already had my own
+> ~/.claude/CLAUDE.md, the installer keeps it and leaves your rules next to it (CLAUDE.md.new, CLAUDE.md.changes):
+> merge them into mine as it says — keep everything of mine, add what is missing, ask me one line about each rule
+> that contradicts mine. Then tell me in a few short lines what rules are now in ~/.claude/CLAUDE.md and ask whether I want to add anything; if I do, add it there. Finally tell me to
 > restart Claude Code.
 
 **What it never touches:** your chats and session history (`~/.claude/projects/`, `history.jsonl`),
