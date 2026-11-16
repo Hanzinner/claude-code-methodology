@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""The four shared documents every agent in the workspace follows, copied from docs/ into the workspace root.
+"""The shared documents every agent in the workspace follows, copied from docs/ into the workspace root: four rules
+and WEB-PLAYBOOK.md, the journal agents building sites read first and append their experience to.
 
   ws_docs.py install <repo dir> <workspace> <stamp dir> [--dry-run]   # install.sh calls this
   ws_docs.py render <repo dir> <docs file>                            # the workspace version, to stdout
-  ws_docs.py links <workspace>                                        # broken links in the four; rc 1 if any
+  ws_docs.py links <workspace>                                        # broken links in them; rc 1 if any
 
 docs/coding-standard.md -> CODING-STANDARD.md, project-work.md -> PROJECT-WORK.md, dev-methodology.md ->
-DEV-METHODOLOGY.md, po-interface.md -> PO-INTERFACE.md (the names hooks/proof-guard.py and the briefing template expect).
-Links are rewritten on the way: between the four -> the new names; to any other file of the repo -> its absolute path
+DEV-METHODOLOGY.md, po-interface.md -> PO-INTERFACE.md (the names hooks/proof-guard.py and the briefing template expect),
+web-playbook.md -> WEB-PLAYBOOK.md (code-pitfalls/web.md points there).
+Links are rewritten on the way: between these documents -> the new names; to any other file of the repo -> its absolute path
 in this clone, so nothing in the workspace points to a file that is not there.
 
 Updates never overwrite the human's edits (the same scheme as CLAUDE.md):
@@ -21,7 +23,8 @@ Stamps: <stamp dir>/ws-<NAME>.sha256 (what we wrote) and ws-<NAME>.base (our tex
 import difflib, hashlib, os, re, sys
 
 DOCS = {"coding-standard.md": "CODING-STANDARD.md", "project-work.md": "PROJECT-WORK.md",
-        "dev-methodology.md": "DEV-METHODOLOGY.md", "po-interface.md": "PO-INTERFACE.md"}
+        "dev-methodology.md": "DEV-METHODOLOGY.md", "po-interface.md": "PO-INTERFACE.md",
+        "web-playbook.md": "WEB-PLAYBOOK.md"}
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 TEXT = re.compile(r"(?<![\w/.-])docs/(" + "|".join(re.escape(k[:-3]) for k in DOCS) + r")\.md")
 

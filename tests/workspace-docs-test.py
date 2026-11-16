@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""lib/ws_docs.py: the four shared documents in the workspace. A temp copy of the repo's docs, a temp workspace and stamp
-dir. Checks the link rewrite, no broken link, that hooks/proof-guard.py sees all four, and the update scheme: untouched
+"""lib/ws_docs.py: the five shared documents in the workspace. A temp copy of the repo's docs, a temp workspace and stamp
+dir. Checks the link rewrite, no broken link, that hooks/proof-guard.py sees the four rules (not the playbook, a journal), and the update scheme: untouched
 -> replaced, edited by the human -> kept + .new + .changes, merged -> quiet, an old raw copy -> replaced, --dry-run ->
 nothing written. WSD=path tests another copy. Last line: workspace-docs-test: N pass, M fail."""
 import os, re, shutil, subprocess, sys, tempfile
@@ -28,7 +28,8 @@ T = Path(tempfile.mkdtemp(prefix="wsdocs-test-"))
 R, WS, ST = T / "repo", T / "ws", T / "stamp"
 for d in ("docs", "code-pitfalls", "swarm-template"):
     shutil.copytree(REPO / d, R / d)
-NAMES = ("CODING-STANDARD.md", "PROJECT-WORK.md", "DEV-METHODOLOGY.md", "PO-INTERFACE.md")
+RULES = ("CODING-STANDARD.md", "PROJECT-WORK.md", "DEV-METHODOLOGY.md", "PO-INTERFACE.md")
+NAMES = RULES + ("WEB-PLAYBOOK.md",)
 passed = failed = 0
 
 
@@ -53,13 +54,14 @@ ok("2 other repo files -> absolute path in the clone", f"]({R}/docs/mistakes-jou
 ok("3 the text 'docs/po-interface.md' -> PO-INTERFACE.md", "docs/po-interface.md" not in out and "docs/project-work.md" not in out)
 
 rc, out = inst()
-ok("4 fresh install -> all four written", rc == 0 and all((WS / n).is_file() for n in NAMES) and "4 added" in out, out)
-rc, out = run("links", str(WS)); ok("5 no broken link in any of the four", rc == 0, out)
+ok("4 fresh install -> all five written", rc == 0 and all((WS / n).is_file() for n in NAMES) and "5 added" in out, out)
+rc, out = run("links", str(WS)); ok("5 no broken link in any of the five", rc == 0, out)
 pg = subprocess.run([sys.executable, "-c", "import importlib.util,sys; s=importlib.util.spec_from_file_location('pg', sys.argv[1]); "
                      "m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print('\\n'.join(m.SHARED_DOCS))", str(HERE / "hooks/proof-guard.py")],
                     capture_output=True, text=True, timeout=30, env={**os.environ, "CCM_WORKSPACE": str(WS), "CLAUDE_METHODOLOGY_CONF": str(T / "none"), "HOME": str(T / "home")})
 seen = pg.stdout.split()
-ok("6 proof-guard's shared documents are these four files, all present", all(str(WS / n) in seen and (WS / n).is_file() for n in NAMES), (pg.stdout, pg.stderr[-300:]))
+ok("6 proof-guard's shared documents are these four files, all present", all(str(WS / n) in seen and (WS / n).is_file() for n in RULES), (pg.stdout, pg.stderr[-300:]))
+ok("6b the playbook is a journal agents append to, not a rule -> not in proof-guard's list", str(WS / "WEB-PLAYBOOK.md") not in seen, pg.stdout)
 
 rc, out = inst(); ok("7 re-run, nothing changed -> 0 added 0 updated, no .new", "0 added, 0 updated" in out and not list(WS.glob("*.new")), out)
 
