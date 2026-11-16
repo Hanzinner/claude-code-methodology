@@ -38,6 +38,7 @@ Next to each rule, who guards it: ⚙ mechanism · 📊 audit (catches only what
 | **Project lead (HQ)** | one lead agent per project | the only one who talks to the operator about the project; writes the roadmap, cuts stories, sets priorities, hands out tasks, accepts handover |
 | **Executors** | dev / front / design / DB / mobile / network / web / judge agents of the project | do the stories in their own files |
 | **QA** | the project's QA agent; **no QA: the lead launches a one-off verifier** (below) | runs the live system along the user's path; has a **stop-cock, not the right to accept**: a veto stops, no veto means go (otherwise QA becomes the bottleneck) |
+| **Methodology owner** | one shared agent, if you keep one; without it, the operator | owns the standard and these documents; when a script or rule does not fit a case, write to it instead of working around |
 | **Shared services** (one set for the whole setup) | the mechanisms dev agent (code of mechanisms), the infra agent (server, services, network), the git agent (git), the librarian agent (freshness of docs, registry, measurements) | serve all projects, do not write products |
 
 Communication is by letters in the inbox only (`scripts/inbox_post.sh`). State lives in git and the queue, not in retellings.
@@ -153,13 +154,13 @@ Tests live in the project's `tests/` and are run by the deploy or CI (§2.7), no
 
 ## 4. Afterwards (beyond [coding-standard §4](coding-standard.md))
 
-**4.3 An architecture decision** ("chose X because Y"): one line in the project's ROADMAP/README/ARCHITECTURE, so a month later nobody reinvents what was done. **A log of attempts**: what was tried, what failed and why, honest and complete (HANDOFF), so another agent or model can pick it up.
+**4.3 An architecture decision** ("chose X because Y"): a file of its own in `decisions/` (`NNNN-YYYY-MM-DD.md`, copy `decisions/0000-template.md`; a number is never reused, a replaced decision gets a status, not deleted), so a month later nobody reinvents what was done. **A log of attempts**: what was tried, what failed and why, honest and complete (HANDOFF), so another agent or model can pick it up.
 
 **4.5a Documents for people** (user guide, instructions): after a batch of changes the lead rereads them **whole**, does not add layers. Cost: a user guide went from 131 to 60 lines after the operator's "pile of text". Style: [docs/hall-of-shame-docs.md](hall-of-shame-docs.md).
 
 **4.6 What we do NOT do.** Sprints, story points, velocity, burndown, estimate rituals are ceremonies for teams of humans; for a swarm they are pure overhead. We take the task↔commit link + computed status + proof.
 
-**4.7 A new project with code:** bootstrap per [dev-methodology.md](dev-methodology.md): lead agent, ROADMAP skeleton, BLOCKERS, CI first, an entry in the catalog. This is `scripts/new_project.sh`, which creates release.toml, ROADMAP, BLOCKERS, the agents' directories, and the first commit; **a project with code (site, bot, game, service) always gets its own repo and a releaser from day one**; without its own repo only a project without code (documents, research). By hand we do not bootstrap; if the script does not fit, write to the methodology owner, no workaround. Cost: someone did the steps by hand and ended up in the monorepo without a releaser.
+**4.7 A new project with code:** bootstrap per [dev-methodology.md](dev-methodology.md): lead agent, ROADMAP skeleton, BLOCKERS, CI first, an entry in the catalog. This is `scripts/new_project.sh --own-repo --profile web|game|tool <Name>` (`--no-code <Name>` for a project without code), which creates release.toml, ROADMAP, BLOCKERS, the agents' directories, and the first commit; **a project with code (site, bot, game, service) always gets its own repo and a releaser from day one**; without its own repo only a project without code (documents, research). By hand we do not bootstrap; if the script does not fit, write to the methodology owner, no workaround. Cost: someone did the steps by hand and ended up in the monorepo without a releaser.
 
 ---
 
