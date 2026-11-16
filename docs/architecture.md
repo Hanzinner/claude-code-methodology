@@ -34,7 +34,7 @@ addons/           Optional extensions (mobile-bot, offsite-backup, agent-browser
 | `PostToolUseFailure` | After a failed tool call | Stuck-detector (3 failed Bash calls in a row → stop and look it up) |
 | `PreCompact` / `PostCompact` | Around compaction | Steer what the summary keeps; archive the summary |
 | `PermissionDenied` | A tool call was denied | "Don't hop channels" hint |
-| `Stop` | Reply finished | Dispatcher → blocking branches (pause-guard; work-guard, status-guard when agents are listed), then detectors (proof-guard, reply-guard, abbr-guard, ...) |
+| `Stop` | Reply finished | Dispatcher → blocking branches (pause-guard, proof-guard; work-guard, status-guard when agents are listed), then detectors (reply-guard, abbr-guard, ...) |
 
 Hooks read JSON from stdin and answer with JSON on stdout (a deny decision, extra context) or exit 2 to block where the event allows it. Exit codes and output: [hooks-guide.md](hooks-guide.md).
 

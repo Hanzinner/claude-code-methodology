@@ -24,7 +24,7 @@ Next to each rule, who guards it: ⚙ mechanism (block or hint, see §5) · 📊
 3. **Project code lives in the project directory, shared mechanisms in one scripts directory, secrets never in the repo** (the repo is under an auto-commit cron) ✋. (§2.3)
 4. **An error is not swallowed** (no "empty" in place of a failure) ✋. **The irreversible step goes last, after a dry run** ✋. A shell chain that contains an irreversible step needs `set -euo pipefail` + `trap ERR` ✋. (§2.3b, §2.3c)
 5. **A test sits next to the change and can be rerun. A test never writes to live state** (`TEST_MODE=1`) ⚙. (§2.4)
-6. **"Done" only with a run in this turn** ⚙ (`hooks/proof-guard.py`: edited code and ran nothing — the shipped hook flags it and hints on the next turn; in the private setup the turn does not end). A check states how much it checked; zero means the check is broken ✋. Critical changes (§0): **review by a different model**, `scripts/cross-review.sh` ✋. (§3, §0)
+6. **"Done" only with a run in this turn** ⚙ (`hooks/proof-guard.py`: edited code and ran nothing after the last edit, the turn does not end; `PROOF_GUARD_BLOCK=0` turns it into a hint). A check states how much it checked; zero means the check is broken ✋. Critical changes (§0): **review by a different model**, `scripts/cross-review.sh` ✋. (§3, §0)
 7. **Deletion is `mv` to a trash directory, not `rm`** ✋. (§2.3b)
 8. **Afterwards:** you broke something, so write it into the mistakes journal ([docs/mistakes-journal.md](mistakes-journal.md)) ⚙ (format). **Same class of mistake a second time: automatic gate** ✋. New mechanism: entry in the catalog ⚙ + a watchdog check ✋. (§4)
 
@@ -178,8 +178,8 @@ Architecture decisions (§4.3), human docs (§4.5a), "what we do not do" (§4.6)
 |---|---|---|
 | Pitfalls before a code edit | `hooks/code-pitfalls-hint.py` | hint |
 | 3 failures in a row | `hooks/stuck-detector.py` | hint |
-| "Done" without proof | `hooks/proof-guard.py` | shipped: detector (flag + hint on the next turn). In the private setup **block** for code since 2026-10 (calibration: 3 triggers in 423 turns with code edits over a week, all genuine). Claimed "done" after an edit and ran nothing: run it and show the output, or say plainly it is unverified and who will verify. Off-switch of the private block: `PROOF_GUARD_BLOCK=0`. For shared docs it is a hint, next row |
-| Claim "done" after an edit (>3 lines) to shared docs without `cross-review` | `hooks/proof-guard.py` (docs branch) | private setup: flag + hint (not in the repo's `proof-guard.py`; cleared only when EVERY changed shared doc passed a successful `scripts/cross-review.sh` after the edit; briefs: one review) |
+| "Done" without proof | `hooks/proof-guard.py` | **block** for code (calibration before it became a block: 3 triggers in 423 turns with code edits over a week, all genuine). Claimed "done" after an edit and ran nothing: run it and show the output, or say plainly it is unverified and who will verify. Off-switch: `PROOF_GUARD_BLOCK=0` (env or `methodology.conf`). For shared docs it is a hint, next row |
+| Claim "done" after an edit (>3 lines) to shared docs without `cross-review` | `hooks/proof-guard.py` (docs branch) | flag + hint (cleared only when every changed shared doc passed a successful `scripts/cross-review.sh` after the edit; which docs count as shared: `CCM_SHARED_DOCS`) |
 | Writing into someone else's inbox by hand | `hooks/foreign-inbox-gate.py`; the sanctioned path is `scripts/inbox_post.sh` | block |
 | Stopping with open work | `hooks/work-guard.py` (Stop; only for agents listed in `CCM_WORK_GUARD_AGENTS`, off when empty), fail-open on purpose: a Stop gate that fell must not lock an agent forever | block |
 | Whether the standard is used | `scripts/standard_version.py` (which agents confirmed which version); `scripts/stats_adoption.py` is a daily audit of whether the rules are used (the audit page is private) | on demand |

@@ -692,7 +692,7 @@ echo
 echo "Next steps:"
 echo "  1) Review $TARGET/CLAUDE.md — edit to fit"
 echo "  2) Start a new Claude Code session (existing sessions won't pick up the new config)"
-echo "  3) Read $REPO_DIR/docs/architecture.md"
+echo "  3) Read $REPO_DIR/docs/getting-started.md (first day) and docs/accounts.md (optional accounts: search, backup, phone bot)"
 echo
 echo "To undo: in $TARGET, restore the *.bak-${TIMESTAMP} copies over the files they back up, and remove"
 echo "what this repo added (hooks/, scripts/, skills/, code-pitfalls/, lib/, bin/, mcp/, tests/, methodology.conf, addons/, mobile-bot/,"

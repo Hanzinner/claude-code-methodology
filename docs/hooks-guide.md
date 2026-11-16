@@ -19,7 +19,7 @@ Every hook gets the common fields on stdin (`session_id`, `transcript_path`, `cw
 | `PostToolUseFailure` | `tool_name`, `tool_input`, `error` | Count consecutive failures (stuck-detector) |
 | `PreCompact` / `PostCompact` | `trigger`, … | Steer what compaction keeps; archive the summary |
 | `PermissionDenied` | `tool_name`, … | Tell the agent to stop hopping channels |
-| `Stop` | `last_assistant_message`, … | Check the finished reply (reply-guard, proof-guard) |
+| `Stop` | `last_assistant_message`, … | Check the finished reply (proof-guard blocks; reply-guard flags) |
 
 There are more events (`SessionEnd`, `SubagentStop`, `Notification`, …) — see the [hooks reference](https://code.claude.com/docs/en/hooks).
 

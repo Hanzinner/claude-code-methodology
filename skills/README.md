@@ -10,6 +10,7 @@ Slash commands. Each folder has a `SKILL.md` with frontmatter (`name`, `descript
 | `edit` | Video edit analysis: scene keyframes + per-frame log + narrative. Uses `scripts/extract_scenes.sh`. |
 | `grill` | Brutalist stress-test of a plan, decision, architecture or position. |
 | `pulse` | Recency snapshot of a topic from Reddit + Hacker News + web. |
+| `register-as` | Register the current chat as a named agent: copies the agent template into `Agents/<Name>/`, adds a row to `AGENTS.md`, records the session identity for the briefing watchman. |
 
 ## Adding your own
 

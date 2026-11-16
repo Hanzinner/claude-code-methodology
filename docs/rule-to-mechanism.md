@@ -45,7 +45,7 @@ permanently unreadable to the agent. Overlap between what the author found and w
 **Moved up the ladder:**
 - Step 0 → [`hooks/stuck-detector.py`](../hooks/stuck-detector.py): three failed Bash calls in a row inject "stop, look it up" (rung 2).
 - Step 3 → [`scripts/cross-review.sh`](../scripts/cross-review.sh): a fresh `claude -p` with another model, read-only tools, reviewing a diff against the requirements (rung 2, as a tool). Lesson from building it: `--allowedTools` only *adds* permissions — the first "read-only" run wrote into live logs. Only `--tools` restricts.
-- Step 4 → [`hooks/proof-guard.py`](../hooks/proof-guard.py): a completion claim after code edits with no successful run gets flagged (rung 2). In the private setup it now blocks the end of the turn: after a week of calibration it fired 3 times in 423 turns with code edits, all three correct. Detector first, measure false positives, then block.
+- Step 4 → [`hooks/proof-guard.py`](../hooks/proof-guard.py): a completion claim after code edits with no successful run does not end the turn (rung 3; `PROOF_GUARD_BLOCK=0` turns it back into a flag and hint): after a week of calibration it fired 3 times in 423 turns with code edits, all three correct. Detector first, measure false positives, then block.
 
 ## 2. Lessons in front of the hand, not in a postmortem
 

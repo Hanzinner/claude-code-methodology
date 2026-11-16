@@ -16,8 +16,8 @@ System deps: `poppler-utils`, `lynx`, `pandoc`.
 
 | Script | Action |
 |--------|--------|
-| `backup-chats.sh` | Daily rsync backup of Claude Code transcripts with hard-link dedup. Cron at 3 AM. |
-| `daily-git-snapshot.sh [REPO]` | Auto-commit uncommitted changes in REPO. Cron at 4 AM, or every N minutes. |
+| `backup-chats.sh` | Daily rsync backup of Claude Code transcripts with hard-link dedup. Not scheduled by `install.sh`: add a cron line yourself (e.g. 3 AM). |
+| `daily-git-snapshot.sh [REPO]` | Auto-commit uncommitted changes in REPO. Not scheduled by `install.sh`: add a cron line yourself. |
 | `curate_memory.py` | Memory health (orphans, broken links, unresolved wikilinks). Exit 0 if clean, 1 with findings. |
 | `recap_extract.py` | Dump user/assistant messages since the last compaction boundary. Used by `/recap`. |
 | `claude_machine.py` | Run `claude -p` from a script without saving a session, with cost accounting. |
