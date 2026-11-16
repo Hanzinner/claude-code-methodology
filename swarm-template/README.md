@@ -9,5 +9,5 @@ Empty shared files for running several named agents. `install.sh` copies the mis
 | `LIBRARY.md` | Catalog of every shared mechanism and system document, one machine-readable line each | whoever adds or removes a mechanism |
 | `Agents/<name>/` | One folder per agent: briefing, inbox, its own todo, the human's todo for it | the agent (inbox: other agents, through `scripts/inbox_post.sh` only; a gate refuses hand edits) |
 
-How the pieces connect is in [`docs/multi-agent.md`](../docs/multi-agent.md); the rules agents follow are in
+How to use them is in [`docs/getting-started.md`](../docs/getting-started.md), section 4; the rules agents follow are in
 [`docs/coding-standard.md`](../docs/coding-standard.md) and [`docs/project-work.md`](../docs/project-work.md).

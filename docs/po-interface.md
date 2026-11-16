@@ -80,4 +80,4 @@ Technical choices · internal quality/plumbing · "is this ok?" / "continue?" (d
 30 reports a day → **1 digest + 2–3 real questions.** The human doesn't miss the important item through
 fatigue: decisions and checks are lifted to the top and don't drown; the technical part was never meant to reach them.
 
-Related: [`multi-agent.md`](multi-agent.md) · [`dev-methodology.md`](dev-methodology.md)
+Related: [`dev-methodology.md`](dev-methodology.md)

@@ -19,7 +19,7 @@ Placeholders used below: `<site>` (a site's name), `<port>`, `<code dir>`, `<lan
 - **A separate infrastructure agent owns "is it alive and reachable"**: the service unit, the reverse proxy,
   the certificate, name resolution. A site's author does not write units or proxy blocks; they send a letter.
 
-The repo ships none of these agents; see [`multi-agent.md`](multi-agent.md) for how roles and letters
+The repo ships none of these agents; see [`getting-started.md`](getting-started.md), section 4, for how roles and letters
 (`scripts/inbox_post.sh`) work.
 
 ## 2. The stack, and why it is boring

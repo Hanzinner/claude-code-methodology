@@ -2,7 +2,7 @@
 
 A reusable way to build software with a swarm of AI agents — written down as a system, not as one
 project's history: roles, a roadmap tied to git, quality gates, and how a "product team" runs when the
-team is agents. This is the delivery layer on top of the mechanisms in [`multi-agent.md`](multi-agent.md);
+team is agents. This is the delivery layer on top of the swarm mechanisms ([`getting-started.md`](getting-started.md), section 4);
 the rules agents follow day to day are in [`coding-standard.md`](coding-standard.md) and
 [`project-work.md`](project-work.md).
 

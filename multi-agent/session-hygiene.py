@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Session hygiene: trim old tool outputs from large, inactive Claude Code session files.
 
-See docs/context-management.md and docs/multi-agent.md.
+See docs/context-management.md.
 - Only files > MIN_FILE_BYTES and mtime older than ACTIVE_SECONDS.
 - Cuts tool_result content items AND the sibling toolUseResult field
   (the harness stores the same output twice; toolUseResult is usually the bigger copy).

@@ -5,9 +5,6 @@ instrument can actually *see*. Across one intense stretch of building, most of t
 into broken features but into **broken measurement**: gates that reported green on things that were red,
 and "done" claims backed by evidence that proved nothing. This is the tuition, written down.
 
-Companion to [`multi-agent.md`](multi-agent.md) — that doc's "announced a result you never verified" is
-the same disease seen from the swarm side.
-
 ## 1. Proof is an artifact only the work could produce
 
 Three times in a day, three different agents reported success on evidence that meant nothing:

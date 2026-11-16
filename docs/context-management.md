@@ -76,5 +76,4 @@ Don't optimize for *tolerating* an expensive, fragile chat. Ask *why* it's expen
 replace the mechanism: a hook costs milliseconds against a tail re-read on every turn. Each layer alone
 leaks; layered and mechanized, they hold.
 
-For the multi-agent side of this — delivery between agents, coordination, and the failures that shaped it —
-see [`multi-agent.md`](multi-agent.md).
+For several agents (letters, ownership, registration) see [`getting-started.md`](getting-started.md), section 4.

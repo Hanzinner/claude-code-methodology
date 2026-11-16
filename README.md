@@ -34,7 +34,6 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/rule-to-mechanism.md`](docs/rule-to-mechanism.md) — the gate ladder (note → detector → structural impossibility): the change cycle, independent review by another model, a supervisor that checks the work, and why written rules alone didn't hold.
 
 **Running a swarm** (many agents — a separate discipline; skip these if you run one agent):
-- [`docs/multi-agent.md`](docs/multi-agent.md) — running a swarm of ~80 long-lived agents: delivery, coordination, and the failures that cost more than the design.
 - [`docs/dev-methodology.md`](docs/dev-methodology.md) — the delivery layer: roles, roadmap + Definition of Done, quality gates, and bootstrap — a product team when the team is agents.
 - [`docs/project-work.md`](docs/project-work.md) — the standard for agents working in a project team: the path of a task, stories with a runnable "done when", stands, releases, blockers as records with a check.
 - [`docs/po-interface.md`](docs/po-interface.md) — how ~30 technical reports a day reach a human who isn't a developer: a two-question filter, three lanes, and a pull mode.

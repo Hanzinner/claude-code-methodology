@@ -69,6 +69,9 @@ already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS
    Want to call it by another word? Put it on a line in `Agents/<Name>/.aliases`.
    One agent = one chat. Don't start a second session of the same agent in the background to "listen": it acts
    where you can't see it, and the chat you talk to stays silent.
+   A briefing holds what stays true (role, ownership, rules). Anything that changes on its own (who is busy, what
+   version, what is next) goes to git, a log or a queue, and the briefing only says where to look: written state
+   goes stale within hours, and the watchman keeps delivering it.
 4. **Agents talk by letter, not through you:** `scripts/inbox_post.sh <Name> "<text>"` (a lock, and a check
    that the letter landed); the receiver does it or moves it to its todo and closes the item with
    `scripts/inbox_done.sh`. Writing into someone else's `inbox.md` by hand is refused by a gate. A letter that
