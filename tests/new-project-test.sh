@@ -4,7 +4,7 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 NP=${NP:-$HERE/../scripts/new_project.sh}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 R="$T/repo"; mkdir -p "$R/Agents" "$T/h"; printf 'x\n' > "$R/.gitignore"
 g() { git -c safe.directory='*' -C "$@"; }
 g "$R" init -q -b master; g "$R" config user.email t@t; g "$R" config user.name t; g "$R" add -A; g "$R" commit -qm i

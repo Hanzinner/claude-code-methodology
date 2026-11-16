@@ -4,7 +4,7 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 RS=${RS:-$HERE/../scripts/repo_stale.py}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; R="$T/r"; mkdir -p "$T/h"
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT; R="$T/r"; mkdir -p "$T/h"
 printf '#!/bin/sh\necho "$1 $(cat)" >> %s/post.log\n' "$T" > "$T/post"; chmod +x "$T/post"; : > "$T/post.log"
 mk() { mkdir -p "$R/Project-$1"; ( cd "$R/Project-$1" && /usr/bin/git init -q -b master && /usr/bin/git config user.email t@t && /usr/bin/git config user.name t && echo a > a && /usr/bin/git add -A && /usr/bin/git commit -qm i ); }
 run() { HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$R" CCM_INBOX_POST="$T/post" CCM_STALE_STATE="$T/st.json" CCM_STALE_LOG="$T/log" CCM_RELEASER_OWNER="$(id -un)" python3 "$RS" > "$T/out" 2>&1; echo $?; }

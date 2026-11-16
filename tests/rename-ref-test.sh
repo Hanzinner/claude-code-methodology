@@ -3,7 +3,7 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 RR=${RR:-$HERE/../bin/rename-ref}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_CLAUDE_DIR="$T/cl"
 export RENAME_REF_REPO="$T/ws" RENAME_REF_EXTERNAL="$T/ext"   # never look at the real /usr/local/bin, cron, ...
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t

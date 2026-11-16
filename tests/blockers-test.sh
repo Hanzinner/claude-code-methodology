@@ -4,7 +4,7 @@
 # `add` appends a row to the table; a command not approved is never run. BL=<path> tests another copy.
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BL=${BL:-$HERE/../scripts/blockers.py}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent; mkdir -p "$HOME"
 R="$T/repo"; mkdir -p "$R/Project-X" "$R/Agents/X-Dev" "$R/Agents/X-Ops"
 cat > "$R/Project-X/BLOCKERS.md" <<'B'

@@ -3,7 +3,7 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 CR=${CR:-$HERE/../bin/creds}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_SECRETS_DIR="$T/store" CCM_WORKSPACE="$T/ws"
 mkdir -p "$HOME" "$CCM_SECRETS_DIR/search" "$CCM_WORKSPACE"
 SECRET="s3cr3tvalue$$"

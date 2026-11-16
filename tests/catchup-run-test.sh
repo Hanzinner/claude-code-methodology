@@ -5,7 +5,7 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CR=${CR:-$HERE/../bin/catchup-run}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home"; mkdir -p "$HOME"
 export CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_CRON_STATE="$T/state" CCM_CRON_LOGDIR="$T/log"
 pass=0; fail=0

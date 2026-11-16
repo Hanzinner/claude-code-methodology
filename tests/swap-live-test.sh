@@ -3,8 +3,8 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 SL=${SL:-$HERE/../bin/swap-live}
-export HOME=$(mktemp -d) CLAUDE_METHODOLOGY_CONF=/nonexistent
-T=$(mktemp -d); trap 'rm -rf "$T" "$HOME"' EXIT
+H=$(mktemp -d) || exit 2; export HOME=$H CLAUDE_METHODOLOGY_CONF=/nonexistent
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T" "$HOME"' EXIT
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; fi; }
 

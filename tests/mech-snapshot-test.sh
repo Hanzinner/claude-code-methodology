@@ -5,7 +5,7 @@
 set -u
 HERE="$(dirname "$(readlink -f "$0")")"
 M=${M:-$HERE/../scripts/mech_snapshot.sh}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HANZ_TEST=1 HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent
 mkdir -p "$HOME"
 W="$T/code"; mkdir -p "$W/scripts" "$W/hooks"

@@ -4,7 +4,7 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 IW=${IW:-$HERE/../scripts/inbox_wait.sh}
-T=$(mktemp -d); trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_AGENTS_DIR="$T/Agents" ALARM_MODE_DIR="$T/mode" INBOX_WAIT_POLL=1 HANZ_TEST=1
 mkdir -p "$HOME" "$T/Agents/T" "$T/mode"
 IN="$T/Agents/T/inbox.md"

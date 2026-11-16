@@ -5,7 +5,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 P=${P:-$HERE/../scripts/inbox_post.sh}
 D=${D:-$HERE/../scripts/inbox_done.sh}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home"; mkdir -p "$HOME/.claude"
 export CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_AGENTS_DIR="$T/Agents" HANZ_TEST=1
 unset INBOX_AGENTS_ROOT

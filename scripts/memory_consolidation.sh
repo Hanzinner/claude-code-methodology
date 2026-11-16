@@ -46,7 +46,7 @@ fi
 [[ "${CONSOLIDATION_DRY:-0}" == 1 ]] && { echo "RUN: ${why:-force}"; exit 0; }
 [[ -d "$MEM" ]] || { log "no memory dir ($MEM) - skipped"; exit 0; }
 
-work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+work=$(mktemp -d) || exit 2; trap 'rm -rf "$work"' EXIT
 sum() { find "$MEM" -type f -name '*.md' -print0 | sort -z | xargs -0 -r md5sum | md5sum | cut -c1-32; }
 md5_before=$(sum)
 "$HERE/broken_links.py" > "$work/broken_links.txt" 2>&1 || true

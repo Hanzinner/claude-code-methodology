@@ -3,7 +3,7 @@
 # SS=<path> tests another copy.
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SS=${SS:-$HERE/../scripts/story_status.py}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent GIT_CONFIG_GLOBAL=/dev/null; mkdir -p "$HOME"
 R="$T/repo"; mkdir -p "$R/Project-X" "$R/Agents/X-Dev"
 cat > "$R/Project-X/ROADMAP.md" <<'B'

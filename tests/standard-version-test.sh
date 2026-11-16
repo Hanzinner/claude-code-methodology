@@ -4,7 +4,7 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 SV=${SV:-$HERE/../scripts/standard_version.py}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; mkdir -p "$T/h"
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT; mkdir -p "$T/h"
 export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_CODING_STANDARD="$T/STD.md"
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; fi; }

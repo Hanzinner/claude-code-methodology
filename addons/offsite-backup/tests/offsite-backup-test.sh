@@ -5,7 +5,7 @@
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 AB=${AB:-$HERE/..}
-T=$(mktemp -d); trap 'rm -rf "$T"; [ -n "${SRV:-}" ] && kill $SRV 2>/dev/null' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"; [ -n "${SRV:-}" ] && kill $SRV 2>/dev/null' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_SECRETS_DIR="$T/sec" CCM_WORKSPACE="$T/ws" CCM_BACKUP_STATE="$T/state" CCM_CLAUDE_DIR="$T/cdir"
 export MANIFEST_DIR="$T/manifest" FAKE_LOG="$T/restic.calls"
 mkdir -p "$HOME/.claude" "$T/sec" "$T/ws" "$T/bin" "$T/state"; echo data > "$T/ws/f.txt"

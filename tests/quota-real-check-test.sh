@@ -3,7 +3,7 @@
 set -u
 HERE="$(dirname "$(readlink -f "$0")")"
 C=${C:-$HERE/../scripts/quota_real_check.sh}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" HANZ_TEST=1; mkdir -p "$HOME/.claude/projects/p"
 F="$T/status.json"; pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1 (rc=$rc out=$out)"; fi; }

@@ -6,7 +6,7 @@
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 WM="${WM:-$HERE/../hooks/briefing-watchman.sh}"
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_AGENTS_DIR="$T/ws/Agents" CCM_TRASH_DIR="$T/trash"
 unset CCM_SUPERVISOR_HEARTBEAT
 mkdir -p "$HOME" "$T/ws/Agents" "$T/inst/hooks" "$T/inst/lib" "$T/inst/scripts"

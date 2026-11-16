@@ -5,7 +5,7 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 WD=${WD:-$HERE/../scripts/wt_deliver.sh}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 R="$T/repo"; W="$T/wt"; mkdir -p "$R" "$W" "$T/h"
 g() { /usr/bin/git -c user.email=t@t -c user.name=t "$@"; }
 g -C "$R" init -q -b master

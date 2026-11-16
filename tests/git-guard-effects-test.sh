@@ -4,7 +4,7 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 GW=${GW:-$HERE/../bin/git-guard}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent GIT_CONFIG_GLOBAL=/dev/null; mkdir -p "$HOME"
 RG=$(command -v git)
 M="$T/main"; W="$T/wt"

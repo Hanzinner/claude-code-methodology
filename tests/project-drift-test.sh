@@ -3,7 +3,7 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 PD=${PD:-$HERE/../scripts/project_drift.py}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; R="$T/r"; S="$T/s"; mkdir -p "$R/Agents" "$S" "$T/h"
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT; R="$T/r"; S="$T/s"; mkdir -p "$R/Agents" "$S" "$T/h"
 : > "$R/Agents/paused-projects.txt"
 run() { HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$R" CCM_RELEASER_STATE="$S" python3 "$PD" > "$T/out" 2>&1; echo $?; }
 pass=0; fail=0

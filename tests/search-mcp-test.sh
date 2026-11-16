@@ -6,7 +6,7 @@ export HANZ_TEST=1
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 SM=${SM:-$HERE/../mcp/search_mcp.py}; WH=${WH:-$HERE/../hooks/websearch-to-tavily.sh}
-T=$(mktemp -d); trap 'kill $SRV 2>/dev/null; rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'kill $SRV 2>/dev/null; rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent; mkdir -p "$HOME"
 PORT=$((20000 + RANDOM % 20000))
 cat > "$T/srv.py" <<'PY'

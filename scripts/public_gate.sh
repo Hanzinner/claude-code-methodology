@@ -33,7 +33,7 @@ if [ "${1:-}" != "--selftest" ] && [ -z "${GATE_SELFCHECK_DONE:-}" ]; then
 fi
 
 if [ "${1:-}" = "--selftest" ]; then
-    t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
+    t=$(mktemp -d) || exit 2; trap 'rm -rf "$t"' EXIT
     mk() { # mk <name> <file> <content>
         d="$t/$1"; mkdir -p "$d"; ( cd "$d"
         command git init -q .; command git config user.email t@t; command git config user.name T

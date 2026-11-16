@@ -4,7 +4,7 @@
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 TT="${TT:-$HERE/../scripts/take_task.sh}"
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent TAKE_TASK_REPO="$T/ws" TAKE_TASK_STATE="$T/state"
 mkdir -p "$HOME" "$T/ws/Project-Shop" "$T/ws/Work-Other"
 printf '# ROADMAP\n- [ ] E1.S2 cart totals\n- [x] E1.S3 login\n' > "$T/ws/Project-Shop/ROADMAP.md"

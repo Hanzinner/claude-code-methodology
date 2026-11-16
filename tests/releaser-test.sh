@@ -6,7 +6,7 @@ set -u
 HERE=$(dirname "$(readlink -f "$0")")
 REL=${REL:-$HERE/../scripts/releaser.py}
 if [ "$(id -u)" != 0 ] || ! id nobody >/dev/null 2>&1; then echo "releaser: 0 pass, 0 fail (skipped: needs root and a user 'nobody')"; exit 0; fi
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; chmod 755 "$T"
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT; chmod 755 "$T"
 R="$T/repo"; O="$R/Project-X"; S="$T/state"; mkdir -p "$O" "$S" "$T/home"
 printf '#!/bin/sh\necho "$1 $(cat)" >> %s/post.log\n' "$T" > "$T/post"; chmod +x "$T/post"; : > "$T/post.log"
 cat > "$O/release.toml" <<E

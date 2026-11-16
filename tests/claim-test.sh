@@ -4,7 +4,7 @@
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 C="${CLAIM:-$HERE/../scripts/claim.sh}"
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_CLAIMS_DIR="$T/claims"; mkdir -p "$HOME"
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; fi; }

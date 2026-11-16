@@ -4,8 +4,8 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 SS=${SS:-$HERE/../bin/secret-scan}
-export HOME=$(mktemp -d) CLAUDE_METHODOLOGY_CONF=/nonexistent
-T=$(mktemp -d); trap 'rm -rf "$T" "$HOME"' EXIT
+H=$(mktemp -d) || exit 2; export HOME=$H CLAUDE_METHODOLOGY_CONF=/nonexistent
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T" "$HOME"' EXIT
 V="nP1G$(printf 'q%.0s' $(seq 22))"; K="to""ken"; A="api_""key"; P="pass""word"
 pass=0; fail=0
 ok() { "$SS" "$T/$2" >/dev/null 2>&1; rc=$?; if [ "$rc" = "$3" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1 (rc $rc, expected $3)"; fi; }

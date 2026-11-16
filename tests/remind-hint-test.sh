@@ -4,7 +4,7 @@
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 RH="${RH:-$HERE/../hooks/remind-hint.sh}"
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_HUMAN_NAME=Sam; unset CCM_LANG_EXTRA
 mkdir -p "$HOME/.claude/agent-identity"; echo "/ws/Agents/Helper" > "$HOME/.claude/agent-identity/s1"
 pass=0; fail=0

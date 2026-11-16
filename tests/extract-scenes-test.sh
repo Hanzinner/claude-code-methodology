@@ -3,7 +3,7 @@
 HERE=$(dirname "$(readlink -f "$0")")
 ES=${ES:-$HERE/../scripts/extract_scenes.sh}
 if ! command -v ffmpeg >/dev/null 2>&1; then echo "extract-scenes: SKIP (ffmpeg is not installed - nothing was tested)"; exit 0; fi
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent; mkdir -p "$HOME"
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; fi; }

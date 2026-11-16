@@ -4,7 +4,7 @@
 # systemd timers (they only roll back files in the temp dir). Last line: net-change-test: N pass, M fail.
 set -u
 NC=${NC:-$(dirname "$(readlink -f "$0")")/../net-change}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 pass=0; fail=0
 nc() { "$NC" "$@" >>"$T/out" 2>&1; }
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; tail -5 "$T/log" 2>/dev/null; tail -5 "$T/out" 2>/dev/null; fi; }

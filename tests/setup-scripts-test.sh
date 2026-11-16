@@ -4,7 +4,7 @@
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
 SR=${SR:-$HERE/../scripts/setup-releaser.sh}; SG=${SG:-$HERE/../scripts/setup-git-guard.sh}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_RELEASER_STATE="$T/state" CCM_RELEASER_USER=ccm-test-releaser-$$
 mkdir -p "$HOME" "$T/ws"
 pass=0; fail=0
