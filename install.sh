@@ -26,6 +26,7 @@
 #   --with-agent-browser         # a headless browser the agents drive: copy to <dir>/addons/agent-browser/, fetch its engine (no root); service/links = setup-agent-browser.sh (root, optional)
 #   --with-net-change            # safe network changes (snapshot, apply, roll back unless confirmed): copy to <dir>/addons/net-change/; setup-net-change.sh needs root
 #   --with-dashboard             # local read-only status page of the agents (127.0.0.1:8765): copy to <dir>/addons/dashboard/ (nothing to set up)
+#   --with-reader                # document reader for the workspace (.md/.fb2 in the browser, 127.0.0.1:8001): copy to <dir>/addons/reader/, start it now and after a reboot (crontab, no root)
 #   --no-cron                    # do not touch the crontab (also automatic for an install under a temp dir)
 #   --prune-cron                 # remove OUR crontab blocks whose install dir no longer exists, then exit
 #
@@ -52,6 +53,7 @@ WITH_OFFSITE_BACKUP=0
 WITH_AGENT_BROWSER=0
 WITH_NET_CHANGE=0
 WITH_DASHBOARD=0
+WITH_READER=0
 NO_CRON=0
 PRUNE_CRON=0
 OPT_NAME=""
@@ -78,6 +80,7 @@ while [[ $# -gt 0 ]]; do
     --with-agent-browser) WITH_AGENT_BROWSER=1 ;;
     --with-net-change) WITH_NET_CHANGE=1 ;;
     --with-dashboard) WITH_DASHBOARD=1 ;;
+    --with-reader) WITH_READER=1 ;;
     --no-cron)     NO_CRON=1 ;;
     --prune-cron)  PRUNE_CRON=1 ;;
     --name|--workspace|--timezone)
@@ -525,6 +528,9 @@ if [[ $WITH_GIT_SNAPSHOT -eq 1 ]]; then
   CRON_LINES="$CRON_LINES
 0 4 * * * mkdir -p $(q "$HOME/.claude/logs") && LOG=$(q "$HOME/.claude/logs/git-snapshot.log") $(q "$TARGET/scripts/daily-git-snapshot.sh") $(q "$WS_SNAP") >/dev/null 2>&1"
 fi
+# the reader add-on is started after a reboot from here (no root, no service manager needed); install.sh starts it now too
+[[ $WITH_READER -eq 1 ]] && CRON_LINES="$CRON_LINES
+@reboot sleep 30 && mkdir -p $(q "$HOME/.claude/logs") && python3 $(q "$TARGET/addons/reader/reader-server.py") >> $(q "$HOME/.claude/logs/reader.log") 2>&1"
 [[ $CLEANUP -eq 1 ]] && CRON_LINES="$CRON_LINES
 35 4 * * * python3 $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1"
 CRON_LINES="$CRON_LINES
@@ -637,6 +643,24 @@ if [[ $WITH_DASHBOARD -eq 1 ]]; then
   echo; say "add-on dashboard…"
   copy_addon dashboard "$TARGET/addons/dashboard"
   ok "dashboard copied — start it: python3 $TARGET/addons/dashboard/dashboard.py (read-only, 127.0.0.1:8765)"
+fi
+if [[ $WITH_READER -eq 1 ]]; then
+  echo; say "add-on reader…"
+  copy_addon reader "$TARGET/addons/reader"
+  merge_checks reader
+  RD=(python3 "$AD_DIR/reader/reader-server.py")
+  if [[ $DRY_RUN -eq 1 ]]; then echo "  DRY: would start: ${RD[*]} >> $HOME/.claude/logs/reader.log 2>&1 &"
+  elif [[ $NO_CRON -eq 1 ]]; then warn "reader not started (--no-cron or a temp install dir: nothing runs in the background). Start it: ${RD[*]} &"
+  elif python3 "$AD_DIR/reader/reader-check.py" >/dev/null 2>&1; then ok "reader already answers — left as it is"
+  else
+    mkdir -p "$HOME/.claude/logs"
+    nohup setsid "${RD[@]}" >> "$HOME/.claude/logs/reader.log" 2>&1 < /dev/null &
+    if python3 "$AD_DIR/reader/reader-check.py" --wait 5 >/dev/null; then
+      ok "reader started: $(python3 "$AD_DIR/reader/reader-check.py" | sed 's/^reader answers: //; s#/api/last$#/#')  (after a reboot: the crontab line)"
+    else warn "reader did not start — see $HOME/.claude/logs/reader.log (port taken? set CCM_READER_PORT in methodology.conf)"; fi
+  fi
+  say "  reader: this machine only by default. CCM_READER_BIND=0.0.0.0 opens it to the network with NO password — use a proxy that asks for one"
+  say "  reader: a folder for documents agents leave for you to read = CCM_READER_SHARED in methodology.conf (empty = no such section)"
 fi
 
 # ---- optional system parts (explicit flags only) -----------------------------

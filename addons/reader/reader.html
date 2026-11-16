@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Читалка — прототип v2</title>
+<style>
+  :root{
+    --bg:#f7f6f3; --fg:#1a1a1a; --muted:#8c8c8c; --gutter:rgba(0,0,0,.06);
+    --pnl-bg:#ffffff; --pnl-fg:#2a2a2a; --pnl-sub:#8a8a8a; --border:rgba(0,0,0,.10);
+    --bar-bg:#ececec; --bar-fg:#555; --accent:#4a7fb5; --track:rgba(0,0,0,.12);
+    --shadow:0 6px 26px rgba(0,0,0,.14); --rule:#2b2b2b;
+  }
+  html[data-theme="sepia"]{
+    --bg:#e3dfd5; --fg:#26221b; --muted:#a2977f; --gutter:rgba(70,55,40,.09);
+    --pnl-bg:#efe8d8; --pnl-fg:#3a3227; --pnl-sub:#9c8f77; --border:rgba(70,55,40,.14);
+    --bar-bg:#e2d9c4; --bar-fg:#6f6350; --accent:#a06a2c; --track:rgba(70,55,40,.16);
+    --shadow:0 6px 26px rgba(70,55,40,.18); --rule:#6b4a24;
+  }
+  html[data-theme="night"]{
+    --bg:#16181b; --fg:#c8c5bf; --muted:#63666c; --gutter:rgba(255,255,255,.05);
+    --pnl-bg:#1d2024; --pnl-fg:#c8c5bf; --pnl-sub:#70747b; --border:rgba(255,255,255,.09);
+    --bar-bg:#212429; --bar-fg:#8b8f96; --accent:#6ea3d8; --track:rgba(255,255,255,.13);
+    --shadow:0 6px 26px rgba(0,0,0,.5); --rule:#c9d2dc;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;}
+  body{background:var(--bg);color:var(--fg);overflow:hidden;
+    transition:background .3s ease,color .3s ease;user-select:none;
+    font-family:system-ui,sans-serif;}
+  #book{user-select:text;-webkit-user-select:text;}
+  #book ::selection{background:var(--accent);color:#fff;}
+
+  /* ---------- ЧИТАЦЬКЕ ПОЛЕ ---------- */
+  /* штрихування — повноекранний шар позаду всього */
+  #rules{position:fixed;inset:0;z-index:0;pointer-events:none;display:none;}
+  body.rules #rules{display:block;}
+  #reader{position:fixed;top:0;bottom:0;right:0;left:48px;z-index:1;
+    transition:left .24s ease;}
+  body.panel #reader{left:calc(48px + var(--panel-w,290px));}
+  #viewport{position:absolute;top:20px;bottom:30px;left:var(--pad,60px);right:var(--pad,60px);
+    overflow:hidden;}
+  #book{
+    height:100%;column-fill:auto;width:100%;
+    font-family:var(--serif,Georgia,'Times New Roman',serif);
+    font-size:var(--fs,17px);line-height:var(--lh,1.6);
+    color:var(--fg);text-align:left;hyphens:none;-webkit-hyphens:none;
+    transition:transform .3s cubic-bezier(.22,.61,.36,1);will-change:transform;
+  }
+  #book h2{font-size:1.42em;line-height:1.3;margin:0 0 1em;font-weight:600;}
+  #book h3{font-size:1.18em;margin:1em 0 .5em;font-weight:600;}
+  #book h4{font-size:1.02em;margin:.8em 0 .4em;font-weight:600;color:var(--muted);}
+  #book p{margin:0 0 .5em;text-indent:1.3em;}
+  #book p.first{text-indent:0;}
+  #book blockquote{margin:.4em 0 .9em;padding:.55em .9em;border-left:3px solid var(--accent);
+    background:var(--gutter);border-radius:0 7px 7px 0;color:inherit;font-style:normal;}
+  #book blockquote p{margin:0 0 .35em;}
+  #book blockquote p:last-child{margin:0;}
+  #book blockquote em{font-style:italic;}
+  #book ul,#book ol{margin:0 0 .6em 1.4em;padding:0;}
+  #book li{margin:.15em 0;text-indent:0;}
+  #book pre{white-space:pre-wrap;font-family:'Courier New',monospace;font-size:.85em;
+    background:var(--gutter);padding:.5em;border-radius:6px;margin:0 0 .6em;text-indent:0;}
+  #book code{font-family:'Courier New',monospace;font-size:.88em;}
+  #book hr{border:0;border-top:1px solid var(--gutter);margin:1em 0;}
+  #book .verse{text-indent:0;font-style:italic;margin:0;}
+  #book a{color:var(--accent);text-decoration:none;}
+  #book table{border-collapse:collapse;margin:.2em 0 .9em;font-size:.9em;width:100%;
+    table-layout:fixed;break-inside:avoid;}
+  #book th,#book td{border:0;border-bottom:1px solid var(--gutter);padding:5px 10px 5px 0;
+    text-align:left;vertical-align:top;overflow-wrap:break-word;word-break:break-word;hyphens:auto;}
+  #book th{font-weight:600;border-bottom:1.5px solid var(--muted);}
+  /* --- вертикальний скрол-режим --- */
+  body.scrollmode #viewport{overflow-y:auto;overflow-x:hidden;}
+  body.scrollmode #book{height:auto!important;column-width:auto!important;column-gap:0!important;
+    transform:none!important;margin:0 auto;padding-bottom:40px;}
+  body.scrollmode #gutterline,body.scrollmode .mhandle{display:none;}
+  body.scrollmode #viewport{scrollbar-width:thin;scrollbar-color:var(--muted) transparent;}
+  body.scrollmode #viewport::-webkit-scrollbar{width:11px;}
+  body.scrollmode #viewport::-webkit-scrollbar-track{background:transparent;}
+  body.scrollmode #viewport::-webkit-scrollbar-thumb{background:var(--muted);border-radius:8px;
+    border:3px solid transparent;background-clip:padding-box;min-height:40px;}
+  body.scrollmode #viewport::-webkit-scrollbar-thumb:hover{background:var(--fg);}
+  #book img{max-width:100%;height:auto;}
+  #book del{opacity:.6;}
+  #book input[type=checkbox]{margin-right:.4em;}
+  #book ul.contains-task-list{list-style:none;margin-left:.4em;}
+  #book h1{font-size:1.5em;line-height:1.25;margin:0 0 .8em;font-weight:700;}
+  #book a.fnote{color:var(--accent);cursor:pointer;font-size:.8em;vertical-align:super;
+    padding:0 1px;font-weight:600;}
+  #book mark.hit{background:rgba(255,210,0,.45);color:inherit;border-radius:2px;}
+  #book mark.hit.cur{background:var(--accent);color:#fff;}
+  html[data-theme="night"] #book mark.hit{background:rgba(255,210,0,.32);}
+
+  /* панель пошуку */
+  #searchbar{position:fixed;top:12px;right:16px;z-index:30;display:none;align-items:center;gap:4px;
+    background:var(--pnl-bg);border:1px solid var(--border);border-radius:10px;padding:5px 6px;
+    box-shadow:var(--shadow);}
+  body.search #searchbar{display:flex;}
+  #searchInput{border:0;outline:0;background:transparent;color:var(--pnl-fg);font-size:14px;
+    width:210px;padding:4px 8px;font-family:system-ui,sans-serif;}
+  #searchInfo{font-size:12px;color:var(--pnl-sub);min-width:38px;text-align:center;
+    font-variant-numeric:tabular-nums;}
+  #searchbar button{border:0;background:transparent;color:var(--pnl-fg);cursor:pointer;
+    width:28px;height:28px;border-radius:7px;font-size:16px;}
+  #searchbar button:hover{background:var(--border);}
+
+  /* popup виноски */
+  #notePop{position:fixed;left:50%;bottom:44px;transform:translateX(-50%) translateY(20px);
+    z-index:35;width:min(560px,86vw);background:var(--pnl-bg);color:var(--pnl-fg);
+    border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);
+    padding:16px 18px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;}
+  #notePop.on{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0);}
+  #notePopText{font-family:var(--serif);font-size:15px;line-height:1.55;max-height:34vh;
+    overflow-y:auto;margin-bottom:12px;}
+  .notePopBtns{display:flex;justify-content:flex-end;gap:8px;}
+  .notePopBtns button{border:1px solid var(--border);background:transparent;color:var(--pnl-fg);
+    border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;font-family:system-ui,sans-serif;}
+  #notePopGo{border-color:var(--accent);color:var(--accent);}
+  .notePopBtns button:hover{background:var(--border);}
+  /* центральний жолоб між двома сторінками */
+  #gutterline{position:absolute;top:20px;bottom:30px;left:50%;width:1px;
+    background:var(--gutter);pointer-events:none;display:none;}
+  body.spread #gutterline{display:block;}
+
+  /* нижній інфо-бар (як Moon+) */
+  #statusbar{position:absolute;left:14px;right:14px;bottom:6px;height:18px;z-index:5;
+    display:flex;align-items:center;justify-content:space-between;
+    font-size:11px;color:var(--muted);pointer-events:none;font-variant-numeric:tabular-nums;}
+  #stChapter{flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 10px;}
+  #stTime,#stPct{flex:0 0 auto;}
+
+  /* ---------- ACTIVITY BAR (як VS Code) ---------- */
+  #activity{position:fixed;top:0;bottom:0;left:0;width:48px;background:var(--bar-bg);
+    z-index:20;display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:2px;
+    border-right:1px solid var(--border);}
+  .abtn{width:40px;height:40px;border:0;background:transparent;color:var(--bar-fg);
+    cursor:pointer;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    position:relative;transition:color .15s,background .15s;}
+  .abtn:hover{background:var(--border);color:var(--fg);}
+  .abtn.on{color:var(--accent);}
+  .abtn.on::before{content:"";position:absolute;left:-8px;top:9px;bottom:9px;width:2px;
+    background:var(--accent);border-radius:2px;}
+  .abtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round;}
+
+  /* ---------- ПАНЕЛЬ НАЛАШТУВАНЬ ---------- */
+  #panel{position:fixed;top:0;bottom:0;left:48px;width:var(--panel-w,290px);
+    background:var(--pnl-bg);color:var(--pnl-fg);z-index:19;border-right:1px solid var(--border);
+    transform:translateX(-110%);transition:transform .24s ease;overflow-y:auto;
+    box-shadow:var(--shadow);}
+  body.panel #panel{transform:translateX(0);}
+  .phead{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--pnl-sub);
+    padding:16px 18px 6px;font-weight:600;}
+  .row{padding:9px 18px;}
+  .row label{display:flex;justify-content:space-between;font-size:13px;color:var(--pnl-fg);
+    margin-bottom:8px;}
+  .row label .val{color:var(--pnl-sub);font-variant-numeric:tabular-nums;}
+  input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;
+    background:var(--track);border-radius:3px;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;
+    border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--pnl-bg);
+    box-shadow:0 1px 3px rgba(0,0,0,.25);}
+  .seg{display:flex;gap:6px;}
+  .seg button{flex:1;height:36px;border:1px solid var(--border);background:transparent;
+    color:var(--pnl-fg);border-radius:8px;cursor:pointer;font-size:13px;display:flex;
+    align-items:center;justify-content:center;gap:6px;transition:.15s;}
+  .seg button:hover{background:var(--border);}
+  .seg button.on{border-color:var(--accent);color:var(--accent);background:transparent;}
+  .swatch{width:16px;height:16px;border-radius:50%;border:1px solid var(--border);display:inline-block;}
+  .sw-day{background:#f7f6f3;} .sw-sepia{background:#e3dfd5;} .sw-night{background:#16181b;}
+
+  /* тягнучі поля книги */
+  .mhandle{position:absolute;top:20px;bottom:30px;width:16px;z-index:7;cursor:ew-resize;
+    display:flex;align-items:center;justify-content:center;touch-action:none;}
+  .mhandle::after{content:"";width:2px;height:46px;border-radius:2px;background:var(--muted);
+    opacity:0;transition:opacity .18s;}
+  .mhandle:hover::after,body.dragging .mhandle::after{opacity:.55;}
+  body.dragging{cursor:ew-resize;}
+  .fontbtn{font-size:15px;}
+  /* тумблер */
+  .toggle{padding:9px 18px;display:flex;justify-content:space-between;align-items:center;}
+  .toggle span{font-size:13px;color:var(--pnl-fg);}
+  .sw{position:relative;width:40px;height:22px;border-radius:22px;background:var(--track);
+    cursor:pointer;transition:background .18s;flex:0 0 auto;}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .18s;}
+  .sw.on{background:var(--accent);}
+  .sw.on::after{transform:translateX(18px);}
+  /* вкладки панелі */
+  .pane{display:none;} .pane.on{display:block;}
+  .bigbtn{width:100%;height:42px;border:1px solid var(--accent);color:var(--accent);
+    background:transparent;border-radius:9px;cursor:pointer;font-size:14px;transition:.15s;}
+  .bigbtn:hover{background:var(--accent);color:#fff;}
+  .hintline{font-size:12px;color:var(--pnl-sub);line-height:1.5;margin:10px 2px 0;}
+  #fsearch{width:calc(100% - 36px);margin:0 18px 6px;border:1px solid var(--border);
+    background:transparent;color:var(--pnl-fg);border-radius:8px;padding:8px 10px;font-size:13px;
+    outline:0;font-family:system-ui,sans-serif;}
+  #fsResults{padding:0 0 6px;}
+  .phcol{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px;}
+  .phcol:hover{color:var(--pnl-fg);}
+  .phcol .phtw{font-size:15px;line-height:1;color:var(--accent);width:14px;display:inline-block;}
+  .secBody{overflow:hidden;}
+  .shRow{display:flex;align-items:center;}
+  .shRow .fsItem{flex:1;min-width:0;}
+  .shDel{border:0;background:transparent;color:var(--pnl-sub);cursor:pointer;font-size:13px;
+    width:26px;height:30px;flex:0 0 auto;border-radius:6px;opacity:0;transition:.12s;}
+  .shRow:hover .shDel{opacity:1;}
+  .shDel:hover{background:var(--border);color:var(--fg);}
+  .fsItem{display:block;width:100%;text-align:left;border:0;background:transparent;cursor:pointer;
+    padding:7px 18px;border-left:2px solid transparent;transition:.12s;}
+  .fsItem:hover{background:var(--border);border-left-color:var(--accent);}
+  .fsName{display:block;font-size:13px;color:var(--pnl-fg);}
+  .fsPath{display:block;font-size:11px;color:var(--pnl-sub);}
+  .fsSnip{display:block;font-size:11px;color:var(--pnl-sub);opacity:.8;margin-top:2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);z-index:50;
+    background:var(--pnl-bg);color:var(--pnl-fg);border:1px solid var(--border);border-radius:10px;
+    padding:10px 16px;font-size:13px;font-family:system-ui,sans-serif;box-shadow:var(--shadow);
+    opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+  #tocList,#recentList{padding:2px 0 20px;}
+  .tocItem,.recentItem{display:block;width:100%;text-align:left;border:0;background:transparent;
+    color:var(--pnl-fg);cursor:pointer;font-size:13px;padding:7px 18px;line-height:1.35;
+    border-left:2px solid transparent;transition:.12s;}
+  .tocItem:hover,.recentItem:hover{background:var(--border);}
+  .tocItem.lvl3{padding-left:32px;color:var(--pnl-sub);font-size:12px;}
+  .recentItem{color:var(--accent);}
+  /* файловий менеджер */
+  #fileTree,#favList{padding:2px 0 6px;}
+  .trKids{margin-left:14px;border-left:1px solid var(--border);}
+  .trDir{display:flex;align-items:center;gap:6px;width:100%;text-align:left;border:0;
+    background:transparent;color:var(--pnl-fg);cursor:pointer;font-size:13px;padding:6px 18px;
+    font-weight:500;transition:.12s;}
+  .trDir:hover{background:var(--border);}
+  .trDir .tw{display:inline-block;transition:transform .15s;color:var(--pnl-sub);font-size:10px;width:9px;}
+  .trDir.open .tw{transform:rotate(90deg);}
+  .trFileRow{display:flex;align-items:center;}
+  .trFileRow:hover{background:var(--border);}
+  .trStar{border:0;background:transparent;cursor:pointer;font-size:14px;color:var(--pnl-sub);
+    width:26px;height:30px;flex:0 0 auto;padding:0;}
+  .trStar.on{color:var(--accent);}
+  .trFile{flex:1;text-align:left;border:0;background:transparent;color:var(--pnl-fg);
+    cursor:pointer;font-size:13px;padding:6px 8px 6px 2px;line-height:1.3;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .trFile:hover{color:var(--accent);}
+  #drophint{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.35);color:#fff;font-size:20px;font-family:system-ui,sans-serif;
+    backdrop-filter:blur(2px);pointer-events:none;}
+  body.dropping #drophint{display:flex;}
+</style>
+</head>
+<body>
+  <div id="rules"></div>
+  <!-- activity bar -->
+  <div id="activity">
+    <button class="abtn" id="tabSettings" title="Налаштування">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <button class="abtn" id="tabSearch" title="Пошук (Ctrl+F)">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </button>
+    <button class="abtn" id="tabContents" title="Зміст">
+      <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    </button>
+    <button class="abtn" id="tabLibrary" title="Бібліотека">
+      <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </button>
+    <button class="abtn" id="btnCopyLink" title="Скопіювати посилання на цей файл">
+      <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+    </button>
+    <button class="abtn" id="btnDownload" title="Скачати файл">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>
+  </div>
+
+  <!-- панель -->
+  <aside id="panel">
+   <div class="pane on" id="paneSettings">
+    <div class="phead">Тема</div>
+    <div class="row seg" id="themeSeg">
+      <button data-t="day"><span class="swatch sw-day"></span>День</button>
+      <button data-t="sepia"><span class="swatch sw-sepia"></span>Сепія</button>
+      <button data-t="night"><span class="swatch sw-night"></span>Ніч</button>
+    </div>
+
+    <div class="phead">Шрифт</div>
+    <div class="row seg" id="fontSeg">
+      <button data-f="serif" class="fontbtn" style="font-family:Georgia,serif">Serif</button>
+      <button data-f="sans" class="fontbtn" style="font-family:system-ui,sans-serif">Sans</button>
+      <button data-f="mono" class="fontbtn" style="font-family:'Courier New',monospace">Mono</button>
+    </div>
+
+    <div class="phead">Текст</div>
+    <div class="row">
+      <label>Розмір <span class="val" id="vFs">17 px</span></label>
+      <input type="range" id="rFs" min="13" max="26" step="1" value="17">
+    </div>
+    <div class="row">
+      <label>Висота рядка <span class="val" id="vLh">1.7</span></label>
+      <input type="range" id="rLh" min="12" max="26" step="1" value="17">
+    </div>
+    <div class="row">
+      <label>Поля <span class="val" id="vPad">норм</span></label>
+      <input type="range" id="rPad" min="24" max="140" step="4" value="60">
+    </div>
+    <div class="row">
+      <label>Ширина тексту <span class="val" id="vMeasure">42 em</span></label>
+      <input type="range" id="rMeasure" min="24" max="80" step="2" value="42">
+    </div>
+    <div class="toggle"><span>Переноси слів (дефіси)</span><div class="sw" id="swHyphen"></div></div>
+    <div class="toggle"><span>Рівний край (justify)</span><div class="sw" id="swJustify"></div></div>
+
+    <div class="phead">Сторінка</div>
+    <div class="row seg" id="colSeg">
+      <button data-c="1">1 стор.</button>
+      <button data-c="2">Розворот</button>
+      <button data-c="auto">Авто</button>
+      <button data-c="scroll">Скрол</button>
+    </div>
+
+    <div class="phead">Штрихування тла</div>
+    <div class="toggle">
+      <span>Увімкнути</span>
+      <div class="sw" id="swRules"></div>
+    </div>
+    <div class="row">
+      <label>Щільність <span class="val" id="vRgap">4 px</span></label>
+      <input type="range" id="rRgap" min="2" max="12" step="1" value="4">
+    </div>
+    <div class="row">
+      <label>Прозорість <span class="val" id="vRopac">7 %</span></label>
+      <input type="range" id="rRopac" min="0" max="30" step="1" value="7">
+    </div>
+    <div class="row">
+      <label>Насиченість <span class="val" id="vRsat">100 %</span></label>
+      <input type="range" id="rRsat" min="0" max="200" step="5" value="100">
+    </div>
+   </div><!-- /paneSettings -->
+
+   <div class="pane" id="paneLibrary">
+    <div class="phead phcol" data-sec="search"><span class="phtw">▸</span> Пошук по файлах</div>
+    <div class="secBody" data-body="search">
+      <input id="fsearch" placeholder="назва або текст усередині…" autocomplete="off">
+      <div id="fsResults"></div>
+    </div>
+    <div class="phead phcol" data-sec="shared"><span class="phtw">▸</span> Від агентів</div>
+    <div class="secBody" data-body="shared"><div id="sharedList"><p class="hintline">…</p></div></div>
+    <div class="phead phcol" data-sec="fav"><span class="phtw">▸</span> Вибране</div>
+    <div class="secBody" data-body="fav"><div id="favList"></div></div>
+    <div class="phead phcol" data-sec="tree"><span class="phtw">▸</span> Файли</div>
+    <div class="secBody" data-body="tree"><div id="fileTree"><p class="hintline">Завантаження…</p></div></div>
+    <div class="phead phcol" data-sec="disk"><span class="phtw">▸</span> Відкрити з диску</div>
+    <div class="secBody" data-body="disk">
+      <div class="row">
+        <button class="bigbtn" id="openFileBtn">📂 Відкрити файл…</button>
+        <p class="hintline">.md · .markdown · .fb2 · .txt<br>або перетягни файл у вікно</p>
+      </div>
+    </div>
+    <div class="phead phcol" data-sec="recent"><span class="phtw">▸</span> Нещодавні</div>
+    <div class="secBody" data-body="recent"><div id="recentList"></div></div>
+   </div>
+
+   <div class="pane" id="paneContents">
+    <div class="phead">Зміст</div>
+    <div id="tocList"><p class="hintline">Заголовки книги з'являться тут.</p></div>
+   </div>
+  </aside>
+  <input type="file" id="fileInput" accept=".md,.markdown,.fb2,.txt" style="display:none">
+  <div id="drophint">Відпусти — відкрию файл</div>
+
+  <!-- пошук -->
+  <div id="searchbar">
+    <input id="searchInput" placeholder="Пошук у книзі…" autocomplete="off">
+    <span id="searchInfo">0/0</span>
+    <button id="searchPrev" title="Попереднє">‹</button>
+    <button id="searchNext" title="Наступне">›</button>
+    <button id="searchClose" title="Закрити">✕</button>
+  </div>
+
+  <!-- виноска -->
+  <div id="toast"></div>
+  <div id="notePop">
+    <div id="notePopText"></div>
+    <div class="notePopBtns">
+      <button id="notePopGo">Перейти до примітки ↗</button>
+      <button id="notePopClose">Закрити</button>
+    </div>
+  </div>
+
+  <!-- читалка -->
+  <div id="reader">
+    <div id="viewport"><div id="book"></div></div>
+    <div id="gutterline"></div>
+    <div class="mhandle" id="mhL"></div>
+    <div class="mhandle" id="mhR"></div>
+    <div id="statusbar">
+      <span id="stTime">--:--</span>
+      <span id="stChapter">Розділ перший (1/1)</span>
+      <span id="stPct">0%</span>
+    </div>
+  </div>
+
+<script>
+/* === marked.js v15 (MIT) — inline === */
+/**
+ * marked v15.0.12 - a markdown parser
+ * Copyright (c) 2011-2025, Christopher Jeffrey. (MIT Licensed)
+ * https://github.com/markedjs/marked
+ */
+
+/**
+ * DO NOT EDIT THIS FILE
+ * The code in this file is generated from files in ./src/
+ */
+(function(g,f){if(typeof exports=="object"&&typeof module<"u"){module.exports=f()}else if("function"==typeof define && define.amd){define("marked",f)}else {g["marked"]=f()}}(typeof globalThis < "u" ? globalThis : typeof self < "u" ? self : this,function(){var exports={};var __exports=exports;var module={exports};
+"use strict";var H=Object.defineProperty;var be=Object.getOwnPropertyDescriptor;var Te=Object.getOwnPropertyNames;var we=Object.prototype.hasOwnProperty;var ye=(l,e)=>{for(var t in e)H(l,t,{get:e[t],enumerable:!0})},Re=(l,e,t,n)=>{if(e&&typeof e=="object"||typeof e=="function")for(let s of Te(e))!we.call(l,s)&&s!==t&&H(l,s,{get:()=>e[s],enumerable:!(n=be(e,s))||n.enumerable});return l};var Se=l=>Re(H({},"__esModule",{value:!0}),l);var kt={};ye(kt,{Hooks:()=>L,Lexer:()=>x,Marked:()=>E,Parser:()=>b,Renderer:()=>$,TextRenderer:()=>_,Tokenizer:()=>S,defaults:()=>w,getDefaults:()=>z,lexer:()=>ht,marked:()=>k,options:()=>it,parse:()=>pt,parseInline:()=>ct,parser:()=>ut,setOptions:()=>ot,use:()=>lt,walkTokens:()=>at});module.exports=Se(kt);function z(){return{async:!1,breaks:!1,extensions:null,gfm:!0,hooks:null,pedantic:!1,renderer:null,silent:!1,tokenizer:null,walkTokens:null}}var w=z();function N(l){w=l}var I={exec:()=>null};function h(l,e=""){let t=typeof l=="string"?l:l.source,n={replace:(s,i)=>{let r=typeof i=="string"?i:i.source;return r=r.replace(m.caret,"$1"),t=t.replace(s,r),n},getRegex:()=>new RegExp(t,e)};return n}var m={codeRemoveIndent:/^(?: {1,4}| {0,3}\t)/gm,outputLinkReplace:/\\([\[\]])/g,indentCodeCompensation:/^(\s+)(?:```)/,beginningSpace:/^\s+/,endingHash:/#$/,startingSpaceChar:/^ /,endingSpaceChar:/ $/,nonSpaceChar:/[^ ]/,newLineCharGlobal:/\n/g,tabCharGlobal:/\t/g,multipleSpaceGlobal:/\s+/g,blankLine:/^[ \t]*$/,doubleBlankLine:/\n[ \t]*\n[ \t]*$/,blockquoteStart:/^ {0,3}>/,blockquoteSetextReplace:/\n {0,3}((?:=+|-+) *)(?=\n|$)/g,blockquoteSetextReplace2:/^ {0,3}>[ \t]?/gm,listReplaceTabs:/^\t+/,listReplaceNesting:/^ {1,4}(?=( {4})*[^ ])/g,listIsTask:/^\[[ xX]\] /,listReplaceTask:/^\[[ xX]\] +/,anyLine:/\n.*\n/,hrefBrackets:/^<(.*)>$/,tableDelimiter:/[:|]/,tableAlignChars:/^\||\| *$/g,tableRowBlankLine:/\n[ \t]*$/,tableAlignRight:/^ *-+: *$/,tableAlignCenter:/^ *:-+: *$/,tableAlignLeft:/^ *:-+ *$/,startATag:/^<a /i,endATag:/^<\/a>/i,startPreScriptTag:/^<(pre|code|kbd|script)(\s|>)/i,endPreScriptTag:/^<\/(pre|code|kbd|script)(\s|>)/i,startAngleBracket:/^</,endAngleBracket:/>$/,pedanticHrefTitle:/^([^'"]*[^\s])\s+(['"])(.*)\2/,unicodeAlphaNumeric:/[\p{L}\p{N}]/u,escapeTest:/[&<>"']/,escapeReplace:/[&<>"']/g,escapeTestNoEncode:/[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/,escapeReplaceNoEncode:/[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/g,unescapeTest:/&(#(?:\d+)|(?:#x[0-9A-Fa-f]+)|(?:\w+));?/ig,caret:/(^|[^\[])\^/g,percentDecode:/%25/g,findPipe:/\|/g,splitPipe:/ \|/,slashPipe:/\\\|/g,carriageReturn:/\r\n|\r/g,spaceLine:/^ +$/gm,notSpaceStart:/^\S*/,endingNewline:/\n$/,listItemRegex:l=>new RegExp(`^( {0,3}${l})((?:[	 ][^\\n]*)?(?:\\n|$))`),nextBulletRegex:l=>new RegExp(`^ {0,${Math.min(3,l-1)}}(?:[*+-]|\\d{1,9}[.)])((?:[ 	][^\\n]*)?(?:\\n|$))`),hrRegex:l=>new RegExp(`^ {0,${Math.min(3,l-1)}}((?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$)`),fencesBeginRegex:l=>new RegExp(`^ {0,${Math.min(3,l-1)}}(?:\`\`\`|~~~)`),headingBeginRegex:l=>new RegExp(`^ {0,${Math.min(3,l-1)}}#`),htmlBeginRegex:l=>new RegExp(`^ {0,${Math.min(3,l-1)}}<(?:[a-z].*>|!--)`,"i")},$e=/^(?:[ \t]*(?:\n|$))+/,_e=/^((?: {4}| {0,3}\t)[^\n]+(?:\n(?:[ \t]*(?:\n|$))*)?)+/,Le=/^ {0,3}(`{3,}(?=[^`\n]*(?:\n|$))|~{3,})([^\n]*)(?:\n|$)(?:|([\s\S]*?)(?:\n|$))(?: {0,3}\1[~`]* *(?=\n|$)|$)/,O=/^ {0,3}((?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/,ze=/^ {0,3}(#{1,6})(?=\s|$)(.*)(?:\n+|$)/,F=/(?:[*+-]|\d{1,9}[.)])/,ie=/^(?!bull |blockCode|fences|blockquote|heading|html|table)((?:.|\n(?!\s*?\n|bull |blockCode|fences|blockquote|heading|html|table))+?)\n {0,3}(=+|-+) *(?:\n+|$)/,oe=h(ie).replace(/bull/g,F).replace(/blockCode/g,/(?: {4}| {0,3}\t)/).replace(/fences/g,/ {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g,/ {0,3}>/).replace(/heading/g,/ {0,3}#{1,6}/).replace(/html/g,/ {0,3}<[^\n>]+>\n/).replace(/\|table/g,"").getRegex(),Me=h(ie).replace(/bull/g,F).replace(/blockCode/g,/(?: {4}| {0,3}\t)/).replace(/fences/g,/ {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g,/ {0,3}>/).replace(/heading/g,/ {0,3}#{1,6}/).replace(/html/g,/ {0,3}<[^\n>]+>\n/).replace(/table/g,/ {0,3}\|?(?:[:\- ]*\|)+[\:\- ]*\n/).getRegex(),Q=/^([^\n]+(?:\n(?!hr|heading|lheading|blockquote|fences|list|html|table| +\n)[^\n]+)*)/,Pe=/^[^\n]+/,U=/(?!\s*\])(?:\\.|[^\[\]\\])+/,Ae=h(/^ {0,3}\[(label)\]: *(?:\n[ \t]*)?([^<\s][^\s]*|<.*?>)(?:(?: +(?:\n[ \t]*)?| *\n[ \t]*)(title))? *(?:\n+|$)/).replace("label",U).replace("title",/(?:"(?:\\"?|[^"\\])*"|'[^'\n]*(?:\n[^'\n]+)*\n?'|\([^()]*\))/).getRegex(),Ee=h(/^( {0,3}bull)([ \t][^\n]+?)?(?:\n|$)/).replace(/bull/g,F).getRegex(),v="address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul",K=/<!--(?:-?>|[\s\S]*?(?:-->|$))/,Ce=h("^ {0,3}(?:<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n+|$)|comment[^\\n]*(\\n+|$)|<\\?[\\s\\S]*?(?:\\?>\\n*|$)|<![A-Z][\\s\\S]*?(?:>\\n*|$)|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>\\n*|$)|</?(tag)(?: +|\\n|/?>)[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|<(?!script|pre|style|textarea)([a-z][\\w-]*)(?:attribute)*? */?>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|</(?!script|pre|style|textarea)[a-z][\\w-]*\\s*>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$))","i").replace("comment",K).replace("tag",v).replace("attribute",/ +[a-zA-Z:_][\w.:-]*(?: *= *"[^"\n]*"| *= *'[^'\n]*'| *= *[^\s"'=<>`]+)?/).getRegex(),le=h(Q).replace("hr",O).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("|lheading","").replace("|table","").replace("blockquote"," {0,3}>").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list"," {0,3}(?:[*+-]|1[.)]) ").replace("html","</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag",v).getRegex(),Ie=h(/^( {0,3}> ?(paragraph|[^\n]*)(?:\n|$))+/).replace("paragraph",le).getRegex(),X={blockquote:Ie,code:_e,def:Ae,fences:Le,heading:ze,hr:O,html:Ce,lheading:oe,list:Ee,newline:$e,paragraph:le,table:I,text:Pe},re=h("^ *([^\\n ].*)\\n {0,3}((?:\\| *)?:?-+:? *(?:\\| *:?-+:? *)*(?:\\| *)?)(?:\\n((?:(?! *\\n|hr|heading|blockquote|code|fences|list|html).*(?:\\n|$))*)\\n*|$)").replace("hr",O).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("blockquote"," {0,3}>").replace("code","(?: {4}| {0,3}	)[^\\n]").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list"," {0,3}(?:[*+-]|1[.)]) ").replace("html","</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag",v).getRegex(),Oe={...X,lheading:Me,table:re,paragraph:h(Q).replace("hr",O).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("|lheading","").replace("table",re).replace("blockquote"," {0,3}>").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list"," {0,3}(?:[*+-]|1[.)]) ").replace("html","</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag",v).getRegex()},Be={...X,html:h(`^ *(?:comment *(?:\\n|\\s*$)|<(tag)[\\s\\S]+?</\\1> *(?:\\n{2,}|\\s*$)|<tag(?:"[^"]*"|'[^']*'|\\s[^'"/>\\s]*)*?/?> *(?:\\n{2,}|\\s*$))`).replace("comment",K).replace(/tag/g,"(?!(?:a|em|strong|small|s|cite|q|dfn|abbr|data|time|code|var|samp|kbd|sub|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo|span|br|wbr|ins|del|img)\\b)\\w+(?!:|[^\\w\\s@]*@)\\b").getRegex(),def:/^ *\[([^\]]+)\]: *<?([^\s>]+)>?(?: +(["(][^\n]+[")]))? *(?:\n+|$)/,heading:/^(#{1,6})(.*)(?:\n+|$)/,fences:I,lheading:/^(.+?)\n {0,3}(=+|-+) *(?:\n+|$)/,paragraph:h(Q).replace("hr",O).replace("heading",` *#{1,6} *[^
+]`).replace("lheading",oe).replace("|table","").replace("blockquote"," {0,3}>").replace("|fences","").replace("|list","").replace("|html","").replace("|tag","").getRegex()},qe=/^\\([!"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])/,ve=/^(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/,ae=/^( {2,}|\\)\n(?!\s*$)/,De=/^(`+|[^`])(?:(?= {2,}\n)|[\s\S]*?(?:(?=[\\<!\[`*_]|\b_|$)|[^ ](?= {2,}\n)))/,D=/[\p{P}\p{S}]/u,W=/[\s\p{P}\p{S}]/u,ce=/[^\s\p{P}\p{S}]/u,Ze=h(/^((?![*_])punctSpace)/,"u").replace(/punctSpace/g,W).getRegex(),pe=/(?!~)[\p{P}\p{S}]/u,Ge=/(?!~)[\s\p{P}\p{S}]/u,He=/(?:[^\s\p{P}\p{S}]|~)/u,Ne=/\[[^[\]]*?\]\((?:\\.|[^\\\(\)]|\((?:\\.|[^\\\(\)])*\))*\)|`[^`]*?`|<[^<>]*?>/g,ue=/^(?:\*+(?:((?!\*)punct)|[^\s*]))|^_+(?:((?!_)punct)|([^\s_]))/,je=h(ue,"u").replace(/punct/g,D).getRegex(),Fe=h(ue,"u").replace(/punct/g,pe).getRegex(),he="^[^_*]*?__[^_*]*?\\*[^_*]*?(?=__)|[^*]+(?=[^*])|(?!\\*)punct(\\*+)(?=[\\s]|$)|notPunctSpace(\\*+)(?!\\*)(?=punctSpace|$)|(?!\\*)punctSpace(\\*+)(?=notPunctSpace)|[\\s](\\*+)(?!\\*)(?=punct)|(?!\\*)punct(\\*+)(?!\\*)(?=punct)|notPunctSpace(\\*+)(?=notPunctSpace)",Qe=h(he,"gu").replace(/notPunctSpace/g,ce).replace(/punctSpace/g,W).replace(/punct/g,D).getRegex(),Ue=h(he,"gu").replace(/notPunctSpace/g,He).replace(/punctSpace/g,Ge).replace(/punct/g,pe).getRegex(),Ke=h("^[^_*]*?\\*\\*[^_*]*?_[^_*]*?(?=\\*\\*)|[^_]+(?=[^_])|(?!_)punct(_+)(?=[\\s]|$)|notPunctSpace(_+)(?!_)(?=punctSpace|$)|(?!_)punctSpace(_+)(?=notPunctSpace)|[\\s](_+)(?!_)(?=punct)|(?!_)punct(_+)(?!_)(?=punct)","gu").replace(/notPunctSpace/g,ce).replace(/punctSpace/g,W).replace(/punct/g,D).getRegex(),Xe=h(/\\(punct)/,"gu").replace(/punct/g,D).getRegex(),We=h(/^<(scheme:[^\s\x00-\x1f<>]*|email)>/).replace("scheme",/[a-zA-Z][a-zA-Z0-9+.-]{1,31}/).replace("email",/[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+(@)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+(?![-_])/).getRegex(),Je=h(K).replace("(?:-->|$)","-->").getRegex(),Ve=h("^comment|^</[a-zA-Z][\\w:-]*\\s*>|^<[a-zA-Z][\\w-]*(?:attribute)*?\\s*/?>|^<\\?[\\s\\S]*?\\?>|^<![a-zA-Z]+\\s[\\s\\S]*?>|^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>").replace("comment",Je).replace("attribute",/\s+[a-zA-Z:_][\w.:-]*(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*[^\s"'=<>`]+)?/).getRegex(),q=/(?:\[(?:\\.|[^\[\]\\])*\]|\\.|`[^`]*`|[^\[\]\\`])*?/,Ye=h(/^!?\[(label)\]\(\s*(href)(?:(?:[ \t]*(?:\n[ \t]*)?)(title))?\s*\)/).replace("label",q).replace("href",/<(?:\\.|[^\n<>\\])+>|[^ \t\n\x00-\x1f]*/).replace("title",/"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)/).getRegex(),ke=h(/^!?\[(label)\]\[(ref)\]/).replace("label",q).replace("ref",U).getRegex(),ge=h(/^!?\[(ref)\](?:\[\])?/).replace("ref",U).getRegex(),et=h("reflink|nolink(?!\\()","g").replace("reflink",ke).replace("nolink",ge).getRegex(),J={_backpedal:I,anyPunctuation:Xe,autolink:We,blockSkip:Ne,br:ae,code:ve,del:I,emStrongLDelim:je,emStrongRDelimAst:Qe,emStrongRDelimUnd:Ke,escape:qe,link:Ye,nolink:ge,punctuation:Ze,reflink:ke,reflinkSearch:et,tag:Ve,text:De,url:I},tt={...J,link:h(/^!?\[(label)\]\((.*?)\)/).replace("label",q).getRegex(),reflink:h(/^!?\[(label)\]\s*\[([^\]]*)\]/).replace("label",q).getRegex()},j={...J,emStrongRDelimAst:Ue,emStrongLDelim:Fe,url:h(/^((?:ftp|https?):\/\/|www\.)(?:[a-zA-Z0-9\-]+\.?)+[^\s<]*|^email/,"i").replace("email",/[A-Za-z0-9._+-]+(@)[a-zA-Z0-9-_]+(?:\.[a-zA-Z0-9-_]*[a-zA-Z0-9])+(?![-_])/).getRegex(),_backpedal:/(?:[^?!.,:;*_'"~()&]+|\([^)]*\)|&(?![a-zA-Z0-9]+;$)|[?!.,:;*_'"~)]+(?!$))+/,del:/^(~~?)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/,text:/^([`~]+|[^`~])(?:(?= {2,}\n)|(?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)|[\s\S]*?(?:(?=[\\<!\[`*~_]|\b_|https?:\/\/|ftp:\/\/|www\.|$)|[^ ](?= {2,}\n)|[^a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-](?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)))/},nt={...j,br:h(ae).replace("{2,}","*").getRegex(),text:h(j.text).replace("\\b_","\\b_| {2,}\\n").replace(/\{2,\}/g,"*").getRegex()},B={normal:X,gfm:Oe,pedantic:Be},P={normal:J,gfm:j,breaks:nt,pedantic:tt};var st={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"},fe=l=>st[l];function R(l,e){if(e){if(m.escapeTest.test(l))return l.replace(m.escapeReplace,fe)}else if(m.escapeTestNoEncode.test(l))return l.replace(m.escapeReplaceNoEncode,fe);return l}function V(l){try{l=encodeURI(l).replace(m.percentDecode,"%")}catch{return null}return l}function Y(l,e){let t=l.replace(m.findPipe,(i,r,o)=>{let a=!1,c=r;for(;--c>=0&&o[c]==="\\";)a=!a;return a?"|":" |"}),n=t.split(m.splitPipe),s=0;if(n[0].trim()||n.shift(),n.length>0&&!n.at(-1)?.trim()&&n.pop(),e)if(n.length>e)n.splice(e);else for(;n.length<e;)n.push("");for(;s<n.length;s++)n[s]=n[s].trim().replace(m.slashPipe,"|");return n}function A(l,e,t){let n=l.length;if(n===0)return"";let s=0;for(;s<n;){let i=l.charAt(n-s-1);if(i===e&&!t)s++;else if(i!==e&&t)s++;else break}return l.slice(0,n-s)}function de(l,e){if(l.indexOf(e[1])===-1)return-1;let t=0;for(let n=0;n<l.length;n++)if(l[n]==="\\")n++;else if(l[n]===e[0])t++;else if(l[n]===e[1]&&(t--,t<0))return n;return t>0?-2:-1}function me(l,e,t,n,s){let i=e.href,r=e.title||null,o=l[1].replace(s.other.outputLinkReplace,"$1");n.state.inLink=!0;let a={type:l[0].charAt(0)==="!"?"image":"link",raw:t,href:i,title:r,text:o,tokens:n.inlineTokens(o)};return n.state.inLink=!1,a}function rt(l,e,t){let n=l.match(t.other.indentCodeCompensation);if(n===null)return e;let s=n[1];return e.split(`
+`).map(i=>{let r=i.match(t.other.beginningSpace);if(r===null)return i;let[o]=r;return o.length>=s.length?i.slice(s.length):i}).join(`
+`)}var S=class{options;rules;lexer;constructor(e){this.options=e||w}space(e){let t=this.rules.block.newline.exec(e);if(t&&t[0].length>0)return{type:"space",raw:t[0]}}code(e){let t=this.rules.block.code.exec(e);if(t){let n=t[0].replace(this.rules.other.codeRemoveIndent,"");return{type:"code",raw:t[0],codeBlockStyle:"indented",text:this.options.pedantic?n:A(n,`
+`)}}}fences(e){let t=this.rules.block.fences.exec(e);if(t){let n=t[0],s=rt(n,t[3]||"",this.rules);return{type:"code",raw:n,lang:t[2]?t[2].trim().replace(this.rules.inline.anyPunctuation,"$1"):t[2],text:s}}}heading(e){let t=this.rules.block.heading.exec(e);if(t){let n=t[2].trim();if(this.rules.other.endingHash.test(n)){let s=A(n,"#");(this.options.pedantic||!s||this.rules.other.endingSpaceChar.test(s))&&(n=s.trim())}return{type:"heading",raw:t[0],depth:t[1].length,text:n,tokens:this.lexer.inline(n)}}}hr(e){let t=this.rules.block.hr.exec(e);if(t)return{type:"hr",raw:A(t[0],`
+`)}}blockquote(e){let t=this.rules.block.blockquote.exec(e);if(t){let n=A(t[0],`
+`).split(`
+`),s="",i="",r=[];for(;n.length>0;){let o=!1,a=[],c;for(c=0;c<n.length;c++)if(this.rules.other.blockquoteStart.test(n[c]))a.push(n[c]),o=!0;else if(!o)a.push(n[c]);else break;n=n.slice(c);let p=a.join(`
+`),u=p.replace(this.rules.other.blockquoteSetextReplace,`
+    $1`).replace(this.rules.other.blockquoteSetextReplace2,"");s=s?`${s}
+${p}`:p,i=i?`${i}
+${u}`:u;let d=this.lexer.state.top;if(this.lexer.state.top=!0,this.lexer.blockTokens(u,r,!0),this.lexer.state.top=d,n.length===0)break;let g=r.at(-1);if(g?.type==="code")break;if(g?.type==="blockquote"){let T=g,f=T.raw+`
+`+n.join(`
+`),y=this.blockquote(f);r[r.length-1]=y,s=s.substring(0,s.length-T.raw.length)+y.raw,i=i.substring(0,i.length-T.text.length)+y.text;break}else if(g?.type==="list"){let T=g,f=T.raw+`
+`+n.join(`
+`),y=this.list(f);r[r.length-1]=y,s=s.substring(0,s.length-g.raw.length)+y.raw,i=i.substring(0,i.length-T.raw.length)+y.raw,n=f.substring(r.at(-1).raw.length).split(`
+`);continue}}return{type:"blockquote",raw:s,tokens:r,text:i}}}list(e){let t=this.rules.block.list.exec(e);if(t){let n=t[1].trim(),s=n.length>1,i={type:"list",raw:"",ordered:s,start:s?+n.slice(0,-1):"",loose:!1,items:[]};n=s?`\\d{1,9}\\${n.slice(-1)}`:`\\${n}`,this.options.pedantic&&(n=s?n:"[*+-]");let r=this.rules.other.listItemRegex(n),o=!1;for(;e;){let c=!1,p="",u="";if(!(t=r.exec(e))||this.rules.block.hr.test(e))break;p=t[0],e=e.substring(p.length);let d=t[2].split(`
+`,1)[0].replace(this.rules.other.listReplaceTabs,Z=>" ".repeat(3*Z.length)),g=e.split(`
+`,1)[0],T=!d.trim(),f=0;if(this.options.pedantic?(f=2,u=d.trimStart()):T?f=t[1].length+1:(f=t[2].search(this.rules.other.nonSpaceChar),f=f>4?1:f,u=d.slice(f),f+=t[1].length),T&&this.rules.other.blankLine.test(g)&&(p+=g+`
+`,e=e.substring(g.length+1),c=!0),!c){let Z=this.rules.other.nextBulletRegex(f),te=this.rules.other.hrRegex(f),ne=this.rules.other.fencesBeginRegex(f),se=this.rules.other.headingBeginRegex(f),xe=this.rules.other.htmlBeginRegex(f);for(;e;){let G=e.split(`
+`,1)[0],C;if(g=G,this.options.pedantic?(g=g.replace(this.rules.other.listReplaceNesting,"  "),C=g):C=g.replace(this.rules.other.tabCharGlobal,"    "),ne.test(g)||se.test(g)||xe.test(g)||Z.test(g)||te.test(g))break;if(C.search(this.rules.other.nonSpaceChar)>=f||!g.trim())u+=`
+`+C.slice(f);else{if(T||d.replace(this.rules.other.tabCharGlobal,"    ").search(this.rules.other.nonSpaceChar)>=4||ne.test(d)||se.test(d)||te.test(d))break;u+=`
+`+g}!T&&!g.trim()&&(T=!0),p+=G+`
+`,e=e.substring(G.length+1),d=C.slice(f)}}i.loose||(o?i.loose=!0:this.rules.other.doubleBlankLine.test(p)&&(o=!0));let y=null,ee;this.options.gfm&&(y=this.rules.other.listIsTask.exec(u),y&&(ee=y[0]!=="[ ] ",u=u.replace(this.rules.other.listReplaceTask,""))),i.items.push({type:"list_item",raw:p,task:!!y,checked:ee,loose:!1,text:u,tokens:[]}),i.raw+=p}let a=i.items.at(-1);if(a)a.raw=a.raw.trimEnd(),a.text=a.text.trimEnd();else return;i.raw=i.raw.trimEnd();for(let c=0;c<i.items.length;c++)if(this.lexer.state.top=!1,i.items[c].tokens=this.lexer.blockTokens(i.items[c].text,[]),!i.loose){let p=i.items[c].tokens.filter(d=>d.type==="space"),u=p.length>0&&p.some(d=>this.rules.other.anyLine.test(d.raw));i.loose=u}if(i.loose)for(let c=0;c<i.items.length;c++)i.items[c].loose=!0;return i}}html(e){let t=this.rules.block.html.exec(e);if(t)return{type:"html",block:!0,raw:t[0],pre:t[1]==="pre"||t[1]==="script"||t[1]==="style",text:t[0]}}def(e){let t=this.rules.block.def.exec(e);if(t){let n=t[1].toLowerCase().replace(this.rules.other.multipleSpaceGlobal," "),s=t[2]?t[2].replace(this.rules.other.hrefBrackets,"$1").replace(this.rules.inline.anyPunctuation,"$1"):"",i=t[3]?t[3].substring(1,t[3].length-1).replace(this.rules.inline.anyPunctuation,"$1"):t[3];return{type:"def",tag:n,raw:t[0],href:s,title:i}}}table(e){let t=this.rules.block.table.exec(e);if(!t||!this.rules.other.tableDelimiter.test(t[2]))return;let n=Y(t[1]),s=t[2].replace(this.rules.other.tableAlignChars,"").split("|"),i=t[3]?.trim()?t[3].replace(this.rules.other.tableRowBlankLine,"").split(`
+`):[],r={type:"table",raw:t[0],header:[],align:[],rows:[]};if(n.length===s.length){for(let o of s)this.rules.other.tableAlignRight.test(o)?r.align.push("right"):this.rules.other.tableAlignCenter.test(o)?r.align.push("center"):this.rules.other.tableAlignLeft.test(o)?r.align.push("left"):r.align.push(null);for(let o=0;o<n.length;o++)r.header.push({text:n[o],tokens:this.lexer.inline(n[o]),header:!0,align:r.align[o]});for(let o of i)r.rows.push(Y(o,r.header.length).map((a,c)=>({text:a,tokens:this.lexer.inline(a),header:!1,align:r.align[c]})));return r}}lheading(e){let t=this.rules.block.lheading.exec(e);if(t)return{type:"heading",raw:t[0],depth:t[2].charAt(0)==="="?1:2,text:t[1],tokens:this.lexer.inline(t[1])}}paragraph(e){let t=this.rules.block.paragraph.exec(e);if(t){let n=t[1].charAt(t[1].length-1)===`
+`?t[1].slice(0,-1):t[1];return{type:"paragraph",raw:t[0],text:n,tokens:this.lexer.inline(n)}}}text(e){let t=this.rules.block.text.exec(e);if(t)return{type:"text",raw:t[0],text:t[0],tokens:this.lexer.inline(t[0])}}escape(e){let t=this.rules.inline.escape.exec(e);if(t)return{type:"escape",raw:t[0],text:t[1]}}tag(e){let t=this.rules.inline.tag.exec(e);if(t)return!this.lexer.state.inLink&&this.rules.other.startATag.test(t[0])?this.lexer.state.inLink=!0:this.lexer.state.inLink&&this.rules.other.endATag.test(t[0])&&(this.lexer.state.inLink=!1),!this.lexer.state.inRawBlock&&this.rules.other.startPreScriptTag.test(t[0])?this.lexer.state.inRawBlock=!0:this.lexer.state.inRawBlock&&this.rules.other.endPreScriptTag.test(t[0])&&(this.lexer.state.inRawBlock=!1),{type:"html",raw:t[0],inLink:this.lexer.state.inLink,inRawBlock:this.lexer.state.inRawBlock,block:!1,text:t[0]}}link(e){let t=this.rules.inline.link.exec(e);if(t){let n=t[2].trim();if(!this.options.pedantic&&this.rules.other.startAngleBracket.test(n)){if(!this.rules.other.endAngleBracket.test(n))return;let r=A(n.slice(0,-1),"\\");if((n.length-r.length)%2===0)return}else{let r=de(t[2],"()");if(r===-2)return;if(r>-1){let a=(t[0].indexOf("!")===0?5:4)+t[1].length+r;t[2]=t[2].substring(0,r),t[0]=t[0].substring(0,a).trim(),t[3]=""}}let s=t[2],i="";if(this.options.pedantic){let r=this.rules.other.pedanticHrefTitle.exec(s);r&&(s=r[1],i=r[3])}else i=t[3]?t[3].slice(1,-1):"";return s=s.trim(),this.rules.other.startAngleBracket.test(s)&&(this.options.pedantic&&!this.rules.other.endAngleBracket.test(n)?s=s.slice(1):s=s.slice(1,-1)),me(t,{href:s&&s.replace(this.rules.inline.anyPunctuation,"$1"),title:i&&i.replace(this.rules.inline.anyPunctuation,"$1")},t[0],this.lexer,this.rules)}}reflink(e,t){let n;if((n=this.rules.inline.reflink.exec(e))||(n=this.rules.inline.nolink.exec(e))){let s=(n[2]||n[1]).replace(this.rules.other.multipleSpaceGlobal," "),i=t[s.toLowerCase()];if(!i){let r=n[0].charAt(0);return{type:"text",raw:r,text:r}}return me(n,i,n[0],this.lexer,this.rules)}}emStrong(e,t,n=""){let s=this.rules.inline.emStrongLDelim.exec(e);if(!s||s[3]&&n.match(this.rules.other.unicodeAlphaNumeric))return;if(!(s[1]||s[2]||"")||!n||this.rules.inline.punctuation.exec(n)){let r=[...s[0]].length-1,o,a,c=r,p=0,u=s[0][0]==="*"?this.rules.inline.emStrongRDelimAst:this.rules.inline.emStrongRDelimUnd;for(u.lastIndex=0,t=t.slice(-1*e.length+r);(s=u.exec(t))!=null;){if(o=s[1]||s[2]||s[3]||s[4]||s[5]||s[6],!o)continue;if(a=[...o].length,s[3]||s[4]){c+=a;continue}else if((s[5]||s[6])&&r%3&&!((r+a)%3)){p+=a;continue}if(c-=a,c>0)continue;a=Math.min(a,a+c+p);let d=[...s[0]][0].length,g=e.slice(0,r+s.index+d+a);if(Math.min(r,a)%2){let f=g.slice(1,-1);return{type:"em",raw:g,text:f,tokens:this.lexer.inlineTokens(f)}}let T=g.slice(2,-2);return{type:"strong",raw:g,text:T,tokens:this.lexer.inlineTokens(T)}}}}codespan(e){let t=this.rules.inline.code.exec(e);if(t){let n=t[2].replace(this.rules.other.newLineCharGlobal," "),s=this.rules.other.nonSpaceChar.test(n),i=this.rules.other.startingSpaceChar.test(n)&&this.rules.other.endingSpaceChar.test(n);return s&&i&&(n=n.substring(1,n.length-1)),{type:"codespan",raw:t[0],text:n}}}br(e){let t=this.rules.inline.br.exec(e);if(t)return{type:"br",raw:t[0]}}del(e){let t=this.rules.inline.del.exec(e);if(t)return{type:"del",raw:t[0],text:t[2],tokens:this.lexer.inlineTokens(t[2])}}autolink(e){let t=this.rules.inline.autolink.exec(e);if(t){let n,s;return t[2]==="@"?(n=t[1],s="mailto:"+n):(n=t[1],s=n),{type:"link",raw:t[0],text:n,href:s,tokens:[{type:"text",raw:n,text:n}]}}}url(e){let t;if(t=this.rules.inline.url.exec(e)){let n,s;if(t[2]==="@")n=t[0],s="mailto:"+n;else{let i;do i=t[0],t[0]=this.rules.inline._backpedal.exec(t[0])?.[0]??"";while(i!==t[0]);n=t[0],t[1]==="www."?s="http://"+t[0]:s=t[0]}return{type:"link",raw:t[0],text:n,href:s,tokens:[{type:"text",raw:n,text:n}]}}}inlineText(e){let t=this.rules.inline.text.exec(e);if(t){let n=this.lexer.state.inRawBlock;return{type:"text",raw:t[0],text:t[0],escaped:n}}}};var x=class l{tokens;options;state;tokenizer;inlineQueue;constructor(e){this.tokens=[],this.tokens.links=Object.create(null),this.options=e||w,this.options.tokenizer=this.options.tokenizer||new S,this.tokenizer=this.options.tokenizer,this.tokenizer.options=this.options,this.tokenizer.lexer=this,this.inlineQueue=[],this.state={inLink:!1,inRawBlock:!1,top:!0};let t={other:m,block:B.normal,inline:P.normal};this.options.pedantic?(t.block=B.pedantic,t.inline=P.pedantic):this.options.gfm&&(t.block=B.gfm,this.options.breaks?t.inline=P.breaks:t.inline=P.gfm),this.tokenizer.rules=t}static get rules(){return{block:B,inline:P}}static lex(e,t){return new l(t).lex(e)}static lexInline(e,t){return new l(t).inlineTokens(e)}lex(e){e=e.replace(m.carriageReturn,`
+`),this.blockTokens(e,this.tokens);for(let t=0;t<this.inlineQueue.length;t++){let n=this.inlineQueue[t];this.inlineTokens(n.src,n.tokens)}return this.inlineQueue=[],this.tokens}blockTokens(e,t=[],n=!1){for(this.options.pedantic&&(e=e.replace(m.tabCharGlobal,"    ").replace(m.spaceLine,""));e;){let s;if(this.options.extensions?.block?.some(r=>(s=r.call({lexer:this},e,t))?(e=e.substring(s.raw.length),t.push(s),!0):!1))continue;if(s=this.tokenizer.space(e)){e=e.substring(s.raw.length);let r=t.at(-1);s.raw.length===1&&r!==void 0?r.raw+=`
+`:t.push(s);continue}if(s=this.tokenizer.code(e)){e=e.substring(s.raw.length);let r=t.at(-1);r?.type==="paragraph"||r?.type==="text"?(r.raw+=`
+`+s.raw,r.text+=`
+`+s.text,this.inlineQueue.at(-1).src=r.text):t.push(s);continue}if(s=this.tokenizer.fences(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.heading(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.hr(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.blockquote(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.list(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.html(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.def(e)){e=e.substring(s.raw.length);let r=t.at(-1);r?.type==="paragraph"||r?.type==="text"?(r.raw+=`
+`+s.raw,r.text+=`
+`+s.raw,this.inlineQueue.at(-1).src=r.text):this.tokens.links[s.tag]||(this.tokens.links[s.tag]={href:s.href,title:s.title});continue}if(s=this.tokenizer.table(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.lheading(e)){e=e.substring(s.raw.length),t.push(s);continue}let i=e;if(this.options.extensions?.startBlock){let r=1/0,o=e.slice(1),a;this.options.extensions.startBlock.forEach(c=>{a=c.call({lexer:this},o),typeof a=="number"&&a>=0&&(r=Math.min(r,a))}),r<1/0&&r>=0&&(i=e.substring(0,r+1))}if(this.state.top&&(s=this.tokenizer.paragraph(i))){let r=t.at(-1);n&&r?.type==="paragraph"?(r.raw+=`
+`+s.raw,r.text+=`
+`+s.text,this.inlineQueue.pop(),this.inlineQueue.at(-1).src=r.text):t.push(s),n=i.length!==e.length,e=e.substring(s.raw.length);continue}if(s=this.tokenizer.text(e)){e=e.substring(s.raw.length);let r=t.at(-1);r?.type==="text"?(r.raw+=`
+`+s.raw,r.text+=`
+`+s.text,this.inlineQueue.pop(),this.inlineQueue.at(-1).src=r.text):t.push(s);continue}if(e){let r="Infinite loop on byte: "+e.charCodeAt(0);if(this.options.silent){console.error(r);break}else throw new Error(r)}}return this.state.top=!0,t}inline(e,t=[]){return this.inlineQueue.push({src:e,tokens:t}),t}inlineTokens(e,t=[]){let n=e,s=null;if(this.tokens.links){let o=Object.keys(this.tokens.links);if(o.length>0)for(;(s=this.tokenizer.rules.inline.reflinkSearch.exec(n))!=null;)o.includes(s[0].slice(s[0].lastIndexOf("[")+1,-1))&&(n=n.slice(0,s.index)+"["+"a".repeat(s[0].length-2)+"]"+n.slice(this.tokenizer.rules.inline.reflinkSearch.lastIndex))}for(;(s=this.tokenizer.rules.inline.anyPunctuation.exec(n))!=null;)n=n.slice(0,s.index)+"++"+n.slice(this.tokenizer.rules.inline.anyPunctuation.lastIndex);for(;(s=this.tokenizer.rules.inline.blockSkip.exec(n))!=null;)n=n.slice(0,s.index)+"["+"a".repeat(s[0].length-2)+"]"+n.slice(this.tokenizer.rules.inline.blockSkip.lastIndex);let i=!1,r="";for(;e;){i||(r=""),i=!1;let o;if(this.options.extensions?.inline?.some(c=>(o=c.call({lexer:this},e,t))?(e=e.substring(o.raw.length),t.push(o),!0):!1))continue;if(o=this.tokenizer.escape(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.tag(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.link(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.reflink(e,this.tokens.links)){e=e.substring(o.raw.length);let c=t.at(-1);o.type==="text"&&c?.type==="text"?(c.raw+=o.raw,c.text+=o.text):t.push(o);continue}if(o=this.tokenizer.emStrong(e,n,r)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.codespan(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.br(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.del(e)){e=e.substring(o.raw.length),t.push(o);continue}if(o=this.tokenizer.autolink(e)){e=e.substring(o.raw.length),t.push(o);continue}if(!this.state.inLink&&(o=this.tokenizer.url(e))){e=e.substring(o.raw.length),t.push(o);continue}let a=e;if(this.options.extensions?.startInline){let c=1/0,p=e.slice(1),u;this.options.extensions.startInline.forEach(d=>{u=d.call({lexer:this},p),typeof u=="number"&&u>=0&&(c=Math.min(c,u))}),c<1/0&&c>=0&&(a=e.substring(0,c+1))}if(o=this.tokenizer.inlineText(a)){e=e.substring(o.raw.length),o.raw.slice(-1)!=="_"&&(r=o.raw.slice(-1)),i=!0;let c=t.at(-1);c?.type==="text"?(c.raw+=o.raw,c.text+=o.text):t.push(o);continue}if(e){let c="Infinite loop on byte: "+e.charCodeAt(0);if(this.options.silent){console.error(c);break}else throw new Error(c)}}return t}};var $=class{options;parser;constructor(e){this.options=e||w}space(e){return""}code({text:e,lang:t,escaped:n}){let s=(t||"").match(m.notSpaceStart)?.[0],i=e.replace(m.endingNewline,"")+`
+`;return s?'<pre><code class="language-'+R(s)+'">'+(n?i:R(i,!0))+`</code></pre>
+`:"<pre><code>"+(n?i:R(i,!0))+`</code></pre>
+`}blockquote({tokens:e}){return`<blockquote>
+${this.parser.parse(e)}</blockquote>
+`}html({text:e}){return e}heading({tokens:e,depth:t}){return`<h${t}>${this.parser.parseInline(e)}</h${t}>
+`}hr(e){return`<hr>
+`}list(e){let t=e.ordered,n=e.start,s="";for(let o=0;o<e.items.length;o++){let a=e.items[o];s+=this.listitem(a)}let i=t?"ol":"ul",r=t&&n!==1?' start="'+n+'"':"";return"<"+i+r+`>
+`+s+"</"+i+`>
+`}listitem(e){let t="";if(e.task){let n=this.checkbox({checked:!!e.checked});e.loose?e.tokens[0]?.type==="paragraph"?(e.tokens[0].text=n+" "+e.tokens[0].text,e.tokens[0].tokens&&e.tokens[0].tokens.length>0&&e.tokens[0].tokens[0].type==="text"&&(e.tokens[0].tokens[0].text=n+" "+R(e.tokens[0].tokens[0].text),e.tokens[0].tokens[0].escaped=!0)):e.tokens.unshift({type:"text",raw:n+" ",text:n+" ",escaped:!0}):t+=n+" "}return t+=this.parser.parse(e.tokens,!!e.loose),`<li>${t}</li>
+`}checkbox({checked:e}){return"<input "+(e?'checked="" ':"")+'disabled="" type="checkbox">'}paragraph({tokens:e}){return`<p>${this.parser.parseInline(e)}</p>
+`}table(e){let t="",n="";for(let i=0;i<e.header.length;i++)n+=this.tablecell(e.header[i]);t+=this.tablerow({text:n});let s="";for(let i=0;i<e.rows.length;i++){let r=e.rows[i];n="";for(let o=0;o<r.length;o++)n+=this.tablecell(r[o]);s+=this.tablerow({text:n})}return s&&(s=`<tbody>${s}</tbody>`),`<table>
+<thead>
+`+t+`</thead>
+`+s+`</table>
+`}tablerow({text:e}){return`<tr>
+${e}</tr>
+`}tablecell(e){let t=this.parser.parseInline(e.tokens),n=e.header?"th":"td";return(e.align?`<${n} align="${e.align}">`:`<${n}>`)+t+`</${n}>
+`}strong({tokens:e}){return`<strong>${this.parser.parseInline(e)}</strong>`}em({tokens:e}){return`<em>${this.parser.parseInline(e)}</em>`}codespan({text:e}){return`<code>${R(e,!0)}</code>`}br(e){return"<br>"}del({tokens:e}){return`<del>${this.parser.parseInline(e)}</del>`}link({href:e,title:t,tokens:n}){let s=this.parser.parseInline(n),i=V(e);if(i===null)return s;e=i;let r='<a href="'+e+'"';return t&&(r+=' title="'+R(t)+'"'),r+=">"+s+"</a>",r}image({href:e,title:t,text:n,tokens:s}){s&&(n=this.parser.parseInline(s,this.parser.textRenderer));let i=V(e);if(i===null)return R(n);e=i;let r=`<img src="${e}" alt="${n}"`;return t&&(r+=` title="${R(t)}"`),r+=">",r}text(e){return"tokens"in e&&e.tokens?this.parser.parseInline(e.tokens):"escaped"in e&&e.escaped?e.text:R(e.text)}};var _=class{strong({text:e}){return e}em({text:e}){return e}codespan({text:e}){return e}del({text:e}){return e}html({text:e}){return e}text({text:e}){return e}link({text:e}){return""+e}image({text:e}){return""+e}br(){return""}};var b=class l{options;renderer;textRenderer;constructor(e){this.options=e||w,this.options.renderer=this.options.renderer||new $,this.renderer=this.options.renderer,this.renderer.options=this.options,this.renderer.parser=this,this.textRenderer=new _}static parse(e,t){return new l(t).parse(e)}static parseInline(e,t){return new l(t).parseInline(e)}parse(e,t=!0){let n="";for(let s=0;s<e.length;s++){let i=e[s];if(this.options.extensions?.renderers?.[i.type]){let o=i,a=this.options.extensions.renderers[o.type].call({parser:this},o);if(a!==!1||!["space","hr","heading","code","table","blockquote","list","html","paragraph","text"].includes(o.type)){n+=a||"";continue}}let r=i;switch(r.type){case"space":{n+=this.renderer.space(r);continue}case"hr":{n+=this.renderer.hr(r);continue}case"heading":{n+=this.renderer.heading(r);continue}case"code":{n+=this.renderer.code(r);continue}case"table":{n+=this.renderer.table(r);continue}case"blockquote":{n+=this.renderer.blockquote(r);continue}case"list":{n+=this.renderer.list(r);continue}case"html":{n+=this.renderer.html(r);continue}case"paragraph":{n+=this.renderer.paragraph(r);continue}case"text":{let o=r,a=this.renderer.text(o);for(;s+1<e.length&&e[s+1].type==="text";)o=e[++s],a+=`
+`+this.renderer.text(o);t?n+=this.renderer.paragraph({type:"paragraph",raw:a,text:a,tokens:[{type:"text",raw:a,text:a,escaped:!0}]}):n+=a;continue}default:{let o='Token with "'+r.type+'" type was not found.';if(this.options.silent)return console.error(o),"";throw new Error(o)}}}return n}parseInline(e,t=this.renderer){let n="";for(let s=0;s<e.length;s++){let i=e[s];if(this.options.extensions?.renderers?.[i.type]){let o=this.options.extensions.renderers[i.type].call({parser:this},i);if(o!==!1||!["escape","html","link","image","strong","em","codespan","br","del","text"].includes(i.type)){n+=o||"";continue}}let r=i;switch(r.type){case"escape":{n+=t.text(r);break}case"html":{n+=t.html(r);break}case"link":{n+=t.link(r);break}case"image":{n+=t.image(r);break}case"strong":{n+=t.strong(r);break}case"em":{n+=t.em(r);break}case"codespan":{n+=t.codespan(r);break}case"br":{n+=t.br(r);break}case"del":{n+=t.del(r);break}case"text":{n+=t.text(r);break}default:{let o='Token with "'+r.type+'" type was not found.';if(this.options.silent)return console.error(o),"";throw new Error(o)}}}return n}};var L=class{options;block;constructor(e){this.options=e||w}static passThroughHooks=new Set(["preprocess","postprocess","processAllTokens"]);preprocess(e){return e}postprocess(e){return e}processAllTokens(e){return e}provideLexer(){return this.block?x.lex:x.lexInline}provideParser(){return this.block?b.parse:b.parseInline}};var E=class{defaults=z();options=this.setOptions;parse=this.parseMarkdown(!0);parseInline=this.parseMarkdown(!1);Parser=b;Renderer=$;TextRenderer=_;Lexer=x;Tokenizer=S;Hooks=L;constructor(...e){this.use(...e)}walkTokens(e,t){let n=[];for(let s of e)switch(n=n.concat(t.call(this,s)),s.type){case"table":{let i=s;for(let r of i.header)n=n.concat(this.walkTokens(r.tokens,t));for(let r of i.rows)for(let o of r)n=n.concat(this.walkTokens(o.tokens,t));break}case"list":{let i=s;n=n.concat(this.walkTokens(i.items,t));break}default:{let i=s;this.defaults.extensions?.childTokens?.[i.type]?this.defaults.extensions.childTokens[i.type].forEach(r=>{let o=i[r].flat(1/0);n=n.concat(this.walkTokens(o,t))}):i.tokens&&(n=n.concat(this.walkTokens(i.tokens,t)))}}return n}use(...e){let t=this.defaults.extensions||{renderers:{},childTokens:{}};return e.forEach(n=>{let s={...n};if(s.async=this.defaults.async||s.async||!1,n.extensions&&(n.extensions.forEach(i=>{if(!i.name)throw new Error("extension name required");if("renderer"in i){let r=t.renderers[i.name];r?t.renderers[i.name]=function(...o){let a=i.renderer.apply(this,o);return a===!1&&(a=r.apply(this,o)),a}:t.renderers[i.name]=i.renderer}if("tokenizer"in i){if(!i.level||i.level!=="block"&&i.level!=="inline")throw new Error("extension level must be 'block' or 'inline'");let r=t[i.level];r?r.unshift(i.tokenizer):t[i.level]=[i.tokenizer],i.start&&(i.level==="block"?t.startBlock?t.startBlock.push(i.start):t.startBlock=[i.start]:i.level==="inline"&&(t.startInline?t.startInline.push(i.start):t.startInline=[i.start]))}"childTokens"in i&&i.childTokens&&(t.childTokens[i.name]=i.childTokens)}),s.extensions=t),n.renderer){let i=this.defaults.renderer||new $(this.defaults);for(let r in n.renderer){if(!(r in i))throw new Error(`renderer '${r}' does not exist`);if(["options","parser"].includes(r))continue;let o=r,a=n.renderer[o],c=i[o];i[o]=(...p)=>{let u=a.apply(i,p);return u===!1&&(u=c.apply(i,p)),u||""}}s.renderer=i}if(n.tokenizer){let i=this.defaults.tokenizer||new S(this.defaults);for(let r in n.tokenizer){if(!(r in i))throw new Error(`tokenizer '${r}' does not exist`);if(["options","rules","lexer"].includes(r))continue;let o=r,a=n.tokenizer[o],c=i[o];i[o]=(...p)=>{let u=a.apply(i,p);return u===!1&&(u=c.apply(i,p)),u}}s.tokenizer=i}if(n.hooks){let i=this.defaults.hooks||new L;for(let r in n.hooks){if(!(r in i))throw new Error(`hook '${r}' does not exist`);if(["options","block"].includes(r))continue;let o=r,a=n.hooks[o],c=i[o];L.passThroughHooks.has(r)?i[o]=p=>{if(this.defaults.async)return Promise.resolve(a.call(i,p)).then(d=>c.call(i,d));let u=a.call(i,p);return c.call(i,u)}:i[o]=(...p)=>{let u=a.apply(i,p);return u===!1&&(u=c.apply(i,p)),u}}s.hooks=i}if(n.walkTokens){let i=this.defaults.walkTokens,r=n.walkTokens;s.walkTokens=function(o){let a=[];return a.push(r.call(this,o)),i&&(a=a.concat(i.call(this,o))),a}}this.defaults={...this.defaults,...s}}),this}setOptions(e){return this.defaults={...this.defaults,...e},this}lexer(e,t){return x.lex(e,t??this.defaults)}parser(e,t){return b.parse(e,t??this.defaults)}parseMarkdown(e){return(n,s)=>{let i={...s},r={...this.defaults,...i},o=this.onError(!!r.silent,!!r.async);if(this.defaults.async===!0&&i.async===!1)return o(new Error("marked(): The async option was set to true by an extension. Remove async: false from the parse options object to return a Promise."));if(typeof n>"u"||n===null)return o(new Error("marked(): input parameter is undefined or null"));if(typeof n!="string")return o(new Error("marked(): input parameter is of type "+Object.prototype.toString.call(n)+", string expected"));r.hooks&&(r.hooks.options=r,r.hooks.block=e);let a=r.hooks?r.hooks.provideLexer():e?x.lex:x.lexInline,c=r.hooks?r.hooks.provideParser():e?b.parse:b.parseInline;if(r.async)return Promise.resolve(r.hooks?r.hooks.preprocess(n):n).then(p=>a(p,r)).then(p=>r.hooks?r.hooks.processAllTokens(p):p).then(p=>r.walkTokens?Promise.all(this.walkTokens(p,r.walkTokens)).then(()=>p):p).then(p=>c(p,r)).then(p=>r.hooks?r.hooks.postprocess(p):p).catch(o);try{r.hooks&&(n=r.hooks.preprocess(n));let p=a(n,r);r.hooks&&(p=r.hooks.processAllTokens(p)),r.walkTokens&&this.walkTokens(p,r.walkTokens);let u=c(p,r);return r.hooks&&(u=r.hooks.postprocess(u)),u}catch(p){return o(p)}}}onError(e,t){return n=>{if(n.message+=`
+Please report this to https://github.com/markedjs/marked.`,e){let s="<p>An error occurred:</p><pre>"+R(n.message+"",!0)+"</pre>";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}};var M=new E;function k(l,e){return M.parse(l,e)}k.options=k.setOptions=function(l){return M.setOptions(l),k.defaults=M.defaults,N(k.defaults),k};k.getDefaults=z;k.defaults=w;k.use=function(...l){return M.use(...l),k.defaults=M.defaults,N(k.defaults),k};k.walkTokens=function(l,e){return M.walkTokens(l,e)};k.parseInline=M.parseInline;k.Parser=b;k.parser=b.parse;k.Renderer=$;k.TextRenderer=_;k.Lexer=x;k.lexer=x.lex;k.Tokenizer=S;k.Hooks=L;k.parse=k;var it=k.options,ot=k.setOptions,lt=k.use,at=k.walkTokens,ct=k.parseInline,pt=k,ut=b.parse,ht=x.lex;
+
+if(__exports != exports)module.exports = exports;return module.exports}));
+
+</script>
+<script>
+const BOOK={title:"Як користуватися читалкою",paras:[
+"Це читалка документів вашої робочої теки. Агенти пишуть звіти, плани й нотатки в Markdown; тут їх зручно читати з будь-якого пристрою — сторінками або суцільною стрічкою, з оглядом розділів зліва.",
+"Ліворуч, у бібліотеці, є пошук по назвах і по тексту всередині файлів, дерево тек і список нещодавніх. Якщо в налаштуваннях увімкнено теку для документів від агентів, її файли стоять окремим розділом угорі — найновіші першими.",
+"Агент може дати пряме посилання на документ: адреса читалки, а після неї ?open= і шлях до файлу від кореня робочої теки. Посилання відкриває саме цей файл, а кнопка «поділитись» копіює таку адресу для поточного.",
+"Тему, шрифт, розмір літер, ширину рядка й міжрядковий інтервал можна змінити в налаштуваннях. Вони зберігаються на сервері, тож на телефоні й на ноутбуці читалка виглядає однаково, і остання відкрита книжка теж спільна.",
+"Читалка лише показує файли: нічого в теці не змінює і не видаляє. Вона віддає тільки .md, .markdown, .txt і .fb2, не віддає приховані файли й теки та нічого поза коренем робочої теки.",
+"За замовчуванням сервер слухає лише цей комп'ютер. Відкривати його в мережу варто тільки за довіреним проксі з паролем: у самої читалки входу немає, і будь-хто, хто дістався до адреси, прочитає всі документи."
+]};
+
+const FONTS={serif:"Georgia,'Times New Roman',serif",sans:"Segoe UI,system-ui,-apple-system,'Segoe UI',sans-serif",mono:"'Courier New',monospace"};
+const S=Object.assign({theme:'sepia',font:'sans',fs:17,lh:16,pad:60,col:'auto',
+  rules:false,rgap:4,ropac:7,rsat:100,measure:42,hyphen:false,justify:false},
+  JSON.parse(localStorage.getItem('reader-v2')||'{}'));
+
+const book=document.getElementById('book'), vp=document.getElementById('viewport'),
+      readerEl=document.getElementById('reader');
+
+// сховище книги (IndexedDB — переживає перезавантаження)
+function idb(fn){return new Promise((res,rej)=>{const r=indexedDB.open('reader-db',1);
+  r.onupgradeneeded=()=>r.result.createObjectStore('kv');
+  r.onerror=()=>rej(r.error);
+  r.onsuccess=()=>{const db=r.result;fn(db,res,rej);};});}
+function idbSet(k,v){return idb((db,res,rej)=>{const tx=db.transaction('kv','readwrite');
+  tx.objectStore('kv').put(v,k);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+function idbGet(k){return idb((db,res,rej)=>{const tx=db.transaction('kv','readonly');
+  const g=tx.objectStore('kv').get(k);g.onsuccess=()=>res(g.result);g.onerror=()=>rej(g.error);});}
+let page=0, spreads=1, cols=1, colStep=0, pageW=0;
+let anim=false, animT=0, dragS=null, dragOn=false;
+
+let _saveT;
+function save(){
+  try{localStorage.setItem('reader-v2',JSON.stringify(S));}catch(e){}
+  clearTimeout(_saveT);
+  _saveT=setTimeout(()=>{ fetch('/api/settings?set='+encodeURIComponent(JSON.stringify(S))).catch(()=>{}); },400);
+}
+
+function apply(){
+  // тема
+  if(S.theme==='day') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme',S.theme);
+  document.querySelectorAll('#themeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.t===S.theme));
+  // шрифт
+  book.style.setProperty('--serif',FONTS[S.font]);
+  document.querySelectorAll('#fontSeg button').forEach(b=>b.classList.toggle('on',b.dataset.f===S.font));
+  // текст
+  book.style.setProperty('--fs',S.fs+'px');
+  book.style.setProperty('--lh',(S.lh/10).toFixed(1));
+  book.style.textAlign = S.justify ? 'justify' : 'left';
+  book.style.hyphens = S.hyphen ? 'auto' : 'none';
+  book.style.webkitHyphens = S.hyphen ? 'auto' : 'none';
+  const sh=document.getElementById('swHyphen'), sj=document.getElementById('swJustify');
+  if(sh) sh.classList.toggle('on',!!S.hyphen);
+  if(sj) sj.classList.toggle('on',!!S.justify);
+  document.querySelectorAll('#colSeg button').forEach(b=>b.classList.toggle('on',b.dataset.c===S.col));
+  document.getElementById('vFs').textContent=S.fs+' px';
+  document.getElementById('vLh').textContent=(S.lh/10).toFixed(1);
+  document.getElementById('vPad').textContent=S.pad<45?'вузькі':S.pad>100?'широкі':'норм';
+  document.getElementById('vMeasure').textContent=(S.measure||42)+' em';
+  document.getElementById('rMeasure').value=S.measure||42;
+  document.getElementById('rFs').value=S.fs;
+  document.getElementById('rLh').value=S.lh;
+  document.getElementById('rPad').value=S.pad;
+  applyRules();
+  requestAnimationFrame(paginate);
+}
+function applyRules(){
+  document.body.classList.toggle('rules',!!S.rules);
+  document.getElementById('swRules').classList.toggle('on',!!S.rules);
+  const gap=S.rgap||4, r=document.getElementById('rules');
+  const HUE={day:35,sepia:28,night:210}, LIGHT={day:18,sepia:30,night:76};
+  const sat=Math.round((S.rsat||0)/2);              // 0..100%
+  const col=`hsl(${HUE[S.theme]||28}, ${sat}%, ${LIGHT[S.theme]||30}%)`;
+  r.style.background=
+    `repeating-linear-gradient(to bottom, ${col} 0, ${col} 1px, transparent 1px, transparent ${gap}px)`;
+  r.style.opacity=(S.ropac/100).toFixed(3);
+  r.style.filter='none';
+  document.getElementById('vRgap').textContent=gap+' px';   document.getElementById('rRgap').value=gap;
+  document.getElementById('vRopac').textContent=S.ropac+' %';document.getElementById('rRopac').value=S.ropac;
+  document.getElementById('vRsat').textContent=S.rsat+' %';  document.getElementById('rRsat').value=S.rsat;
+}
+
+function layoutScroll(){
+  document.body.classList.add('scrollmode');
+  document.body.classList.remove('spread');
+  const V=vp.clientWidth;
+  const w=Math.min(V, Math.max(220, Math.round((S.measure||42)*S.fs)));
+  book.style.width=w+'px'; book.style.transform='none'; book.style.columnWidth='auto';
+  updateStatus();
+}
+function paginate(){
+  readerEl.style.setProperty('--pad',S.pad+'px');
+  if(S.col==='scroll'){ layoutScroll(); return; }
+  document.body.classList.remove('scrollmode');
+  const V=vp.clientWidth;
+  let want = S.col==='1'?1 : S.col==='2'?2 : (readerEl.clientWidth>820?2:1);
+  cols=want;
+  document.body.classList.toggle('spread',cols===2);
+  const gap=48;
+  // ЦІЛА ширина колонки й точна ширина розвороту -> крок ідеально періодичний, без накопичення
+  let colW;
+  if(cols===2){ colW = Math.max(120, Math.floor((V-gap)/2)); }
+  else { colW = Math.min(V, Math.max(220, Math.round((S.measure||42)*S.fs))); }
+  pageW = cols===2 ? 2*colW+gap : colW;
+  book.style.width = pageW+'px';
+  book.style.columnWidth = colW+'px';
+  book.style.columnGap = gap+'px';
+  book.style.transform='translateX(0)';
+  colStep = pageW + gap;
+  const totalW = book.scrollWidth + gap;
+  spreads = Math.max(1, Math.round(totalW/colStep));
+  if(page>=spreads) page=spreads-1;
+  go(page);
+}
+function go(p){
+  page=Math.max(0,Math.min(spreads-1,p));
+  const center=Math.max(0,(vp.clientWidth-pageW)/2);
+  book.style.transform=`translateX(${Math.round(center-page*colStep)}px)`;
+  layoutHandles();
+  updateStatus();
+  savePos();
+  anim=true; clearTimeout(animT); animT=setTimeout(()=>anim=false,320);
+}
+// стійкий якір: індекс першого блоку на видимому розвороті (не залежить від шрифту/вікна)
+function currentAnchor(){
+  const bl=book.getBoundingClientRect().left, kids=book.children, target=page*colStep;
+  for(let k=0;k<kids.length;k++){if(kids[k].getBoundingClientRect().left-bl>=target-2)return k;}
+  return 0;
+}
+function savePos(){try{
+  if(S.col==='scroll'){const h=vp.scrollHeight-vp.clientHeight;
+    localStorage.setItem('reader-pos',JSON.stringify({t:currentTitle,s:h>0?vp.scrollTop/h:0}));}
+  else localStorage.setItem('reader-pos',JSON.stringify({t:currentTitle,i:currentAnchor()}));
+}catch(e){}}
+function restoreAnchor(i){
+  const el=book.children[i]; if(!el)return;
+  const x=el.getBoundingClientRect().left-book.getBoundingClientRect().left;
+  go(Math.max(0,Math.round(x/colStep)));
+}
+function layoutHandles(){
+  const W=readerEl.clientWidth;
+  const off=Math.min(Math.max(S.pad-4,0),10);   // відступ хендла ~10px від краю тексту в поле
+  document.getElementById('mhL').style.left=(S.pad-off-8)+'px';
+  document.getElementById('mhR').style.left=(W-S.pad+off-8)+'px';
+}
+function pad2(n){return n<10?'0'+n:''+n;}
+function updateStatus(){
+  if(S.col==='scroll'){
+    const h=vp.scrollHeight-vp.clientHeight;
+    document.getElementById('stChapter').textContent=currentTitle;
+    document.getElementById('stPct').textContent=(h>0?Math.round(vp.scrollTop/h*100):0)+'%';
+    const dd=new Date();document.getElementById('stTime').textContent=pad2(dd.getHours())+':'+pad2(dd.getMinutes());
+    return;
+  }
+  document.getElementById('stChapter').textContent=`${currentTitle} (${page+1}/${spreads})`;
+  document.getElementById('stPct').textContent=Math.round((page+1)/spreads*100)+'%';
+  const d=new Date();
+  document.getElementById('stTime').textContent=pad2(d.getHours())+':'+pad2(d.getMinutes());
+}
+const next=()=>{ if(S.col==='scroll'){vp.scrollBy({top:Math.round(vp.clientHeight*0.9),behavior:'smooth'});return;} if(page<spreads-1) go(page+1); };
+const prev=()=>{ if(S.col==='scroll'){vp.scrollBy({top:-Math.round(vp.clientHeight*0.9),behavior:'smooth'});return;} if(page>0) go(page-1); };
+
+// панель
+let activeTab=null;
+function openTab(t){
+  if(activeTab===t){ document.body.classList.remove('panel'); activeTab=null; }
+  else { document.body.classList.add('panel'); activeTab=t;
+    ['settings','contents','library'].forEach(n=>
+      document.getElementById('pane'+n[0].toUpperCase()+n.slice(1)).classList.toggle('on',t===n)); }
+  syncTabBtns();
+  setTimeout(paginate,260);
+}
+function syncTabBtns(){
+  document.getElementById('tabSettings').classList.toggle('on',activeTab==='settings');
+  document.getElementById('tabContents').classList.toggle('on',activeTab==='contents');
+  document.getElementById('tabLibrary').classList.toggle('on',activeTab==='library');
+}
+document.getElementById('tabSettings').onclick=()=>openTab('settings');
+document.getElementById('tabContents').onclick=()=>openTab('contents');
+document.getElementById('tabLibrary').onclick=()=>openTab('library');
+
+// контроли
+document.getElementById('themeSeg').onclick=e=>{const b=e.target.closest('button');if(b){S.theme=b.dataset.t;save();apply();}};
+document.getElementById('fontSeg').onclick=e=>{const b=e.target.closest('button');if(b){S.font=b.dataset.f;save();apply();}};
+document.getElementById('colSeg').onclick=e=>{const b=e.target.closest('button');if(b){S.col=b.dataset.c;save();apply();}};
+document.getElementById('rFs').oninput=e=>{S.fs=+e.target.value;save();apply();};
+document.getElementById('rLh').oninput=e=>{S.lh=+e.target.value;save();apply();};
+document.getElementById('rPad').oninput=e=>{S.pad=+e.target.value;save();apply();};
+document.getElementById('rMeasure').oninput=e=>{S.measure=+e.target.value;save();apply();};
+document.getElementById('swRules').onclick=()=>{S.rules=!S.rules;save();applyRules();};
+document.getElementById('swHyphen').onclick=()=>{S.hyphen=!S.hyphen;save();apply();};
+document.getElementById('swJustify').onclick=()=>{S.justify=!S.justify;save();apply();};
+document.getElementById('rRgap').oninput=e=>{S.rgap=+e.target.value;if(!S.rules)S.rules=true;save();applyRules();};
+document.getElementById('rRopac').oninput=e=>{S.ropac=+e.target.value;if(!S.rules)S.rules=true;save();applyRules();};
+document.getElementById('rRsat').oninput=e=>{S.rsat=+e.target.value;if(!S.rules)S.rules=true;save();applyRules();};
+
+// гортання: клік по краях поля, але НЕ коли є виділення / анімація / drag
+vp.addEventListener('click',e=>{
+  if(S.col==='scroll') return;
+  if(anim||dragOn) return;
+  if(!window.getSelection().isCollapsed) return;   // юзер щось виділив — не гортати
+  const rect=vp.getBoundingClientRect(), x=e.clientX-rect.left;
+  if(x < rect.width*0.30) prev();
+  else if(x > rect.width*0.70) next();
+});
+// колесо: один крок на прокрут, з блокуванням (щоб не перестрибувало)
+let wheelLock=false;
+vp.addEventListener('wheel',e=>{
+  if(S.col==='scroll') return;
+  if(wheelLock||Math.abs(e.deltaY)<6) return;
+  wheelLock=true; setTimeout(()=>wheelLock=false,420);
+  if(e.deltaY>0) next(); else prev();
+},{passive:true});
+
+// виділення через межу сторінок: тягнеш до краю -> читалка гортає й продовжує виділення
+let selecting=false, selTimer=null, selDir=0, lastY=0;
+vp.addEventListener('pointerdown',e=>{
+  if(e.target.closest('.mhandle')||e.target.closest('.fnote'))return; selecting=true;});
+addEventListener('pointerup',()=>{selecting=false;stopSelAuto();});
+addEventListener('pointermove',e=>{
+  if(!selecting)return; if(S.col==='scroll')return; lastY=e.clientY;
+  if(window.getSelection().isCollapsed){stopSelAuto();return;}   // поки нічого не виділено
+  const r=vp.getBoundingClientRect();
+  if(e.clientX>r.right-48) startSelAuto(1);
+  else if(e.clientX<r.left+48) startSelAuto(-1);
+  else stopSelAuto();
+});
+function startSelAuto(dir){
+  if(selTimer&&selDir===dir)return; stopSelAuto(); selDir=dir;
+  const tick=()=>{ if(dir>0){if(page<spreads-1)next();else{stopSelAuto();return;}}
+                   else{if(page>0)prev();else{stopSelAuto();return;}}
+                   setTimeout(()=>extendSel(dir),260); };
+  tick(); selTimer=setInterval(tick,780);
+}
+function stopSelAuto(){if(selTimer){clearInterval(selTimer);selTimer=null;selDir=0;}}
+function extendSel(dir){
+  const r=vp.getBoundingClientRect(), x=dir>0?r.right-12:r.left+12; let rng=null;
+  if(document.caretRangeFromPoint) rng=document.caretRangeFromPoint(x,lastY);
+  else if(document.caretPositionFromPoint){const p=document.caretPositionFromPoint(x,lastY);
+    if(p){rng=document.createRange();rng.setStart(p.offsetNode,p.offset);}}
+  const sel=window.getSelection();
+  if(rng&&sel.rangeCount) try{sel.extend(rng.startContainer,rng.startOffset);}catch(e){}
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' ') next();
+  else if(e.key==='ArrowLeft') prev();
+});
+let sx=null;
+vp.addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});
+vp.addEventListener('touchend',e=>{if(sx===null)return;const dx=e.changedTouches[0].clientX-sx;
+  if(dx<-40)next();else if(dx>40)prev();sx=null;},{passive:true});
+let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(paginate,150);});
+let scT;vp.addEventListener('scroll',()=>{if(S.col!=='scroll')return;clearTimeout(scT);scT=setTimeout(()=>{updateStatus();savePos();},140);},{passive:true});
+// коли панель доїхала (змінилась ширина читалки) — перерахувати сторінки на правильну ширину
+readerEl.addEventListener('transitionend',e=>{if(e.propertyName==='left')paginate();});
+
+// перетягування полів (drag стартує лише після руху >4px — клік не збиває нічого)
+let raf=0;
+function beginDrag(e){dragS={x:e.clientX,id:e.pointerId,el:e.currentTarget};dragOn=false;e.preventDefault();}
+function moveDrag(e){
+  if(!dragS)return;
+  if(!dragOn){ if(Math.abs(e.clientX-dragS.x)<4)return; dragOn=true;
+    document.body.classList.add('dragging');
+    if(dragS.el.setPointerCapture)dragS.el.setPointerCapture(dragS.id); }
+  const rect=readerEl.getBoundingClientRect();
+  let x=e.clientX-rect.left;
+  let p=Math.max(16, Math.min(Math.round(rect.width*0.38), Math.round(Math.min(x,rect.width-x))));
+  S.pad=p;
+  document.getElementById('rPad').value=Math.max(24,Math.min(140,p));
+  document.getElementById('vPad').textContent=p<45?'вузькі':p>100?'широкі':'норм';
+  if(!raf)raf=requestAnimationFrame(()=>{raf=0;paginate();});
+}
+function endDrag(){ if(dragS){ if(dragOn)save(); dragS=null; setTimeout(()=>dragOn=false,0);
+  document.body.classList.remove('dragging'); }}
+['mhL','mhR'].forEach(id=>document.getElementById(id).addEventListener('pointerdown',beginDrag));
+addEventListener('pointermove',moveDrag);
+addEventListener('pointerup',endDrag);
+
+// ---------- ЗАВАНТАЖЕННЯ ФАЙЛІВ ----------
+let currentTitle=BOOK.title, tocData=[], currentNotes={}, currentPath='';
+
+function decodeBytes(buf){
+  const head=new TextDecoder('ascii').decode(new Uint8Array(buf.slice(0,300)));
+  const m=head.match(/encoding=["']([^"']+)["']/i);
+  let enc=(m?m[1]:'utf-8').toLowerCase().replace(/^cp/,'windows-');
+  try{return new TextDecoder(enc).decode(buf);}catch(e){return new TextDecoder('utf-8').decode(buf);}
+}
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function md2html(md){
+  const inl=t=>esc(t)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g,'')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g,'$1')
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>');
+  const lines=md.split(/\r?\n/);
+  let html='',para=[],headings=[],hc=0,code=false,list=null;
+  const flush=()=>{if(para.length){html+='<p>'+inl(para.join(' '))+'</p>';para=[];}};
+  const clist=()=>{if(list){html+='</'+list+'>';list=null;}};
+  for(const raw of lines){
+    if(/^```/.test(raw)){flush();clist();code=!code;html+=code?'<pre>':'</pre>';continue;}
+    if(code){html+=esc(raw)+'\n';continue;}
+    let m=raw.match(/^(#{1,6})\s+(.*)$/);
+    if(m){flush();clist();const lvl=m[1].length,id='h'+(hc++),tag=lvl===1?2:3;
+      html+=`<h${tag} id="${id}">${inl(m[2])}</h${tag}>`;
+      headings.push({text:m[2].replace(/[*_`#]/g,'').trim(),lvl:tag,id});continue;}
+    if(/^\s*[-*+]\s+/.test(raw)){flush();if(list!=='ul'){clist();list='ul';html+='<ul>';}
+      html+='<li>'+inl(raw.replace(/^\s*[-*+]\s+/,''))+'</li>';continue;}
+    if(/^\s*\d+\.\s+/.test(raw)){flush();if(list!=='ol'){clist();list='ol';html+='<ol>';}
+      html+='<li>'+inl(raw.replace(/^\s*\d+\.\s+/,''))+'</li>';continue;}
+    if(/^\s*>/.test(raw)){flush();clist();html+='<blockquote>'+inl(raw.replace(/^\s*>\s?/,''))+'</blockquote>';continue;}
+    if(/^\s*([-*_])(\s*\1){2,}\s*$/.test(raw)){flush();clist();html+='<hr>';continue;}
+    if(raw.trim()===''){flush();clist();continue;}
+    para.push(raw.trim());
+  }
+  flush();clist();if(code)html+='</pre>';
+  return {html,headings};
+}
+
+function fb2html(text){
+  const doc=new DOMParser().parseFromString(text,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length)
+    return {title:'',html:'<p>Не вдалося розібрати FB2 (можливо, .fb2.zip — розпакуй спершу).</p>',headings:[],notes:{}};
+  const all=[...doc.getElementsByTagName('*')];
+  const bt=all.find(n=>n.localName==='book-title');
+  let title=bt?bt.textContent.trim():'';
+  const bodies=all.filter(n=>n.localName==='body'&&n.parentNode&&n.parentNode.localName==='FictionBook');
+  const isNotes=b=>{const nm=(b.getAttribute('name')||'').toLowerCase();return nm==='notes'||nm==='comments';};
+  const mainB=bodies.filter(b=>!isNotes(b)), noteB=bodies.filter(isNotes);
+  let html='',headings=[],hc=0,notes={};
+  const XL='http://www.w3.org/1999/xlink';
+  const href=c=>c.getAttributeNS(XL,'href')||c.getAttribute('l:href')||c.getAttribute('xlink:href')||c.getAttribute('href')||'';
+  const inl=node=>{let o='';node.childNodes.forEach(c=>{
+    if(c.nodeType===3)o+=esc(c.nodeValue);
+    else if(c.nodeType===1){const ln=c.localName;
+      if(ln==='emphasis')o+='<em>'+inl(c)+'</em>';
+      else if(ln==='strong')o+='<strong>'+inl(c)+'</strong>';
+      else if(ln==='a'){const tid=href(c).replace(/^#/,'');
+        o+=`<a class="fnote" data-t="${esc(tid)}">${inl(c)||'['+esc(tid)+']'}</a>`;}
+      else o+=inl(c);}});return o;};
+  const walk=(node,depth)=>{node.childNodes.forEach(c=>{
+    if(c.nodeType!==1)return; const ln=c.localName;
+    if(ln==='section')walk(c,depth+1);
+    else if(ln==='title'){const t=c.textContent.replace(/\s+/g,' ').trim();
+      if(t){const id='h'+(hc++),lvl=depth<=1?2:3;
+        html+=`<h${lvl} id="${id}">${esc(t)}</h${lvl}>`;headings.push({text:t,lvl,id});}}
+    else if(ln==='subtitle')html+='<h4>'+inl(c)+'</h4>';
+    else if(ln==='p')html+='<p>'+inl(c)+'</p>';
+    else if(ln==='empty-line')html+='<p>&nbsp;</p>';
+    else if(ln==='v')html+='<p class="verse">'+inl(c)+'</p>';
+    else if(c.childNodes.length)walk(c,depth);});};
+  (mainB.length?mainB:bodies).forEach(b=>walk(b,0));
+  // збір приміток
+  noteB.forEach(b=>[...b.getElementsByTagName('*')]
+    .filter(n=>n.localName==='section'&&n.getAttribute('id'))
+    .forEach(s=>{const ps=[...s.getElementsByTagName('*')].filter(n=>n.localName==='p');
+      notes[s.getAttribute('id')]=(ps.map(p=>p.textContent).join(' ')||s.textContent).replace(/\s+/g,' ').trim();}));
+  // рендер приміток у кінці (щоб було куди «перейти»)
+  const keys=Object.keys(notes);
+  if(keys.length){ html+='<h2 id="notesSection">Примітки</h2>';
+    keys.forEach(id=>{html+=`<p id="note-${esc(id)}"><b>${esc(id)}.</b> ${esc(notes[id])}</p>`;}); }
+  return {title,html:html||'<p>Порожньо.</p>',headings,notes};
+}
+
+let cleanHTML='';
+function loadBook(title,html,headings,notes,persist){
+  currentTitle=title; tocData=headings||[]; currentNotes=notes||{};
+  hideNote(); clearSearch();
+  book.innerHTML=html||'<p>Порожньо.</p>';
+  cleanHTML=book.innerHTML;
+  buildTOC(); page=0; apply();
+  if(persist!==false) idbSet('lastBook',{title,html:cleanHTML,headings:tocData,notes:currentNotes}).catch(()=>{});
+}
+
+// ---------- ВИНОСКИ ----------
+function showNote(tid){
+  const txt=currentNotes[tid]||'(виноску не знайдено у файлі)';
+  document.getElementById('notePopText').textContent=txt;
+  const go=document.getElementById('notePopGo');
+  const hasTarget=!!document.getElementById('note-'+tid);
+  go.style.display=hasTarget?'':'none';
+  go.onclick=()=>{hideNote();navToHeading('note-'+tid);};
+  document.getElementById('notePop').classList.add('on');
+}
+function hideNote(){const p=document.getElementById('notePop');if(p)p.classList.remove('on');}
+
+// ---------- ПОШУК ----------
+let hits=[], curHit=-1;
+function clearSearch(){hits=[];curHit=-1;const i=document.getElementById('searchInput');if(i)i.value='';updateSearchInfo();}
+function updateSearchInfo(){const el=document.getElementById('searchInfo');if(el)el.textContent=(hits.length?curHit+1:0)+'/'+hits.length;}
+function runSearch(q){
+  book.innerHTML=cleanHTML; hits=[]; curHit=-1;
+  if(!q||q.trim().length<2){paginate();updateSearchInfo();return;}
+  const rx=new RegExp(q.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+  const walk=document.createTreeWalker(book,NodeFilter.SHOW_TEXT,null);
+  const targets=[];let n;
+  while(n=walk.nextNode()){rx.lastIndex=0;if(rx.test(n.nodeValue))targets.push(n);}
+  targets.forEach(node=>{
+    const s=node.nodeValue,frag=document.createDocumentFragment();let last=0,m;rx.lastIndex=0;
+    while(m=rx.exec(s)){
+      if(m.index>last)frag.appendChild(document.createTextNode(s.slice(last,m.index)));
+      const mk=document.createElement('mark');mk.className='hit';mk.textContent=m[0];
+      frag.appendChild(mk);hits.push(mk);
+      last=m.index+m[0].length;if(m.index===rx.lastIndex)rx.lastIndex++;
+    }
+    if(last<s.length)frag.appendChild(document.createTextNode(s.slice(last)));
+    node.parentNode.replaceChild(frag,node);
+  });
+  paginate();updateSearchInfo();
+  if(hits.length)gotoHit(0);
+}
+function gotoHit(i){
+  if(!hits.length)return;
+  curHit=(i+hits.length)%hits.length;
+  hits.forEach((h,k)=>h.classList.toggle('cur',k===curHit));
+  const el=hits[curHit];
+  if(S.col==='scroll'){ el.scrollIntoView({block:'center'}); updateSearchInfo(); return; }
+  const pt=book.style.transition;
+  book.style.transition='none';book.style.transform='translateX(0)';
+  const x=el.getBoundingClientRect().left-book.getBoundingClientRect().left;
+  book.style.transition=pt;
+  go(Math.max(0,Math.round(x/colStep)));
+  updateSearchInfo();
+}
+function openSearch(){document.body.classList.add('search');document.getElementById('searchInput').focus();}
+function closeSearch(){document.body.classList.remove('search');book.innerHTML=cleanHTML;hits=[];curHit=-1;paginate();}
+function buildTOC(){
+  const list=document.getElementById('tocList');
+  if(!tocData.length){list.innerHTML='<p class="hintline">Ця книга без заголовків.</p>';return;}
+  list.innerHTML='';
+  tocData.forEach(h=>{const b=document.createElement('button');
+    b.className='tocItem'+(h.lvl>=3?' lvl3':''); b.textContent=h.text;
+    b.onclick=()=>{navToHeading(h.id);document.body.classList.remove('panel');activeTab=null;syncTabBtns();setTimeout(paginate,260);};
+    list.appendChild(b);});
+}
+function navToHeading(id){
+  const el=document.getElementById(id); if(!el)return;
+  if(S.col==='scroll'){ el.scrollIntoView({block:'start'}); return; }
+  const prev=book.style.transition; book.style.transition='none'; book.style.transform='translateX(0)';
+  const x=el.getBoundingClientRect().left-book.getBoundingClientRect().left;
+  book.style.transition=prev;
+  go(Math.max(0,Math.round(x/colStep)));
+}
+function addRecent(title){
+  let r=JSON.parse(localStorage.getItem('reader-recent')||'[]');
+  r=[title,...r.filter(x=>x!==title)].slice(0,8);
+  localStorage.setItem('reader-recent',JSON.stringify(r)); buildRecent();
+}
+function buildRecent(){
+  const r=JSON.parse(localStorage.getItem('reader-recent')||'[]');
+  const el=document.getElementById('recentList');
+  el.innerHTML=r.length?r.map(t=>`<div class="recentItem" style="cursor:default;color:var(--pnl-sub)">${esc(t)}</div>`).join('')
+    :'<p class="hintline">Ще нічого не відкривали.</p>';
+}
+function handleFile(file){
+  const ext=(file.name.split('.').pop()||'').toLowerCase(), rd=new FileReader();
+  rd.onload=()=>{
+    let title=file.name.replace(/\.[^.]+$/,''),res;
+    if(ext==='fb2'){res=fb2html(decodeBytes(rd.result)); if(res.title)title=res.title;}
+    else res=mdRender(new TextDecoder('utf-8').decode(rd.result));
+    loadBook(title,res.html,res.headings||[],res.notes||{},true); addRecent(title);
+    document.body.classList.remove('panel'); activeTab=null; syncTabBtns();
+  };
+  rd.readAsArrayBuffer(file);
+}
+// wiring
+document.getElementById('openFileBtn').onclick=()=>document.getElementById('fileInput').click();
+document.getElementById('fileInput').onchange=e=>{if(e.target.files[0])handleFile(e.target.files[0]);e.target.value='';};
+let dragc=0;
+addEventListener('dragenter',e=>{e.preventDefault();dragc++;document.body.classList.add('dropping');});
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('dragleave',e=>{dragc--;if(dragc<=0)document.body.classList.remove('dropping');});
+addEventListener('drop',e=>{e.preventDefault();dragc=0;document.body.classList.remove('dropping');
+  if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
+
+// ---------- ФАЙЛОВИЙ МЕНЕДЖЕР ----------
+const strip=n=>n.replace(/\.(md|markdown|txt|fb2)$/i,'');
+function fileRow(f){
+  const row=document.createElement('div'); row.className='trFileRow';
+  const star=document.createElement('button'); star.className='trStar'+(isFav(f.path)?' on':'');
+  star.textContent=isFav(f.path)?'★':'☆'; star.title='У вибране';
+  star.onclick=e=>{e.stopPropagation();toggleFav(f);
+    star.textContent=isFav(f.path)?'★':'☆';star.classList.toggle('on',isFav(f.path));};
+  const fb=document.createElement('button'); fb.className='trFile'; fb.textContent=strip(f.name); fb.title=f.name;
+  fb.onclick=()=>loadFromServer(f.path,f.name);
+  row.append(star,fb); return row;
+}
+async function fetchDir(p){const r=await fetch('/api/dir?p='+encodeURIComponent(p||''));if(!r.ok)throw 0;return r.json();}
+async function fillTree(container,p){
+  let d; try{d=await fetchDir(p);}catch(e){
+    container.innerHTML='<p class="hintline">Файли доступні лише тоді, коли читалку відкрито через її сервер.</p>';return;}
+  container.innerHTML='';
+  d.dirs.forEach(dir=>{
+    const wrap=document.createElement('div');
+    const btn=document.createElement('button'); btn.className='trDir';
+    btn.innerHTML=`<span class="tw">▶</span><span>${esc(dir.name)}</span>`;
+    const kids=document.createElement('div'); kids.className='trKids'; kids.style.display='none';
+    let loaded=false;
+    btn.onclick=()=>{const open=kids.style.display!=='none';
+      if(open){kids.style.display='none';btn.classList.remove('open');}
+      else{kids.style.display='';btn.classList.add('open');
+        if(!loaded){loaded=true;kids.innerHTML='<p class="hintline">…</p>';fillTree(kids,dir.path);}}};
+    wrap.append(btn,kids); container.appendChild(wrap);
+  });
+  d.files.forEach(f=>container.appendChild(fileRow(f)));
+  if(!d.dirs.length&&!d.files.length)container.innerHTML='<p class="hintline">Порожньо.</p>';
+}
+function mdRender(txt){
+  let raw;
+  try{ raw=window.marked.parse(txt,{gfm:true,breaks:false}); }
+  catch(e){ return md2html(txt); }
+  const doc=new DOMParser().parseFromString('<div id="mdroot">'+raw+'</div>','text/html');
+  const root=doc.getElementById('mdroot'); const headings=[]; let i=0;
+  root.querySelectorAll('h1,h2,h3,h4').forEach(h=>{
+    const id='h'+(i++); h.setAttribute('id',id);
+    const lvl=(h.tagName==='H1'||h.tagName==='H2')?2:3;
+    headings.push({text:h.textContent.trim(),lvl,id});
+  });
+  return {html:root.innerHTML,headings,notes:{}};
+}
+async function loadFromServer(path,name){
+  try{
+    const r=await fetch('/api/file?p='+encodeURIComponent(path)); if(!r.ok)throw 0;
+    const txt=await r.text();
+    const res=name.toLowerCase().endsWith('.fb2')?fb2html(txt):mdRender(txt);
+    loadBook(res.title||strip(name),res.html,res.headings||[],res.notes||{},true);
+    currentPath=path; addRecent(name);
+    fetch('/api/last?set='+encodeURIComponent(path)).catch(()=>{});
+    document.body.classList.remove('panel');activeTab=null;syncTabBtns();
+  }catch(e){ document.getElementById('fileTree').insertAdjacentHTML('afterbegin',
+    '<p class="hintline" style="color:#c0392b">Не вдалося відкрити файл.</p>'); }
+}
+// вибране
+function favs(){try{return JSON.parse(localStorage.getItem('reader-fav')||'[]');}catch(e){return[];}}
+function isFav(p){return favs().some(x=>x.path===p);}
+function toggleFav(f){let a=favs();
+  a=isFav(f.path)?a.filter(x=>x.path!==f.path):a.concat([{path:f.path,name:f.name}]);
+  localStorage.setItem('reader-fav',JSON.stringify(a)); renderFav();}
+function renderFav(){
+  const el=document.getElementById('favList'), a=favs();
+  el.innerHTML=''; if(!a.length){el.innerHTML='<p class="hintline">Постав ☆ біля файлу, щоб додати сюди.</p>';return;}
+  a.forEach(f=>el.appendChild(fileRow(f)));
+}
+function relTime(sec){
+  if(sec<3600)return Math.max(1,Math.round(sec/60))+' хв тому';
+  if(sec<86400)return Math.round(sec/3600)+' год тому';
+  return Math.round(sec/86400)+' дн тому';
+}
+async function fetchShared(){
+  const box=document.getElementById('sharedList');
+  let d=[]; try{d=await (await fetch('/api/shared')).json();}catch(e){box.innerHTML='<p class="hintline">—</p>';return;}
+  if(d===null){   // теку для документів від агентів не задано (CCM_READER_SHARED) — розділ ховаємо
+    document.querySelectorAll('[data-sec="shared"],[data-body="shared"]').forEach(el=>el.remove()); return;}
+  const dis=S.dismissed||[];
+  d=d.filter(x=>!dis.includes(x.path));
+  if(!d.length){box.innerHTML='<p class="hintline">Порожньо.</p>';return;}
+  box.innerHTML=''; const now=Date.now()/1000;
+  d.forEach(x=>{
+    const row=document.createElement('div'); row.className='shRow';
+    const b=document.createElement('button'); b.className='fsItem';
+    b.innerHTML=`<span class="fsName">${esc(strip(x.name))}</span><span class="fsPath">${relTime(now-x.mtime)}</span>`;
+    b.onclick=()=>loadFromServer(x.path,x.name);
+    const del=document.createElement('button'); del.className='shDel'; del.textContent='✕';
+    del.title='Прибрати зі списку (файл лишається)';
+    del.onclick=(e)=>{e.stopPropagation(); S.dismissed=(S.dismissed||[]).concat([x.path]); save(); fetchShared();};
+    row.append(b,del); box.appendChild(row);
+  });
+}
+const SEC_DEFAULT={search:true,shared:true,fav:true,tree:true,disk:true,recent:true}; // дефолт: згорнуто
+function secState(){ return Object.assign({},SEC_DEFAULT,S.collapsed||{}); }
+function applyCollapse(){
+  const st=secState();
+  document.querySelectorAll('#paneLibrary .phcol').forEach(h=>{
+    const k=h.dataset.sec, c=!!st[k];
+    const body=document.querySelector('.secBody[data-body="'+k+'"]');
+    if(body) body.style.display=c?'none':'';
+    const tw=h.querySelector('.phtw'); if(tw) tw.textContent=c?'▸':'▾';
+  });
+}
+function initServer(){
+  renderFav(); fetchShared(); fillTree(document.getElementById('fileTree'),'');
+  document.querySelectorAll('#paneLibrary .phcol').forEach(h=>{
+    h.onclick=()=>{ const st=Object.assign({},secState()); st[h.dataset.sec]=!st[h.dataset.sec];
+      S.collapsed=st; save(); applyCollapse(); };
+  });
+  applyCollapse();
+}
+
+// виноски: клік по [n] у тексті
+book.addEventListener('click',e=>{const a=e.target.closest('.fnote');
+  if(a){e.preventDefault();e.stopPropagation();showNote(a.dataset.t);}});
+document.getElementById('notePopClose').onclick=hideNote;
+
+// пошук wiring
+document.getElementById('tabSearch').onclick=()=>{document.body.classList.contains('search')?closeSearch():openSearch();};
+let searchT;
+document.getElementById('searchInput').oninput=e=>{clearTimeout(searchT);const v=e.target.value;searchT=setTimeout(()=>runSearch(v),220);};
+document.getElementById('searchInput').onkeydown=e=>{
+  if(e.key==='Enter'){e.preventDefault();gotoHit(curHit+(e.shiftKey?-1:1));}
+  else if(e.key==='Escape')closeSearch();};
+document.getElementById('searchNext').onclick=()=>gotoHit(curHit+1);
+document.getElementById('searchPrev').onclick=()=>gotoHit(curHit-1);
+document.getElementById('searchClose').onclick=closeSearch;
+addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='f'){e.preventDefault();openSearch();}});
+
+// старт
+// ---------- ПОШУК ПО ФАЙЛАХ + DEEP-LINK ----------
+let fsT;
+async function fileSearch(qv){
+  const box=document.getElementById('fsResults'); const q=(qv||'').trim();
+  if(q.length<2){box.innerHTML='';return;}
+  box.innerHTML='<p class="hintline">Шукаю…</p>';
+  let d=[]; try{d=await (await fetch('/api/search?q='+encodeURIComponent(q))).json();}
+  catch(e){box.innerHTML='<p class="hintline">Пошук недоступний (відкрий читалку через її сервер).</p>';return;}
+  if(!d.length){box.innerHTML='<p class="hintline">Нічого не знайдено.</p>';return;}
+  box.innerHTML='';
+  d.forEach(x=>{
+    const b=document.createElement('button'); b.className='fsItem';
+    const dir=x.path.includes('/')?x.path.slice(0,x.path.lastIndexOf('/')):'';
+    b.innerHTML=`<span class="fsName">${esc(strip(x.name))}</span><span class="fsPath">${esc(dir)}</span>`
+      +(x.snip?`<span class="fsSnip">${esc(x.snip)}</span>`:'');
+    b.onclick=()=>loadFromServer(x.path,x.name);
+    box.appendChild(b);
+  });
+}
+async function openServerPath(p){ if(!p)return false; await loadFromServer(p,p.split('/').pop()); return true; }
+function copyLink(){
+  if(!currentPath){toast('Спершу відкрий файл із робочої теки');return;}
+  const url=location.origin+'/?open='+encodeURIComponent(currentPath);
+  (navigator.clipboard?navigator.clipboard.writeText(url):Promise.reject())
+    .then(()=>toast('Посилання скопійовано')).catch(()=>toast(url));
+}
+let toastT;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2400);}
+document.getElementById('fsearch').oninput=e=>{clearTimeout(fsT);const v=e.target.value;fsT=setTimeout(()=>fileSearch(v),260);};
+document.getElementById('btnCopyLink').onclick=copyLink;
+function downloadFile(){
+  if(!currentPath){toast('Спершу відкрий файл із робочої теки');return;}
+  const a=document.createElement('a');
+  a.href='/api/download?p='+encodeURIComponent(currentPath);
+  a.download=currentPath.split('/').pop();
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('Завантаження…');
+}
+document.getElementById('btnDownload').onclick=downloadFile;
+
+buildRecent();
+initServer();
+function loadDemo(){
+  loadBook(BOOK.title,`<h2 id="demoH">${BOOK.title}</h2>`+
+    BOOK.paras.map((t,i)=>`<p class="${i===0?'first':''}">${t}</p>`).join(''),
+    [{text:BOOK.title,lvl:2,id:'demoH'}],{},false);
+}
+(async()=>{
+  // 0) серверні налаштування (спільні між пристроями) — перекривають локальні
+  try{
+    const sv=await (await fetch('/api/settings')).json();
+    if(sv && typeof sv==='object' && Object.keys(sv).length){ Object.assign(S,sv); apply(); }
+    else { save(); }   // сервер порожній -> залити поточні (bootstrap із цього браузера)
+  }catch(e){}
+  // 1) deep-link ?open=<шлях> — пріоритет (агент дав посилання на файл)
+  const params=new URLSearchParams(location.search);
+  const openP=params.get('open');
+  if(openP){ try{ if(await openServerPath(openP)) return; }catch(e){} }
+  // 2) серверний останній файл (спільний для всіх пристроїв)
+  let sp=''; try{ sp=((await (await fetch('/api/last')).json())||{}).path||''; }catch(e){}
+  if(sp){ try{ if(await openServerPath(sp)) return; }catch(e){} }
+  // 3) локальний IndexedDB (fallback)
+  let saved=null; try{saved=await idbGet('lastBook');}catch(e){}
+  if(saved&&saved.html){
+    loadBook(saved.title,saved.html,saved.headings||[],saved.notes||{},false);
+    let pos=null; try{pos=JSON.parse(localStorage.getItem('reader-pos')||'null');}catch(e){}
+    if(pos&&pos.t===saved.title) requestAnimationFrame(()=>requestAnimationFrame(()=>restoreAnchor(pos.i||0)));
+  } else loadDemo();
+})();
+</script>
+</body>
+</html>

@@ -86,6 +86,12 @@ CCM_BACKUP_STATE=""                     # offsite-backup: where the backup keeps
 CCM_BACKUP_PATHS=""                     # offsite-backup: folders to back up, colon-separated; empty = ~/.claude, the workspace, ~/.ssh, the secrets dir
 CCM_TG_OUTBOX=""                        # mobile-bot: spool folder where agents drop answers for the phone; empty = /var/spool/ccm-tg-outbox
 CCM_BR_CDP=""                           # agent-browser: debugging endpoint of the browser the agents drive (http://127.0.0.1:9333); empty = the add-on's default
+CCM_READER_PORT=""                      # reader: port of the document reader; empty = 8001
+CCM_READER_BIND=""                      # reader: empty = 127.0.0.1 (this machine only). 0.0.0.0 = the whole network can read every document: it has NO password
+CCM_READER_SHARED=""                    # reader: folder under the workspace where agents put documents for you to read (e.g. shared); empty = no such section
+CCM_READER_HIDE=""                      # reader: folder names it never shows or serves, comma-separated (dot-folders, node_modules, __pycache__ always)
+CCM_READER_SKIP=""                      # reader: file-name patterns left out of search, comma-separated (e.g. briefing.md,inbox.md,*-TODO.md)
+CCM_READER_STATE=""                     # reader: where the last opened file and the reader settings are kept; empty = ~/.claude/reader
 # net-change reads these keys itself (environment or this file); the defaults are in the comments. Uncomment to change.
 # CCM_NETCHANGE_FILES=""                # config files/dirs snapshotted before a network change; default = the config places of all common stacks + resolv.conf, hosts
 # CCM_NETCHANGE_RESTART=""              # command that applies the network config; default = detected (netplan, networkd, NetworkManager, ifupdown)

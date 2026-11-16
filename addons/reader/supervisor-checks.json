@@ -1,0 +1,15 @@
+{
+  "_about": "Supervisor entry of the reader add-on. install.sh --with-reader merges it into the registry (<supervisor dir>/checks.json). __CLAUDE_DIR__ is filled in when the registry is read. only_if_exists: a machine without the add-on stays at 0 problems.",
+  "checks": [
+    {
+      "name": "Reader answers",
+      "kind": "cmd",
+      "severity": "human",
+      "owner": "",
+      "cmd": "python3 \"__CLAUDE_DIR__/addons/reader/reader-check.py\"",
+      "note": "the document reader does not answer on its port (CCM_READER_PORT, default 8001). It is started by an @reboot line in the crontab; the check's own output says how to start it by hand and where its log is (~/.claude/logs/reader.log - a port already taken shows there as 'Address already in use').",
+      "grace_min": 10,
+      "only_if_exists": "__CLAUDE_DIR__/addons/reader/reader-server.py"
+    }
+  ]
+}

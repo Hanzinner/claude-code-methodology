@@ -48,7 +48,7 @@ working form. Check the service by the address it actually listens on: a service
 "connection refused" on loopback, and the agent that read that as "the channel is dead" lost an hour. (The binding later
 changed the other way round, which is the point: see "Verify before you use it".)
 
-**Document reader** (concept only, see `addons/reader/CONCEPT.md`). A deep link of the form
+**Document reader** (`./install.sh --with-reader`, see [`addons/reader/README.md`](../addons/reader/README.md)). A deep link of the form
 `http://<host>/?open=<url-encoded path under the root>` is the best way to give someone something to read: one click.
 It is for reading only.
 
@@ -105,7 +105,7 @@ before **declaring one dead**, check that you knocked on the right address. Real
 |---|---|
 | Clickable-link detector | yes, `hooks/link-guard.py` |
 | Document-generation rules | yes, [`docx-playbook.md`](docx-playbook.md) |
-| Document reader | concept only, `addons/reader/CONCEPT.md` |
+| Document reader | yes, `addons/reader/` (`--with-reader`) |
 | Shared-folder sync, preview server, name resolution (hosts file, reverse proxy) | not in this repo |
 | The "hand a file over" trigger in the memory index | not shipped as such; add a line in your `MEMORY.md` phrased as the task |
 

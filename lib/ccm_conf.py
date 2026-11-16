@@ -50,6 +50,12 @@ DEFAULTS = {
     "CCM_BACKUP_PATHS": "",                           # offsite-backup add-on: folders to back up, colon-separated; empty = ~/.claude, the workspace, ~/.ssh, the secrets dir
     "CCM_TG_OUTBOX": "/var/spool/ccm-tg-outbox",      # mobile-bot add-on: spool where agents drop answers for the phone
     "CCM_BR_CDP": "",                                 # agent-browser add-on: debugging endpoint of the browser (e.g. http://127.0.0.1:9333); empty = the add-on's default
+    "CCM_READER_PORT": "8001",                        # reader add-on: port of the document reader
+    "CCM_READER_BIND": "127.0.0.1",                   # reader add-on: this machine only; anything else = every document readable with no password
+    "CCM_READER_SHARED": "",                          # reader add-on: folder (under the workspace) agents put documents in for the human; empty = section hidden
+    "CCM_READER_HIDE": "",                            # reader add-on: folder names hidden from the reader, comma-separated (dot-folders always are)
+    "CCM_READER_SKIP": "",                            # reader add-on: file-name patterns left out of search, comma-separated
+    "CCM_READER_STATE": os.path.join(HOME, ".claude", "reader"),   # reader add-on: last opened file + reader settings
     "CCM_LANG_EXTRA": "",                             # extra phrase lists the detectors also match (besides English)
 }
 

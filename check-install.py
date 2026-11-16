@@ -156,6 +156,14 @@ if os.path.exists(f"{target}/scripts/backup/backup-restic.sh") and not any(
     todo.append(f"offsite backup: installed, no storage keys in {secrets} -> {DOC}#s3-compatible-storage--offsite-backup")
 if os.path.exists(f"{target}/mobile-bot/bot.py") and not os.path.exists(os.path.join(secrets, "mobile-bot.env")):
     todo.append(f"mobile bot: installed, no {secrets}/mobile-bot.env -> {DOC}#telegram--mobile-bot")
+rcheck = f"{target}/addons/reader/reader-check.py"
+if os.path.isfile(rcheck):
+    try:
+        r = subprocess.run([sys.executable, rcheck], capture_output=True, text=True, timeout=15)
+        rc, why = r.returncode, (r.stdout or r.stderr).strip()
+    except Exception as e:
+        rc, why = 1, str(e)[:160]
+    print(f"  reader add-on: {why}")   # the "Optional" block: not counted as broken (--no-cron installs do not start it)
 if todo:
     print("\nAccounts still to set up (optional; each line points to the how-to):")
     for t in todo:
