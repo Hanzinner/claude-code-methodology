@@ -172,3 +172,9 @@
 - **Why:** a Windows clone with `autocrlf=true` (the Git for Windows default) checks out CRLF; a markdown editor re-saves LF.
 - **Right way:** fix it in the repo, not on every machine: `.gitattributes` → `*.md text eol=lf`. One-off: `git checkout -- <files>` and pull. Diagnose with `git ls-files --eol <file>` (shows i/lf w/crlf and the attribute).
 - **Seen:** once.
+
+### `git reset --soft main` to squash your commits after main has moved: the commit silently reverts others' work
+- **Symptom:** a branch merged by cherry-pick with no conflict, yet two commits already on main were undone; only `git show --stat` showed files outside the branch's task.
+- **Why:** `reset --soft <branch>` puts HEAD on the branch's CURRENT tip but keeps your files from the old base. If something landed on main meanwhile, your next commit contains the reverse diff.
+- **Right way:** squash with `git reset --soft $(git merge-base HEAD main)`. Before handing a branch over, `git diff --stat main...HEAD`: a file you did not touch = a revert. The receiver checks the same with `git show --stat` before merging.
+- **Seen:** once.

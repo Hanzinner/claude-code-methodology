@@ -205,3 +205,26 @@
 - **Why:** without `pipefail` a pipeline's code is the code of its last command (`tail`, `grep`, `cut`), which succeeds; and `;` between steps ignores the previous error anyway.
 - **Right way:** `set -e; set -o pipefail` at the start of such a command; take the sha for the mail after checking `[ "$S" != "$OLD" ]`; send the mail as a separate step after reading the commit's output.
 - **Seen:** 2 times in a day.
+
+### A path inside `bash -c "… '$X' …"` breaks as soon as the folder has an apostrophe
+- **Symptom:** tests green in the repo, red after installing into a folder `it's work`, with no quoting error: just "not created / not blocked".
+- **Why:** the string for `bash -c` was built as `"cd '$M' && '$GW' …"`; the apostrophe in `$GW` closes the single quotes, and the test hid the output in `/dev/null`.
+- **Right way:** put a path into a string for `bash -c` / `ssh` / `su -c` only via `$(printf %q "$X")`, or pass it as an argument: `bash -c '… "$1" …' _ "$X"`. Check: run the tests from a copy in a folder with `'` and a space in its name.
+- **Seen:** once.
+
+### Minimal Debian or a container: no `ps` (procps), but `/proc` is there
+- **Symptom:** "is the process alive / who is the parent / how long has it run" via `ps -o …` silently returns nothing on a clean machine, so the script decides "no process" (a scheduler started a second copy next to the live one; tests red only in Docker).
+- **Right way:** on Linux read `/proc/<pid>/cmdline` (`tr '\0' ' '`), `/proc/<pid>/comm`, and the PPID and start time from `/proc/<pid>/stat`, taking the fields AFTER the last `)` (`awk '{sub(/.*\) /,""); print $2}'`: the process name may contain spaces and parentheses). `ps` only as a fallback where there is no /proc (macOS). Liveness: `kill -0 $pid`.
+- **Seen:** once.
+
+### A redirect into a file in a missing folder: bash does not run the command at all
+- **Symptom:** a Stop-hook dispatcher on a fresh HOME (no `~/.claude/`) produced no block although the gate itself blocks; the only output was `hook-errors.log: No such file or directory`, rc 0.
+- **Why:** in `out=$(… | timeout … python3 gate.py 2>>"$ERRLOG")`, if the folder of `$ERRLOG` is missing the redirect fails BEFORE the start and bash skips the whole command. The error log that should have shown the failure is its cause.
+- **Right way:** `mkdir -p "${ERRLOG%/*}"` at the start of a script that logs via `2>>` / `>>`; test with an empty HOME (`HOME=$(mktemp -d)`), not only on a machine where the folder has long existed.
+- **Seen:** once.
+
+### A sandbox `T=$(mktemp -d)` without a check: an empty `T`, and the test writes to `/`
+- **Symptom:** the system `/usr/bin/rsync` suddenly became two lines, `#!/bin/sh` / `exit 24`; every copy "succeeded" and was empty.
+- **Why:** the test ran with a trimmed PATH, `mktemp` was not found, `T=""`. `set -u` does not catch an empty variable, so `"$T/bin/rsync"` = `/bin/rsync`, and the builtin `printf … >` writes without any external command. As root, nothing stops it.
+- **Right way:** `T=$(mktemp -d) && [[ -d "$T" && "$T" != / ]] || { echo "no temp dir" >&2; exit 2; }` in every test that writes into `$T/…`; run tests as a normal user when possible. Check: run the test with a PATH without `mktemp`: it must refuse, not write.
+- **Seen:** once.

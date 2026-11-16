@@ -94,3 +94,15 @@ Setup these come from: a Linux VM on a Windows Hyper-V host, driven over SSH (Po
 - **Symptom:** "what takes up C:" over SSH runs 5–10 minutes, slows the laptop, and dies with the SSH session. The profile is counted twice (junction loops `Application Data`, `Local Settings`).
 - **Why:** PowerShell walks every file through the file system; WizTree reads the NTFS table directly.
 - **Right way:** use a tool that reads the MFT (the WizTree CLI on the laptop: 8 s for a drive). Without one, at least `-Attributes !ReparsePoint`.
+
+### Ctrl+V of files from `\\OTHER_PC\…` without access: Explorer silently pastes nothing
+- **Symptom:** the clipboard holds a correct CF_HDROP with UNC paths; Ctrl+V in Explorer does nothing, no error.
+- **Why:** Explorer reads the source's attributes before copying; if authentication fails, it decides there is nothing to paste. Signing in "with the same account" is automatic: from a PC with a Microsoft account it sends `MicrosoftAccount\x@…`, while the user on the target PC is LOCAL → 4625 sub-status 0xC0000064 ("no such user").
+- **Right way:** look at the target's Security log (4625/4624 with the source IP), not at "the folder opened for me" (the person may have opened their own `\\THIS_PC\…` locally). Fix: `cmdkey /add:TARGET /user:TARGET\localuser /pass` in the person's session.
+- **Seen:** once.
+
+### A scheduled task on a laptop on battery: "Last Result 0", and nothing started
+- **Symptom:** `Start-ScheduledTask` / `schtasks /run` reports success, `LastTaskResult=0`, no process, task state `Queued`.
+- **Why:** by default `DisallowStartIfOnBatteries=True`: on battery Windows queues the task.
+- **Right way:** `New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`, and check the result by the process or the program's log, not by the task's code.
+- **Seen:** once.

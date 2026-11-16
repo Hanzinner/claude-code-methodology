@@ -181,3 +181,9 @@
 - **Why:** `only=` selects the named tables but reflection follows foreign keys to their parents.
 - **Right way:** `if t.name in gone` in the loop; never run drop/delete over the whole `sorted_tables` of a reflected MetaData.
 - **Seen:** once.
+
+### "Insert at the top" by searching for the heading text without anchoring to line start
+- **Symptom:** dozens of entries in a journal file ended up in the middle of its header; the tools reading the journal saw entries "without a class" and a broken code example.
+- **Why:** the code inserted before the first occurrence of `## 20` (`s.find` / `s.replace(..., 1)`). That first occurrence was not at a line start but inside an example command in the header (`grep -cE '^## 20…'`), so every insert landed in the same gap.
+- **Right way:** find the boundary anchored to the line start (`re.search(r"(?m)^## 20", s)` or iterate lines with `startswith`), never by substring. In a file that others insert into by a pattern, don't keep that pattern verbatim in the explanatory text (write `^#{2} 20`).
+- **Seen:** once.
