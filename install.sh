@@ -746,6 +746,13 @@ if [[ $VERIFY -eq 1 && $VERIFY_ALL -eq 1 && $DRY_RUN -eq 0 ]]; then
   fi
 fi
 
+# what was installed, from where: /update reads it to say what is new and to install the same way again
+if [[ $DRY_RUN -eq 0 ]]; then
+  mkdir -p "$STAMP_DIR"
+  { echo "repo=$REPO_DIR"; echo "commit=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+    echo "scope=$SCOPE"; [[ "$SCOPE" == "project" ]] && echo "project=$PROJECT_DIR"; echo "date=$(date -u +%Y-%m-%dT%H:%MZ)"; } > "$STAMP_DIR/source"
+fi
+
 # ---- done ---------------------------------------------------------------
 echo
 if [[ $TESTS_FAILED -gt 0 ]]; then
@@ -756,8 +763,8 @@ fi
 [[ $VERIFY_ALL -eq 1 ]] || echo "  (quick check done; every mechanism's own test: ./install.sh --verify-all … — about 5 min)"
 echo
 echo "Next steps:"
-echo "  1) Review $TARGET/CLAUDE.md — edit to fit"
-echo "  2) Start a new Claude Code session (existing sessions won't pick up the new config)"
+echo "  1) Start a new Claude Code session (existing sessions won't pick up the new config)"
+echo "  2) Later, to update: tell your agent \"update the system\" (/update)"
 echo "  3) Read $REPO_DIR/docs/getting-started.md (first day) and docs/accounts.md (optional accounts: search, backup, phone bot)"
 echo
 echo "To undo: in $TARGET, restore the *.bak-${TIMESTAMP} copies over the files they back up, and remove"

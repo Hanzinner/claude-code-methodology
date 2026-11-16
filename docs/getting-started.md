@@ -47,6 +47,8 @@ Each line: the problem you would otherwise have, what changed, how to use it.
 - **`/audit`** — once a month or so: months of rules and notes pile up, some contradict each other, some are
   out of date. It finds them.
 - **`/edit`** — break a video down by scenes and editing choices.
+- **`/update`** (or just "update the system") — gets the new version, tells you in plain words what is new, installs it
+  and checks it.
 
 ## 3. If something gets in your way
 
@@ -65,8 +67,24 @@ keep a note, or leave the line and empty its list in `methodology.conf` where it
 ## 4. More than one agent
 
 When one chat holds your work, a renovation and a course at once, it mixes them up. An agent is a separate
-helper for one area: its own chat, folder, notes and to-do list; it knows only its area. Agents pass work to each
-other by letter, and ask you only what only you can decide. The installer has
+helper for one area: its own chat, folder, notes and to-do list; it knows only its area.
+
+**Why not just a separate chat per topic?** That is where most people start, and it breaks in these places:
+
+| With plain separate chats | With agents |
+|---|---|
+| A long chat gets compressed and forgets what it was for; a new chat knows nothing. You explain the role again. | The role, what it owns and its rules live in its `briefing.md`. Open any new chat with the agent's name and it is that agent again; when the briefing changes, it is shown the new one. |
+| You are the messenger: you copy what one chat found into another. | Agents write letters to each other's inboxes and act on them without you. |
+| What each chat still has to do lives in your head. | Each agent keeps its own to-do list and goes through it; open items don't vanish when the chat is compressed. |
+| Questions for you are scattered over a dozen chats. | Each agent keeps one file of what only you can decide (`human-TODO.md`); everything else it decides itself. |
+| Two chats edit the same file and overwrite each other. | Each file has one owner agent, written in the registry; others send the owner a letter. |
+| A chat does nothing until you type in it. | An agent with an alarm wakes up on a new letter or a reminder by itself. |
+| Notes from one topic get mixed into every other topic's memory. | Shared memory holds what all agents need; each agent's own notes stay in its folder. |
+
+So one chat is fine for one thing at a time. Agents pay off once you have several areas running in parallel,
+or one big area (a project with a lead, developers and testing) that is too much for one chat.
+
+The installer has
 already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS.md` (the registry),
 `MISTAKES.md` (one mistakes journal for all agents), `LIBRARY.md` (the catalog of mechanisms),
 `CODING-STANDARD.md` (the rules for agents that write code) and `Agents/_example-agent/` (the template). Files you already had are not touched.
@@ -88,23 +106,25 @@ already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS
    A briefing holds what stays true (role, ownership, rules). Anything that changes on its own (who is busy, what
    version, what is next) goes to git, a log or a queue, and the briefing only says where to look: written state
    goes stale within hours, and the watchman keeps delivering it.
-4. **Agents talk by letter, not through you:** `scripts/inbox_post.sh <Name> "<text>"` (a lock, and a check
-   that the letter landed); the receiver does it or moves it to its todo and closes the item with
-   `scripts/inbox_done.sh`. Writing into someone else's `inbox.md` by hand is refused by a gate. A letter that
-   arrives while an agent is mid-task is shown to it after the current tool call. You only get what needs you:
-   taste, product, priority, anything irreversible — one line in that agent's `human-TODO.md`. How reports are
-   filtered for a human: [`po-interface.md`](po-interface.md).
-5. **Reminders:** "remind me at 18:30 to …" → the agent runs `scripts/remind.py`, and at that time a letter lands
-   in its inbox (a cron line checks every minute). The agent sees it on your next message in that chat, or at
-   once if it left an alarm running (`scripts/inbox_wait.sh`, see the work gate below). An agent that promises
-   "I'll get back to it" without setting a reminder is flagged.
-6. **Optional gates** (off until you name agents at the end of `methodology.conf`, section "several agents"):
-   `CCM_WORK_GUARD_AGENTS` (a file, one agent name per line) — these agents can't end a reply while their inbox
-   has unprocessed letters, or while their todo has open items and the reply doesn't say `STATE: waiting for …`;
-   they also leave an alarm running, so a new letter wakes the chat without you;
-   `CCM_STATUS_GUARD_AGENTS` — these agents can't tell you "story X is done / waiting for you" without running
-   the status command first.
-7. **When a project needs a team** (a lead agent, developers, QA): `scripts/new_project.sh --own-repo <Name>` (a code project
+4. **Agents pass work to each other, not through you.** Without this you are the messenger: you copy what one
+   agent said into another agent's chat. Now each agent has an inbox. Any agent (or you) drops a letter there:
+   `scripts/inbox_post.sh <Name> "<text>"`. The receiver sees open letters on every message it gets, and one that
+   arrives while it is mid-task right after its current step; it does the thing, or moves it to its to-do list,
+   and closes the letter (`scripts/inbox_done.sh`). Writing into someone else's inbox by hand is refused, so a
+   letter can't get garbled or lost. You can give an agent a task the same way without opening its chat.
+5. **What needs you is in one place.** Without this, questions for you are scattered over a dozen chats. Each
+   agent keeps a `human-TODO.md` in its folder: only what only you can decide (taste, product, priority,
+   anything that can't be undone), one line each. The rest it decides and does itself. How agents filter what
+   reaches you: [`po-interface.md`](po-interface.md).
+6. **Reminders.** "Remind me at 18:30 to …" — the agent runs `scripts/remind.py`, and at that time a letter lands
+   in its inbox. An agent that promises "I'll get back to it" without setting one is flagged.
+7. **Agents that work without you prodding** (off until you name them at the end of `methodology.conf`, section
+   "several agents"). Without this an agent with a full inbox just sits until you write to it.
+   `CCM_WORK_GUARD_AGENTS` (a file, one agent name per line): these agents can't end a reply while letters are
+   unprocessed or their to-do has open items (unless the reply says `STATE: waiting for …`), and they leave an
+   alarm running (`scripts/inbox_wait.sh`), so a new letter wakes the chat by itself.
+   `CCM_STATUS_GUARD_AGENTS`: these agents can't tell you "story X is done / waiting for you" without checking first.
+8. **When a project needs a team** (a lead agent, developers, QA): `scripts/new_project.sh --own-repo <Name>` (a code project
    with its own git repo) or `--no-code <Name>` (a folder in the shared one) creates the project files (roadmap,
    blockers, release settings) and the agents `<Name>-HQ` (the lead) and `<Name>-Dev`; [`project-work.md`](project-work.md) is the standard the team follows,
    [`dev-methodology.md`](dev-methodology.md) is how the team is set up. The release queue (a separate system
@@ -142,7 +162,9 @@ Runs from the crontab block the installer added; nothing to start by hand.
 
 ## 6. Keeping it up to date
 
-`cd ~/claude-code-methodology && git pull && ./install.sh` — then `./check-install.py --user`.
+Tell your agent **"update the system"** (`/update`): it pulls the new version, tells you what is new, installs it the
+way you installed it and checks it. By hand: `cd ~/claude-code-methodology && git pull && ./install.sh`, then
+`./check-install.py --user`.
 Your memory, lessons, permissions, model, own hooks and `CLAUDE.md` edits are kept; anything replaced is
 backed up next to itself as `*.bak-<time>` (skills under `~/.claude/.methodology-installed/backups/`, so
 Claude Code doesn't load a copy as a second skill). Chats and history are never touched.
