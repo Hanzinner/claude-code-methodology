@@ -111,6 +111,14 @@ os.remove(f"{WS}/CODING-STANDARD.md")
 o = run("Edit", {"file_path": "/x/tool.py", "new_string": "x"})
 ok("20 no standard file -> no version line, the headings still come", "Coding standard" not in o and "Own file" in o, o)
 
+# git reset --soft <branch> (a squash over a moved main reverted two commits merged meanwhile) -> merge-base hint
+o = run("Bash", {"command": "cd /w && git reset -q --soft main && git commit -m x"})
+ok("21 reset --soft main -> the merge-base hint", "git merge-base HEAD main" in o and "main...HEAD" in o, o)
+for k, c in (("22", "git reset --soft $(git merge-base HEAD main)"), ("23", "git reset --soft HEAD~2"), ("24", "git reset --soft 4b5431d")):
+    o = run("Bash", {"command": c}); ok(f"{k} {c} -> no hint", "merge-base HEAD" not in o, o)
+s1 = f"{TAG}gr-test"; o1 = run("Bash", {"command": "git reset --soft main"}, sid=s1); o2 = run("Bash", {"command": "git reset --soft main"}, sid=s1)
+ok("25 the same session and hour -> once", "merge-base" in o1 and "merge-base" not in o2, o2)
+
 for m in glob.glob(f"/tmp/cph-{TAG}*"):
     os.remove(m)
 print(f"code-pitfalls-hint: {P} pass, {F} fail"); sys.exit(1 if F else 0)

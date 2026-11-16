@@ -141,6 +141,22 @@ def once(mark):
         return False
 
 
+# `git reset --soft main` to squash your own commits, when main has moved since you branched: HEAD becomes the new main,
+# the files stay from the old base - the next commit silently reverts the commits others merged meanwhile
+# (code-pitfalls/git.md). Points to the merge-base instead; a hash, HEAD~N or $(...) is left alone.
+GIT_RESET_SOFT = re.compile(r"\bgit\b[^;&|\n]*\breset\s+(?:-q\s+)?--soft\s+(?:-q\s+)?(?!HEAD\b|[0-9a-f]{7,40}\b|\$\()([\w./-]+)")
+
+
+def git_reset_hint(cmd, sid, hour):
+    m = GIT_RESET_SOFT.search(cmd)
+    if not m or not once(f"/tmp/cph-{sid}-gitreset-{hour}"):
+        return ""
+    b = m.group(1)
+    return (f"`reset --soft {b}`: if {b} moved after you branched, HEAD becomes the new {b} while your files stay from the "
+            f"old base - the next commit silently reverts the commits merged meanwhile. To squash your own commits: "
+            f"`git reset --soft $(git merge-base HEAD {b})`. Before handing over: `git diff --stat {b}...HEAD` - only your files?\n")
+
+
 def live_script_hint(tool, ti, sid, hour):
     """An Edit/Write of a LIVE mechanism script → change it via swap-live. A hint, not a block; once per file × hour."""
     if tool not in ("Edit", "Write"):
@@ -280,6 +296,7 @@ def main():
                           "big change; learned something → append 1-5 lines at the bottom)")
     extra = live_script_hint(tool, ti, sid, hour)
     if tool == "Bash":
+        extra = git_reset_hint((ti.get("command") or "")[:4000], sid, hour) + extra
         tgt = bash_write_target((ti.get("command") or "")[:4000], d.get("cwd") or "")
         if tgt:
             issue_first_log(tgt, sid_full, "Bash")
