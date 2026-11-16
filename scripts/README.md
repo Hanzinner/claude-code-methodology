@@ -19,6 +19,8 @@ System deps: `poppler-utils`, `lynx`, `pandoc`.
 | `daily-git-snapshot.sh [REPO]` | Auto-commit uncommitted changes in REPO; a failed add/commit logs FAIL. Scheduled only with `install.sh --with-git-snapshot` (the workspace, 04:00, log `~/.claude/logs/git-snapshot.log`). |
 | `curate_memory.py` | Memory health (orphans, broken links, unresolved wikilinks). Exit 0 if clean, 1 with findings. |
 | `recap_extract.py` | Dump user/assistant messages since the last compaction boundary. Used by `/recap`. |
+| `proof_report.py` | Run a check command and append its exit code to `~/.claude/proof-reports/<session>.jsonl`; `hooks/proof-guard.py` counts a subagent as a run only by this report. Used by `/verify`. |
+| `verify_prompt.py` | Print the task for the checking subagent (the project gate from the nearest `release.toml`, the changed files). Used by `/verify`. |
 | `claude_machine.py` | Run `claude -p` from a script without saving a session, with cost accounting. |
 | `episodic_append.sh` | The one way to add to the "when did we do X" log: under a lock, so two agents don't swallow each other's entries. |
 | `extract_scenes.sh` | Scene-change frames from a video (URL via yt-dlp, or a file); used by `/edit`. |

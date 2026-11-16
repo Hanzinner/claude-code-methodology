@@ -10,6 +10,7 @@ Slash commands. Each folder has a `SKILL.md` with frontmatter (`name`, `descript
 | `edit` | Video edit analysis: scene keyframes + per-frame log + narrative. Uses `scripts/extract_scenes.sh`. |
 | `grill` | Brutalist stress-test of a plan, decision, architecture or position. |
 | `pulse` | Recency snapshot of a topic from Reddit + Hacker News + web. |
+| `verify` | Check your change with a subagent on sonnet: the project gate and the tests of the changed files, each through `scripts/proof_report.py`, so proof-guard counts the run by exit codes. Uses `scripts/verify_prompt.py`. |
 | `update` | Update the installed system from its repo: say in plain words what is new, install the same way, merge `CLAUDE.md`, check. |
 | `register-as` | Register the current chat as a named agent: copies the agent template into `Agents/<Name>/`, adds a row to `AGENTS.md`, records the session identity for the briefing watchman. |
 

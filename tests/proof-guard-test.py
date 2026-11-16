@@ -27,6 +27,7 @@ def ok(name, cond):
 N = [0]
 def tid():
     N[0] += 1; return f"t{N[0]}"
+ET = "2026-11-16T10:00:00.000Z"   # the time of every edit (the transcript's timestamp); reports are compared to it
 def edit(path, lines=6):
     return ("edit", path, lines)
 def bash(cmd, err=False):
@@ -38,7 +39,7 @@ def rows_of(steps, text):
     for s in steps:
         i = tid()
         if s[0] == "edit":
-            rows.append({"type": "assistant", "message": {"content": [{"type": "tool_use", "id": i, "name": "Edit",
+            rows.append({"type": "assistant", "timestamp": ET, "message": {"content": [{"type": "tool_use", "id": i, "name": "Edit",
                          "input": {"file_path": s[1], "old_string": "a", "new_string": "\n" * (s[2] - 1)}}]}})
             rows.append({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": i, "content": "ok"}]}})
         elif s[0] == "agent":
@@ -90,8 +91,23 @@ ok("15 after the edit only git diff/status -> hit", turn([edit(S), bash("git -C 
 ok("16 grep with | inside quotes is not a run -> hit", turn([edit(S), bash('grep -E "a|b|c" x.py | head')], "Done."))
 ok("17 a .json (state) edit -> silent", not turn([edit("/x/state.json")], "Done."))
 ok("17b settings.json of the install is critical -> hit", turn([edit(f"{C}/settings.json")], "Done."))
-ok("18 a run by a subagent (task: run the tests) -> silent", not turn([edit(S), ("agent", "run the tests for x.py")], "Done."))
-ok("18b a subagent whose task is unrelated -> hit", turn([edit(S), ("agent", "summarize the docs folder")], "Done."))
+# a subagent counts as a run only with the report scripts/proof_report.py wrote after the last edit, every rc 0
+RD = f"{T}/reports"; os.makedirs(RD); pg.REPORTS = RD
+def report(sid, *rows):
+    open(f"{RD}/{sid}.jsonl", "w").write("".join(json.dumps({"cmd": "pytest", "rc": rc, "start": st}) + "\n" for rc, st in rows))
+def turn_sid(steps, text, sid):
+    t = pg.turns(write(rows_of(steps, text)))[-1]; t["sid"] = sid
+    return pg.verdict(t)
+AG_RUN = ("agent", "run the tests for x.py")
+ok("18 a subagent told to run the tests, NO report -> hit (a task that mentions a test proves nothing)",
+   bool(turn_sid([edit(S), AG_RUN], "Done.", "noreport")))
+report("ok0", (0, "2026-11-16T10:05:00.000Z"), (0, "2026-11-16T10:06:00.000Z"))
+ok("18b a subagent + a report after the edit, all rc 0 -> silent", not turn_sid([edit(S), AG_RUN], "Done.", "ok0"))
+report("bad1", (0, "2026-11-16T10:05:00.000Z"), (1, "2026-11-16T10:06:00.000Z"))
+ok("18c a report after the edit with an rc != 0 -> hit", bool(turn_sid([edit(S), AG_RUN], "Done.", "bad1")))
+report("old", (0, "2026-11-16T09:55:00.000Z"))
+ok("18d a report only from BEFORE the edit -> hit", bool(turn_sid([edit(S), AG_RUN], "Done.", "old")))
+ok("18e a good report but no subagent called after the edit -> hit", bool(turn_sid([edit(S)], "Done.", "ok0")))
 
 # ── shared rules documents: a rule for everyone = a critical change → a cross-review after the last edit
 CS, AG = f"{W}/CODING-STANDARD.md", f"{W}/Agents/"
@@ -171,11 +187,17 @@ out = stop_event(rows_of([edit(S)], "Edit made; check it on the hardware — I c
 ok("B5 an honest hand-off ('check it on the hardware') -> no block", out.strip() == "")
 out = stop_event(rows_of([edit(S)], "Done."), env={"PROOF_GUARD_BLOCK": "0"})
 ok("B6 PROOF_GUARD_BLOCK=0 -> no block, a flag instead", out.strip() == "" and os.path.exists(FLAG) and "Sam" in open(FLAG).read())
+report("pgblock", (0, "2026-11-16T10:05:00.000Z"))
+out = stop_event(rows_of([edit(S), AG_RUN], "Done."), env={"PROOF_REPORTS_DIR": RD})
+ok("B6b main(): the event's session_id finds that session's report -> no block", out.strip() == "")
+os.remove(f"{RD}/pgblock.jsonl")
+out = stop_event(rows_of([edit(S), AG_RUN], "Done."), env={"PROOF_REPORTS_DIR": RD})
+ok("B6c main(): the same turn with no report -> block", '"decision": "block"' in out)
 conf = f"{T}/m.conf"; open(conf, "w").write("PROOF_GUARD_BLOCK=0\n")
 os.remove(FLAG)
 out = stop_event(rows_of([edit(S)], "Done."), env={"CLAUDE_METHODOLOGY_CONF": conf})
 ok("B7 PROOF_GUARD_BLOCK=0 in methodology.conf -> no block either", out.strip() == "" and os.path.exists(FLAG))
 hits = open(f"{ENV['HOME']}/.claude/proof-hits.log").read().count("\n")
-ok("B8 every hit is logged (B1, B4, B6, B7 = 4)", hits == 4)
+ok("B8 every hit is logged (B1, B4, B6, B6c, B7 = 5)", hits == 5)
 
 print(f"proof-guard: {P} pass, {F} fail"); sys.exit(1 if F else 0)

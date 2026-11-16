@@ -13,8 +13,10 @@ A turn = everything after the last human prompt. It fires when ALL of these hold
   2. the final text claims completion (CLAIM) in its first or last paragraph. Code blocks, quotes and `>` lines don't
      count, and neither do negated claims ("not done yet") — the same clean()/first_hit() as pause-guard;
   3. AFTER the LAST code edit nothing ran. A run = ANY Bash segment that is not just reading or syntax checking
-     (lenient on purpose: it catches "zero runs", it doesn't judge test quality), or a subagent (Task/Agent) whose
-     task mentions a test or the edited file. Not a run: bash -n, py_compile, ast.parse, node --check, chmod, ls,
+     (lenient on purpose: it catches "zero runs", it doesn't judge test quality), or a subagent (Task/Agent) called
+     after the edit WITH a report: the session's scripts/proof_report.py lines started after the last edit, all rc 0
+     (the verify skill; the report holds exit codes, not words - a task that only mentions a test proves nothing).
+     Report dir: PROOF_REPORTS_DIR / config CCM_PROOF_REPORTS_DIR / ~/.claude/proof-reports. Not a run: bash -n, py_compile, ast.parse, node --check, chmod, ls,
      cat, grep, sed -n, head, tail, wc, cp, mv, diff, stat, echo, find, git diff/status/log/show, jq, sleep.
   Not fired when the last paragraph hands the check to the human ("check it on the hardware", "open the page") —
   hardware, visuals and portals are things the agent can't verify; saying so plainly is the legitimate path.
@@ -219,7 +221,7 @@ def is_xreview(sg):
 
 
 def turns(tp, tail=False):
-    """→ list of turns: dict(text, edits[(pos, path, lines)], bash[(seq, cmd, ok)], agents, docs)"""
+    """→ list of turns: dict(text, edits[(pos, path, lines, timestamp)], bash[(seq, cmd, ok)], agents, docs)"""
     out, cur, seq, pending = [], None, 0, {}
 
     def new():
@@ -260,11 +262,11 @@ def turns(tp, tail=False):
                     inp = x.get("input") or {}
                     fp = inp.get("file_path") or ""
                     if is_code(fp):
-                        cur["edits"].append(((seq, 0), fp, lines_changed(inp)))
+                        cur["edits"].append(((seq, 0), fp, lines_changed(inp), o.get("timestamp") or ""))
                     elif is_doc(fp):
                         cur["docs"].append(((seq, 0), fp, lines_changed(inp)))
                 elif x.get("type") == "tool_use" and x.get("name") in ("Task", "Agent"):
-                    # a run by a subagent: its task mentions a test or the edited file — counted, leniently
+                    # a subagent: counted as a run only with a proof_report.py report written after the last edit (code_verdict)
                     cur["agents"].append(((seq, 0), json.dumps(x.get("input") or {}, ensure_ascii=False)))
                 elif x.get("type") == "tool_use" and x.get("name") == "Bash":
                     cmd = (x.get("input") or {}).get("command") or ""
@@ -274,7 +276,7 @@ def turns(tp, tail=False):
                     # are told apart by their order. `mv X.new X` is an install, not an edit.
                     for k, fp in bash_writes(cmd):
                         if is_code(fp):
-                            cur["edits"].append(((seq, k), fp, 5))
+                            cur["edits"].append(((seq, k), fp, 5, o.get("timestamp") or ""))
                         elif is_doc(fp):
                             cur["docs"].append(((seq, k), fp, 5))
             elif x.get("type") == "tool_result" and x.get("tool_use_id") in pending:
@@ -330,6 +332,21 @@ def docs_verdict(t):
     return claim, f"docs: a shared rules document ({what}) edited with no cross-review after it"
 
 
+REPORTS = (os.environ.get("PROOF_REPORTS_DIR") or conf("CCM_PROOF_REPORTS_DIR", "")
+           or os.path.join(os.path.expanduser("~"), ".claude", "proof-reports"))
+
+
+def report_rows(sid, since):
+    """the session's scripts/proof_report.py lines started at or after `since` (UTC ISO, as the transcript's timestamp)"""
+    if not sid:
+        return []
+    try:
+        rows = [json.loads(l) for l in open(os.path.join(REPORTS, f"{os.path.basename(sid)}.jsonl"), encoding="utf-8") if l.strip()]
+    except (OSError, ValueError):
+        return []
+    return [r for r in rows if isinstance(r, dict) and str(r.get("start", "")) >= since]
+
+
 def code_verdict(t):
     edits = t["edits"]
     if not edits or sum(e[2] for e in edits) <= 3:
@@ -340,10 +357,14 @@ def code_verdict(t):
     if paras and HANDOFF.search(paras[-1]):
         return None   # the check was handed to the human on purpose — legitimate
     last = max(e[0] for e in edits)
-    names = {os.path.basename(e[1]) for e in edits}
     runs = [b for b in t["bash"] if runs_after(b, last, lambda sg: not NOT_RUN.match(sg.strip()) and not is_write_seg(sg))]
-    runs += [a for a in t["agents"] if a[0] > last and (re.search(r"test|тест|прогін|прожени", a[1], re.I)
-                                                          or any(n in a[1] for n in names))]
+    # a subagent counts only with the report proof_report.py wrote AFTER the last edit, every rc 0. It used to count
+    # when its task mentioned a test - with no proof that the test ran, let alone passed.
+    if any(a[0] > last for a in t["agents"]):
+        since = max((e[3] for e in edits if len(e) > 3 and e[0] == last), default="")
+        rep = report_rows(t.get("sid", ""), since) if since else []
+        if rep and all(r.get("rc") == 0 for r in rep):
+            runs.append(("report", len(rep)))
     if not runs:
         return claim, "nothing ran after the last code edit"
     return None
@@ -357,6 +378,7 @@ def main():
     ts = turns(d.get("transcript_path", ""), tail=True)
     if not ts:
         return
+    ts[-1]["sid"] = sid
     v = verdict(ts[-1])
     if not v:
         return
@@ -370,7 +392,7 @@ def main():
         files = ", ".join(sorted({os.path.basename(e[1]) for e in t["edits"]})[:4])
         print(json.dumps({"decision": "block", "reason":
               f"proof-guard: you said '{claim}' after editing code ({files}), but ran nothing AFTER the last edit. "
-              "Run what you changed (its test, or the script itself) and show the output — then claim it. If you "
+              "Run what you changed (its test, or the script itself; or the verify skill) and show the output — then claim it. If you "
               f"can't be the one to run it (hardware, {HUMAN}, another agent), say so plainly: what exactly is "
               "unverified and who will verify it — and drop the word."}, ensure_ascii=False))
         return
