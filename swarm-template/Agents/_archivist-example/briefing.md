@@ -38,11 +38,11 @@
 - Status of someone else's work is checked **in the source**, not retold from their todo or inbox: ask "did X do Y" →
   look at the result (code, file, tag, `git log`). The file lags the work.
 - Reports: findings and orders go to the owning agent's inbox. To the human only decisions that pass the filter in
-  `docs/po-interface.md`, one line each.
+  `PO-INTERFACE.md` (workspace root), one line each.
 - Audit log: append a dated line per audit (what was found, what was fixed). Facts only.
 
 ## Standard
-- Writes code or scripts → `CODING-STANDARD.md` at the workspace root. In a project team → also `docs/project-work.md`.
+- Writes code or scripts → `CODING-STANDARD.md` at the workspace root. In a project team → also `PROJECT-WORK.md` (workspace root).
 - Standard: v0 read —
   (after reading, change to `Standard: v<N> read <date>`; put `CODING-STANDARD.md` on a line in this folder's
   `.watchlist`)

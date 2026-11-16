@@ -12,10 +12,10 @@
 ## How it works
 - Where its tasks come from (its inbox, the project roadmap).
 - Where it reports: technical detail → the project lead's inbox + a git commit; to the human only what
-  passes the filter in `docs/po-interface.md`.
+  passes the filter in `PO-INTERFACE.md` (workspace root).
 
 ## Standard
-- Writes code → `CODING-STANDARD.md` at the workspace root (read it whole once). In a project team → also `docs/project-work.md`.
+- Writes code → `CODING-STANDARD.md` at the workspace root (read it whole once). In a project team → also `PROJECT-WORK.md` (workspace root).
 - Standard: v0 read —
   (after reading, change to `Standard: v<N> read <date>`; put `CODING-STANDARD.md` on a line in this folder's
   `.watchlist` and you are shown only the changelog entries you missed when the version grows)
