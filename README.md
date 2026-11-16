@@ -65,7 +65,10 @@ You can hand the repo to your own agent and say "install this": it runs `./insta
 > and which file the key goes into. Never ask me for a key in the chat. If I already had my own
 > ~/.claude/CLAUDE.md, the installer keeps it and leaves your rules next to it (CLAUDE.md.new, CLAUDE.md.changes):
 > merge them into mine as it says — keep everything of mine, add what is missing, ask me one line about each rule
-> that contradicts mine. Then tell me in a few short lines what rules are now in ~/.claude/CLAUDE.md and ask whether I want to add anything; if I do, add it there. Finally tell me to
+> that contradicts mine. Then tell me in a few short lines what rules are now in ~/.claude/CLAUDE.md and ask whether I want to add anything; if I do, add it there.
+> Then read docs/getting-started.md and tell me, one short plain line each, what the system now does for me:
+> memory and /recap, what I will notice (the table in section 3), the slash commands, how to start more agents
+> (/register-as), what runs on its own (supervisor, chat copy). No file paths unless I ask. Finally tell me to
 > restart Claude Code.
 
 **What it never touches:** your chats and session history (`~/.claude/projects/`, `history.jsonl`),
