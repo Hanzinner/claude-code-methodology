@@ -67,6 +67,8 @@ already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS
    all work). From then on that chat is that agent: on every message it is shown its briefing again when the
    briefing has changed, and the letters in its inbox that are still open. You never paste a briefing by hand.
    Want to call it by another word? Put it on a line in `Agents/<Name>/.aliases`.
+   One agent = one chat. Don't start a second session of the same agent in the background to "listen": it acts
+   where you can't see it, and the chat you talk to stays silent.
 4. **Agents talk by letter, not through you:** `scripts/inbox_post.sh <Name> "<text>"` (a lock, and a check
    that the letter landed); the receiver does it or moves it to its todo and closes the item with
    `scripts/inbox_done.sh`. Writing into someone else's `inbox.md` by hand is refused by a gate. A letter that

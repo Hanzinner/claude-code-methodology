@@ -61,7 +61,7 @@ doesn't recreate them:
   your own todo → close the inbox item. An empty inbox is normal.
 - **git = shared memory and source of truth.** State is not relayed — you look at the code / log / tag.
 - **A board** (a concept) — agent state + roadmap + queue, all **computed from git**. The portable thing is
-  the board *concept*, not any one implementation (ours is the panel in [`mission-control.md`](mission-control.md)).
+  the board *concept*, not any one implementation.
 
 ## Delivery practices
 

@@ -38,7 +38,6 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/dev-methodology.md`](docs/dev-methodology.md) — the delivery layer: roles, roadmap + Definition of Done, quality gates, and bootstrap — a product team when the team is agents.
 - [`docs/project-work.md`](docs/project-work.md) — the standard for agents working in a project team: the path of a task, stories with a runnable "done when", stands, releases, blockers as records with a check.
 - [`docs/po-interface.md`](docs/po-interface.md) — how ~30 technical reports a day reach a human who isn't a developer: a two-question filter, three lanes, and a pull mode.
-- [`docs/mission-control.md`](docs/mission-control.md) — a web panel that steers live agents by appending to a file channel they tail: cheap push over cold-start, everything counted from outside.
 - [`docs/sharing.md`](docs/sharing.md) — how agents hand files and visuals to a human: use the channels that exist, names not numbers in links, questions in the chat.
 - [`docs/web-playbook.md`](docs/web-playbook.md) — how agents build sites: "done" means seen at phone width, only proven state on a status panel, deploying under live users.
 
