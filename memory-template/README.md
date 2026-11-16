@@ -1,7 +1,7 @@
 # How to write memory here
 
-For the agent saving a memory. The installer copies this folder to `~/.claude/memory/` once; edit the copies
-there. Shared memory is for what every chat needs: a correction or lesson about one named agent's own work goes
+For the agent saving a memory. The installer copies this folder once into the memory folder: the one Claude Code's own auto memory loads
+`MEMORY.md` from (`autoMemoryDirectory` in `settings.json`; by default `<install dir>/memory/`). Edit the copies there. Shared memory is for what every chat needs: a correction or lesson about one named agent's own work goes
 into that agent's `briefing.md`, not here.
 
 ## Layout

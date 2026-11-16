@@ -27,7 +27,8 @@ DEFAULTS = {
     "CCM_GLOSSARY": "",                               # file of terms the human already knows (abbr-guard); empty = none
     "CCM_DRAFTING_GUIDE": "",                         # how the human writes outgoing messages (draft-guard); empty = none
     "CCM_MISTAKES": "",                               # mistakes journal; empty = <workspace>/MISTAKES.md
-    "CCM_EPISODIC_DIR": "",                           # "when did we do X" log; empty = <claude dir>/memory/episodic
+    "CCM_MEMORY_DIR": "",                             # memory (MEMORY.md + files); empty = autoMemoryDirectory in <claude dir>/settings.json, else <claude dir>/memory
+    "CCM_EPISODIC_DIR": "",                           # "when did we do X" log; empty = <memory dir>/episodic
     "CCM_FORBIDDEN_SUBAGENT_MODELS": "",              # models subagents must not run on (fable-gate), comma-separated
     "CCM_SUBAGENT_DEFAULT_MODEL": "sonnet",
     "CCM_ALARM_SCRIPTS": "",                          # selfkill-gate: scripts that must be started as background tasks
@@ -75,6 +76,22 @@ def conf_file():
     return None
 
 
+def memory_dir(claude_dir):
+    """Where Claude Code's own auto memory reads and writes: autoMemoryDirectory in settings.local.json / settings.json
+    of the install dir (~ expanded, as Claude does); without it Claude would use ~/.claude/projects/<cwd>/memory/,
+    which install.sh avoids by setting it. Fallback when neither file sets it: <claude dir>/memory."""
+    import json
+    for name in ("settings.local.json", "settings.json"):
+        try:
+            v = json.load(open(os.path.join(claude_dir, name), encoding="utf-8")).get("autoMemoryDirectory")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if isinstance(v, str) and v.strip():
+            v = v.strip()
+            return os.path.join(HOME, v[2:]) if v.startswith("~/") else v
+    return os.path.join(claude_dir, "memory")
+
+
 def _parse(path):
     out = {}
     try:
@@ -112,8 +129,11 @@ def load():
             vals["CCM_MISTAKES"] = os.path.join(vals["CCM_WORKSPACE"], "MISTAKES.md")
         if not vals.get("CCM_AGENTS_DIR"):
             vals["CCM_AGENTS_DIR"] = os.path.join(vals["CCM_WORKSPACE"], "Agents")
+        if not vals.get("CCM_MEMORY_DIR"):   # CLAUDE_MEMORY_DIR: the older name the memory hooks read; still honoured
+            vals["CCM_MEMORY_DIR"] = os.environ.get("CLAUDE_MEMORY_DIR") or memory_dir(vals["CCM_CLAUDE_DIR"])
+        vals["CCM_MEMORY_DIR"] = vals["CCM_MEMORY_DIR"].rstrip("/") or "/"
         if not vals.get("CCM_EPISODIC_DIR"):
-            vals["CCM_EPISODIC_DIR"] = os.path.join(vals["CCM_CLAUDE_DIR"], "memory", "episodic")
+            vals["CCM_EPISODIC_DIR"] = os.path.join(vals["CCM_MEMORY_DIR"], "episodic")
         _cache = vals
     return _cache
 

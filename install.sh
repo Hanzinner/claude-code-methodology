@@ -408,13 +408,27 @@ else
   done < <(python3 "$REPO_DIR/lib/ws_docs.py" install "$REPO_DIR" "$WS" "$STAMP_DIR" || echo "  ws_docs.py failed - workspace documents not updated")
 fi
 
-say "Copying memory template…"
-if [[ ! -f "$TARGET/memory/MEMORY.md" ]]; then
-  do_or_show cp -r "$REPO_DIR/memory-template/"* "$TARGET/memory/"
+# Memory = the folder Claude Code's own auto memory loads MEMORY.md from and writes to. Without autoMemoryDirectory in
+# settings it uses ~/.claude/projects/<cwd>/memory/, and our memory-template, memory-write-gate and curation would sit on
+# a folder Claude never reads. So: a folder the person already set wins; otherwise <install dir>/memory, written into
+# settings.json below. Every mechanism finds it through lib/ccm_conf.py (CCM_MEMORY_DIR).
+MEMDIR=$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import ccm_conf; print(ccm_conf.memory_dir(sys.argv[2]))' "$REPO_DIR/lib" "$TARGET")
+MEM_SET=0; [[ "$MEMDIR" != "$TARGET/memory" ]] && MEM_SET=1
+say "Copying memory template into $MEMDIR…"
+do_or_show mkdir -p "$MEMDIR"
+if [[ ! -f "$MEMDIR/MEMORY.md" ]]; then
+  do_or_show cp -r "$REPO_DIR/memory-template/"* "$MEMDIR/"
   ok "memory initialized from template"
 else
-  warn "memory/MEMORY.md already exists — not overwritten. See $REPO_DIR/memory-template/ for reference."
+  warn "$MEMDIR/MEMORY.md already exists — not overwritten. See $REPO_DIR/memory-template/ for reference."
 fi
+[[ $MEM_SET -eq 1 ]] && ok "memory folder: $MEMDIR (your autoMemoryDirectory, kept)"
+# memory Claude's built-in auto memory already wrote elsewhere before this install: shown, never moved
+while IFS= read -r d; do
+  warn "Claude's built-in memory has files in $d (written before autoMemoryDirectory pointed to $MEMDIR) — move what you want to keep into $MEMDIR and add a line to its MEMORY.md"
+done < <(for d in "$HOME"/.claude/projects/*/memory; do
+           [[ -d "$d" && "$(cd "$d" && pwd -P)" != "$(cd "$MEMDIR" 2>/dev/null && pwd -P)" ]] && compgen -G "$d/*.md" >/dev/null && echo "$d"
+         done | head -5)
 
 # ---- generate settings.json ---------------------------------------------
 say "Generating settings.json…"
@@ -426,9 +440,9 @@ backup_if_exists "$SETTINGS"
 # Substitute the install target into the template
 if [[ $DRY_RUN -eq 0 ]]; then
   # JSON-safe substitution: a path containing " \ | & would break a plain sed replacement
-  python3 - "$REPO_DIR/settings.template.json" "$SETTINGS" "$TARGET" <<'PYSUB'
+  python3 - "$REPO_DIR/settings.template.json" "$SETTINGS" "$TARGET" "$MEMDIR" "$MEM_SET" <<'PYSUB'
 import json, sys
-src, dst, target = sys.argv[1:]
+src, dst, target, memdir, mem_set = sys.argv[1:]
 # in commands the path sits inside shell double quotes → escape \ " $ ` for the shell first
 sh = target.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
 text = open(src).read()
@@ -453,6 +467,8 @@ for k, v in ours.items():
         merged["env"] = {**have["env"], **v}      # our variables are refreshed, theirs stay
     else:
         merged.setdefault(k, v)                   # anything the user set wins
+if mem_set != "1":   # the person's own autoMemoryDirectory (here or in settings.local.json) is never touched
+    merged.setdefault("autoMemoryDirectory", memdir)
 hooks = {}
 for event, groups in (have.get("hooks") or {}).items():
     for g in groups:

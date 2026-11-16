@@ -20,7 +20,8 @@ For a person, not for the agent. Each step says what you do and what you will se
 Each line: the problem you would otherwise have, what changed, how to use it.
 
 - **It remembers you between chats.** Plain Claude Code starts every new chat from zero. Now say "remember
-  that I …" and it is written to memory (`~/.claude/memory/`) and known in every later chat.
+  that I …" and it is written to memory (`~/.claude/memory/`, the folder Claude Code's own memory is pointed at) and known in every
+  later chat.
 - **Long work doesn't get lost.** When a chat gets very long, Claude Code compresses it and the details are
   gone. Type **`/recap`** before that happens: what is worth keeping goes to memory first. Keep one long chat
   per topic rather than a new chat each time: the working context of a task lives in its chat.

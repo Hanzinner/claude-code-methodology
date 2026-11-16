@@ -13,12 +13,18 @@ Exempt: episodic/ (a dated log), the MEMORY.md index, feedback-index.md, archive
 A file that ALREADY has the fields on disk (editing an old one) passes — the
 friction is one-time, at creation.
 
-Config: CLAUDE_MEMORY_DIR (default ~/.claude/memory)
+Config: the memory dir from lib/ccm_conf.py (CCM_MEMORY_DIR / CLAUDE_MEMORY_DIR / autoMemoryDirectory in settings.json,
+the folder Claude Code's own auto memory writes to); default ~/.claude/memory
 """
 import json, os, re, sys
 
-MEM = os.path.realpath(os.environ.get("CLAUDE_MEMORY_DIR",
-                                      os.path.expanduser("~/.claude/memory"))) + "/"
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+    from ccm_conf import conf
+    _mem = conf("CCM_MEMORY_DIR", "")
+except Exception:   # fail-closed gate: no conf module -> the old lookup, never "guard nothing"
+    _mem = ""
+MEM = os.path.realpath(_mem or os.environ.get("CLAUDE_MEMORY_DIR") or os.path.expanduser("~/.claude/memory")) + "/"
 SKIP_DIRS = ("episodic/", "archive/")            # top-level folders, by prefix
 SKIP_FILES = ("MEMORY.md", "feedback-index.md")  # top-level files, exact name
 

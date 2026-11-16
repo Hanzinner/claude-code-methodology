@@ -1,6 +1,6 @@
 # scripts
 
-Utilities called from hooks or directly. All idempotent. Paths are set per script through env vars named in each header (`CLAUDE_MEMORY_DIR`, `CLAUDE_PROJECT_TRANSCRIPT_DIR`, `BACKUP_DIR`, …); defaults live under `~/.claude`.
+Utilities called from hooks or directly. All idempotent. Paths are set per script through env vars named in each header (`CLAUDE_PROJECT_TRANSCRIPT_DIR`, `BACKUP_DIR`, …); defaults live under `~/.claude`. The memory folder comes from `lib/ccm_conf.py` (`CCM_MEMORY_DIR` = `autoMemoryDirectory` in `settings.json`, the folder Claude Code's own auto memory uses).
 
 ## Document extraction
 

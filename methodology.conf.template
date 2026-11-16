@@ -26,7 +26,8 @@ CCM_TIMEZONE="__TIMEZONE__"
 CCM_GLOSSARY=""          # terms the human already knows — abbr-guard won't ask to expand them
 CCM_DRAFTING_GUIDE=""    # how the human writes outgoing messages — draft-guard points the agent there
 CCM_MISTAKES=""          # mistakes journal; empty = <workspace>/MISTAKES.md
-CCM_EPISODIC_DIR=""      # "when did we do X" log; empty = <install dir>/memory/episodic
+CCM_MEMORY_DIR=""        # memory folder; empty = autoMemoryDirectory in settings.json (the folder Claude's own memory uses)
+CCM_EPISODIC_DIR=""      # "when did we do X" log; empty = <memory folder>/episodic
 
 # Models subagents must never run on (fable-gate). Comma-separated, empty = gate off.
 CCM_FORBIDDEN_SUBAGENT_MODELS=""

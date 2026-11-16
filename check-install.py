@@ -69,7 +69,6 @@ for sub in ("bin", "tests"):
         p = f"{target}/{sub}/{f}"
         check(os.path.isfile(p) and os.access(p, os.X_OK), f"{sub}/{f}", "missing or not executable: run ./install.sh")
 check(os.path.isfile(f"{target}/methodology.conf"), "methodology.conf", "run ./install.sh")
-check(os.path.isfile(f"{target}/memory/MEMORY.md"), "memory/MEMORY.md", "run ./install.sh")
 
 settings = f"{target}/settings.json"
 try:
@@ -133,6 +132,26 @@ def _keys(path, names):
     return any(l.split("=", 1)[0].strip() in names and l.split("=", 1)[1].strip()
                for l in txt.splitlines() if "=" in l and not l.lstrip().startswith("#"))
 
+
+# memory = the folder Claude Code's own auto memory loads and writes (autoMemoryDirectory). Without the setting Claude
+# uses ~/.claude/projects/<folder>/memory/ and our MEMORY.md, memory-write-gate and curation sit on a folder it never reads.
+amd = None
+for n in ("settings.local.json", "settings.json"):
+    try:
+        v = json.load(open(f"{target}/{n}", encoding="utf-8")).get("autoMemoryDirectory")
+    except Exception:
+        v = None
+    if isinstance(v, str) and v.strip():
+        amd = v.strip()
+        break
+check(amd is not None, "settings: autoMemoryDirectory set (Claude's auto memory uses our memory folder)",
+      "run ./install.sh - without it Claude's built-in memory writes to ~/.claude/projects/<folder>/memory/")
+memdir = (os.path.join(os.path.expanduser("~"), amd[2:]) if amd.startswith("~/") else amd) if amd else f"{target}/memory"
+check(os.path.isfile(f"{memdir}/MEMORY.md"), f"memory: {memdir}/MEMORY.md", "run ./install.sh")
+ours = _conf("CCM_MEMORY_DIR")
+check(bool(ours) and os.path.realpath(ours) == os.path.realpath(memdir), f"memory: our mechanisms use the same folder ({ours or '?'})",
+      f"CCM_MEMORY_DIR / CLAUDE_MEMORY_DIR points to {ours or 'nothing'}, Claude's autoMemoryDirectory to {memdir}: "
+      "remove the override, or point autoMemoryDirectory there")
 
 # the shared documents in the workspace (install.sh -> lib/ws_docs.py); an unmerged .new = red until merged
 ws = _conf("CCM_WORKSPACE")

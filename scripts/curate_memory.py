@@ -21,12 +21,13 @@ import re
 import sys
 import pathlib
 
-MEMORY_DIR = pathlib.Path(
-    os.environ.get(
-        "CLAUDE_MEMORY_DIR",
-        os.path.expanduser("~/.claude/memory"),
-    )
-)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+try:
+    from ccm_conf import conf   # CCM_MEMORY_DIR: autoMemoryDirectory in settings.json, the folder Claude's auto memory uses
+    _mem = conf("CCM_MEMORY_DIR", "")
+except ImportError:
+    _mem = ""
+MEMORY_DIR = pathlib.Path(_mem or os.environ.get("CLAUDE_MEMORY_DIR") or os.path.expanduser("~/.claude/memory"))
 
 STALE_DAYS = int(os.environ.get("MEMORY_STALE_DAYS") or 60)
 VALID_TYPES = {"user", "feedback", "project", "reference"}

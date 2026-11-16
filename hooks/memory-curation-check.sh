@@ -6,7 +6,7 @@
 #      changed for 30 days: "re-check or delete". A guess written down once must not harden into a source of truth
 #      just by sitting there (the counterpart of memory-write-gate, which makes the writer say how sure it is).
 #
-# Config: MEMORY_DECAY_DAYS (default 30); CLAUDE_MEMORY_DIR (default <claude dir>/memory, as in memory-write-gate).
+# Config: MEMORY_DECAY_DAYS (default 30); the memory dir from lib/ccm_conf.py (CCM_MEMORY_DIR, as memory-write-gate).
 
 set -euo pipefail
 
@@ -14,7 +14,8 @@ CLAUDE_DIR="${CLAUDE_METHODOLOGY_DIR:-$HOME/.claude}"
 STAMP_DIR="$CLAUDE_DIR/cache"
 STAMP="$STAMP_DIR/memory_curation_last"
 SCRIPT="$CLAUDE_DIR/scripts/curate_memory.py"
-MEM="${CLAUDE_MEMORY_DIR:-$CLAUDE_DIR/memory}"
+MEM=$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from ccm_conf import conf; print(conf("CCM_MEMORY_DIR"))' "$CLAUDE_DIR/lib" 2>/dev/null) || MEM=""
+MEM="${MEM:-${CLAUDE_MEMORY_DIR:-$CLAUDE_DIR/memory}}"
 INTERVAL_SECS=$((7 * 24 * 60 * 60))  # 7 days
 
 mkdir -p "$STAMP_DIR"

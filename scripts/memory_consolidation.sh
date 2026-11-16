@@ -15,7 +15,7 @@ set -uo pipefail
 export LC_ALL=C.UTF-8
 HERE=$(dirname "$(readlink -f "$0")")
 eval "$(python3 "$HERE/../lib/ccm_conf.py" --shell)"
-MEM="${CCM_MEMORY_DIR:-$HOME/.claude/memory}"
+MEM="${CCM_MEMORY_DIR:-$HOME/.claude/memory}"   # ccm_conf: autoMemoryDirectory in settings.json, else <claude dir>/memory
 WS="$CCM_WORKSPACE"
 OUTDIR="${CCM_CONSOLIDATION_DIR:-$HOME/.claude/consolidation/reports}"
 STAMP=${CONSOLIDATION_STAMP:-$HOME/.claude/consolidation/last-run}
