@@ -50,6 +50,8 @@ DEFAULTS = {
     "CCM_BACKUP_PATHS": "",                           # offsite-backup add-on: folders to back up, colon-separated; empty = ~/.claude, the workspace, ~/.ssh, the secrets dir
     "CCM_TG_OUTBOX": "/var/spool/ccm-tg-outbox",      # mobile-bot add-on: spool where agents drop answers for the phone
     "CCM_BR_CDP": "",                                 # agent-browser add-on: debugging endpoint of the browser (e.g. http://127.0.0.1:9333); empty = the add-on's default
+    "CCM_WAITING_LINE": "1",                          # waiting-line hook: "waiting for you: N blockers" before the human's next message; 0 = off
+    "CCM_WAITING_REPEAT_H": "4",                      # waiting-line: the same open blockers are shown again after this many hours
     "CCM_READER_PORT": "8001",                        # reader add-on: port of the document reader
     "CCM_READER_BIND": "127.0.0.1",                   # reader add-on: this machine only; anything else = every document readable with no password
     "CCM_READER_SHARED": "",                          # reader add-on: folder (under the workspace) agents put documents in for the human; empty = section hidden

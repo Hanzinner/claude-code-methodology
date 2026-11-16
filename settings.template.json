@@ -96,6 +96,10 @@
           },
           {
             "type": "command",
+            "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/waiting-line.py\""
+          },
+          {
+            "type": "command",
             "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/order-capture-hint.sh\""
           },
           {

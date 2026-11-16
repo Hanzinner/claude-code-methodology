@@ -6,6 +6,7 @@ Shell and Python hooks run by the Claude Code harness. Those that read other fil
 |------|-------|--------|
 | `auto-extract-docs.sh` | PreToolUse on `Read` | If file is `.pdf`/`.html`, run extraction and redirect agent to the `.txt` output. PDFs >10 MB get a manual-run message instead. |
 | `check-prompt-gap.sh` | UserPromptSubmit | Prepend `[now: <ts> \| gap since previous: <delta>]`. |
+| `waiting-line.py` | UserPromptSubmit | For a human without a dashboard: hands the agent one line to put first in its reply, "waiting for you: N blockers (project: what, days) · in human-TODO: N open" - blockers from `scripts/blockers.py list` when their set changed or every 4 h per session, the human-TODO count once a day; nothing open = nothing. `CCM_WAITING_LINE=0` turns it off (e.g. when a dashboard shows the same). |
 | `memory-curation-check.sh` | SessionStart | Run `scripts/curate_memory.py` at most weekly. Silent if clean; injects findings if not. |
 
 ## Hardening hooks

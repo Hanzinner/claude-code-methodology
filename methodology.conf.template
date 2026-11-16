@@ -81,6 +81,9 @@ CCM_PRESENCE_CMD=""                     # command printing the desktop idle time
 CCM_PUBLIC_GATE_NAMES=""                # names that must never reach a public repo (public_gate.sh), comma-separated
 CCM_PRUNE_WATCHMAN_STATE=0              # 1 = weekly delete of the watchman's own state files older than CCM_PRUNE_DAYS
 
+CCM_WAITING_LINE=1                      # 1 = before your next message the agent says first "waiting for you: N blockers (project: what, days)"; 0 = off (you have a dashboard)
+CCM_WAITING_REPEAT_H=4                  # the same open blockers are said again after this many hours (sooner when the set changes)
+
 # ---- add-ons (each is installed only with its own install.sh --with-<name> flag) ----
 CCM_BACKUP_STATE=""                     # offsite-backup: where the backup keeps its log, size and last-run markers; empty = ~/.claude/offsite-backup
 CCM_BACKUP_PATHS=""                     # offsite-backup: folders to back up, colon-separated; empty = ~/.claude, the workspace, ~/.ssh, the secrets dir
