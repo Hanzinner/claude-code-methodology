@@ -187,3 +187,21 @@
 - **Why:** the code inserted before the first occurrence of `## 20` (`s.find` / `s.replace(..., 1)`). That first occurrence was not at a line start but inside an example command in the header (`grep -cE '^## 20…'`), so every insert landed in the same gap.
 - **Right way:** find the boundary anchored to the line start (`re.search(r"(?m)^## 20", s)` or iterate lines with `startswith`), never by substring. In a file that others insert into by a pattern, don't keep that pattern verbatim in the explanatory text (write `^#{2} 20`).
 - **Seen:** once.
+
+### python-docx: vertical (rotated) text in a table cell has no API, and a long label gets cut off
+- **Symptom:** a narrow column with a long label: the text runs horizontally and breaks the table, or, once rotated, shows half the label.
+- **Why:** python-docx has no setting for text direction; rotated text does not get an automatic row height.
+- **Right way:** set it in the XML: `td = OxmlElement("w:textDirection"); td.set(qn("w:val"), "btLr"); cell._tc.get_or_add_tcPr().append(td)` (`btLr` reads bottom-to-top, `tbRl` top-to-bottom), and set the row height by hand (`row.height = Cm(7)`). Render the page to an image and look.
+- **Seen:** once (a 13-column form table).
+
+### python-docx: Cyrillic or other non-Latin text falls back to another font
+- **Symptom:** part of the text in a run shows in a different font, though `run.font.name` is set.
+- **Why:** Word takes the font for some character ranges from a separate attribute that `font.name` does not set.
+- **Right way:** also `run._element.rPr.rFonts.set(qn("w:eastAsia"), FONT)`, and the same on the `Normal` style (`style.element.rPr.rFonts.set(...)`).
+- **Seen:** once.
+
+### Recreating a document from a photo: rotated photos, "backwards" labels, a numbering row
+- **Symptom:** a table rebuilt from a photo comes out transposed or with labels in the wrong direction.
+- **Why:** photos are often rotated, so columns look like rows; labels that read "backwards" are vertical text in the original, not a photo defect; a "1 2 3 ..." row in form-style documents is a real row.
+- **Right way:** read orientation and structure from the photo before writing code; carry vertical labels and the numbering row over as they are; tell the human exactly which small or handwritten text you read with doubt, do not fill it in.
+- **Seen:** once.

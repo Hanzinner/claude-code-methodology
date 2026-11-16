@@ -27,7 +27,6 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/coding-standard.md`](docs/coding-standard.md) — the working standard every agent that writes code follows: a one-screen core (each rule marked with what guards it — a mechanism, an audit, or nobody) plus a reference by activity.
 - [`code-pitfalls/`](code-pitfalls/README.md) — 268 technical lessons already paid for, in 11 files by technology (shell, python, git, web, hooks, verification, concurrency, services, VM, Windows, Android); a hook shows the matching headings before an edit.
 - [`docs/hall-of-shame-docs.md`](docs/hall-of-shame-docs.md), [`docs/hall-of-shame-ops.md`](docs/hall-of-shame-ops.md) — two real bad cases kept as models of what not to do: a document written for its author, and a network change declared "done" before the human's own path was checked.
-- [`docs/docx-playbook.md`](docs/docx-playbook.md) — generating Word documents with python-docx without the silent layout traps; render to an image before handing over.
 - [`docs/rule-to-mechanism.md`](docs/rule-to-mechanism.md) — the gate ladder (note → detector → structural impossibility): the change cycle, independent review by another model, a supervisor that checks the work, and why written rules alone didn't hold.
 
 **Running a swarm** (many agents — a separate discipline; skip these if you run one agent):
