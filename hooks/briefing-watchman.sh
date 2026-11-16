@@ -22,7 +22,6 @@
 # Silent when the session is not an agent's or nothing changed. Fails open (exit 0).
 #
 # Config: CCM_WORKSPACE, CCM_AGENTS_DIR (default <workspace>/Agents), CCM_TRASH_DIR, CCM_SUPERVISOR_HEARTBEAT.
-# Supersedes multi-agent/briefing-watchman.sh.
 
 # Every cut goes through u8: a byte cut (head -c, cut -c) in the middle of a letter produced broken UTF-8 that an
 # agent copied into a letter and the inbox script choked on it.

@@ -58,7 +58,7 @@ Hooks of the swarm (named agents, one folder each, talking through `inbox.md` fi
 
 | File | Event | Action |
 |------|-------|--------|
-| `briefing-watchman.sh` | UserPromptSubmit | Per prompt of an agent session: delivers deferred letters (`inbox-pending/`); resolves and stores the agent's identity; creates a missing `inbox.md` and TODO files; re-injects `briefing.md` when its content hash changed; lists open inbox items every prompt (flags old and malformed ones); with a `.watchlist` file in the agent's folder shows the delta of those shared files; optional dead-man line (`CCM_SUPERVISOR_HEARTBEAT`, off when empty). Hint only, fail-open. Supersedes the old `multi-agent/` port. |
+| `briefing-watchman.sh` | UserPromptSubmit | Per prompt of an agent session: delivers deferred letters (`inbox-pending/`); resolves and stores the agent's identity; creates a missing `inbox.md` and TODO files; re-injects `briefing.md` when its content hash changed; lists open inbox items every prompt (flags old and malformed ones); with a `.watchlist` file in the agent's folder shows the delta of those shared files; optional dead-man line (`CCM_SUPERVISOR_HEARTBEAT`, off when empty). Hint only, fail-open. |
 | `agent-status.py` | PostToolUse on any tool + Stop (detector branch) | Writes `~/.claude/agent-status/<agent>.json`: `WORKING` after a tool call, `DONE` at Stop, `ASK` (with the text) if the last reply holds `ASK: <question>`. A dashboard reads the file; nothing is shown to the agent. |
 
 **Alarms and reminders**
