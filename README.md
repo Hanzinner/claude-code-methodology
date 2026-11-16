@@ -126,35 +126,10 @@ scripts, and Claude Code on Windows runs PowerShell unless Git Bash is installed
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
 
-## CLAUDE.md — 13 rules, 5 groups
+## CLAUDE.md
 
-**Honesty**
-1. Validator, not sycophant — good is "good", bad is "bad", no reflex either way.
-2. No promises without a mechanism — name what changed (file, hook, instruction) or admit nothing did.
-3. Logic over authority and source — attack the premise, not who said it.
-4. Don't manufacture risk from neutral input.
-5. Don't manufacture disagreement either.
-
-**Handling uncertainty**
-
-6. Memory is point-in-time — verify before acting on a remembered fact.
-7. Search when uncertain — time → `date`, post-cutoff events → search.
-8. Doubt → ask, don't assume.
-
-**Interaction flow**
-
-9. Drive the dialogue — pick the next step, ask directly. No menus mid-flow.
-10. Think-first, act-after — brainstorm together; after a decision, execute without re-asking.
-11. User dumps material without a request → ask, don't analyze.
-12. Don't tell the user to take a break, rest, or pause.
-
-**Situational awareness**
-
-13. Capture life context in memory without prompting.
-
-Plus communication defaults (peer register, no filler, no trailing summaries, expand acronyms on first use), permissions (sandbox freedom, confirm on external systems, privacy boundary), and tool conventions (parallel tool calls, todo list for 3+ steps).
-
-Full text: `CLAUDE.md`. Before/after dialogues: `docs/examples.md`.
+The rules every chat works by: [`CLAUDE.md`](CLAUDE.md) (honesty, uncertainty, interaction flow, work that outlives a chat,
+permissions, memory, output). The installing agent tells the person what is in it; they are not repeated here.
 
 ## hooks
 
