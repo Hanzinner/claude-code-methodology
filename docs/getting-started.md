@@ -47,6 +47,8 @@ Each line: the problem you would otherwise have, what changed, how to use it.
 - **`/audit`** — once a month or so: months of rules and notes pile up, some contradict each other, some are
   out of date. It finds them.
 - **`/edit`** — break a video down by scenes and editing choices.
+- **`/verify`** (or "check it with a subagent") — after your agent changed code: a cheaper model runs the tests, and
+  the agent may say "done" only with that proof. Running tests no longer eats the quota of the expensive model.
 - **`/update`** (or just "update the system") — gets the new version, tells you in plain words what is new, installs it
   and checks it.
 
