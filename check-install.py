@@ -45,7 +45,10 @@ def files(sub, exts):
 
 
 print(f"Checking {target} against {REPO}\n")
-check(os.path.isfile(f"{target}/CLAUDE.md") or os.path.isfile(f"{target}/CLAUDE.md.new"), "CLAUDE.md", "run ./install.sh")
+check(os.path.isfile(f"{target}/CLAUDE.md"), "CLAUDE.md", "run ./install.sh")
+check(not os.path.isfile(f"{target}/CLAUDE.md.new"), "CLAUDE.md: our rules merged into yours",
+      f"merge pending: keep everything in {target}/CLAUDE.md, add what it lacks from CLAUDE.md.changes, ask the user about "
+      f"each contradiction, then: mv {target}/CLAUDE.md.new {target}/.methodology-installed/CLAUDE.md.base")
 for f in files("hooks", (".sh", ".py")):
     p = f"{target}/hooks/{f}"
     check(os.path.isfile(p) and os.access(p, os.X_OK), f"hooks/{f}", "missing or not executable: run ./install.sh")

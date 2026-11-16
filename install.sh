@@ -230,15 +230,32 @@ say "Copying CLAUDE.md (operating core)…"
 # exactly what we installed last time; otherwise keep the user's file and put ours next to it.
 STAMP_DIR="$TARGET/.methodology-installed"
 sha_of() { python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1"; }
+# CLAUDE.md: never overwrite a file the user wrote or edited. Our rules then go next to it (CLAUDE.md.new) together with
+# CLAUDE.md.changes = what changed in OUR rules since the version this user last merged (.methodology-installed/
+# CLAUDE.md.base; no base = the whole file). The installing agent merges by meaning: keep the user's notes, add ours,
+# ask the user on contradictions, and on an update apply only the changes. Gluing files mechanically (or an @import)
+# would load contradicting rules side by side and bring a rejected rule back on every update.
+BASE="$STAMP_DIR/CLAUDE.md.base"
+claude_md_given() { if [[ $DRY_RUN -eq 0 ]]; then mkdir -p "$STAMP_DIR"; sha_of "$TARGET/CLAUDE.md" > "$STAMP_DIR/CLAUDE.md.sha256"; cp "$REPO_DIR/CLAUDE.md" "$BASE"; fi; }
 if [[ ! -e "$TARGET/CLAUDE.md" ]] || \
    [[ -f "$STAMP_DIR/CLAUDE.md.sha256" && "$(sha_of "$TARGET/CLAUDE.md")" == "$(cat "$STAMP_DIR/CLAUDE.md.sha256")" ]]; then
   do_or_show cp "$REPO_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"
-  if [[ $DRY_RUN -eq 0 ]]; then mkdir -p "$STAMP_DIR"; sha_of "$TARGET/CLAUDE.md" > "$STAMP_DIR/CLAUDE.md.sha256"; fi
+  claude_md_given
 elif cmp -s "$REPO_DIR/CLAUDE.md" "$TARGET/CLAUDE.md"; then
-  :   # already current
+  [[ -f "$BASE" ]] || claude_md_given   # already current
+elif [[ -f "$BASE" ]] && cmp -s "$REPO_DIR/CLAUDE.md" "$BASE"; then
+  :   # the user already merged this version of our rules into their own file
 else
   do_or_show cp "$REPO_DIR/CLAUDE.md" "$TARGET/CLAUDE.md.new"
-  warn "CLAUDE.md has your own edits — kept. The new version is CLAUDE.md.new; merge what you want."
+  if [[ $DRY_RUN -eq 0 ]]; then
+    mkdir -p "$STAMP_DIR"
+    if [[ -f "$BASE" ]]; then diff -u --label "our rules, last merged" --label "our rules, now" "$BASE" "$REPO_DIR/CLAUDE.md" > "$TARGET/CLAUDE.md.changes" || true
+    else { echo "# First merge: all of our rules are new to this CLAUDE.md"; cat "$REPO_DIR/CLAUDE.md"; } > "$TARGET/CLAUDE.md.changes"; fi
+  fi
+  warn "CLAUDE.md is your own — not touched. Our rules are in CLAUDE.md.new, what changed in them is CLAUDE.md.changes."
+  warn "  Merge (the installing agent does it): keep everything in CLAUDE.md, add from CLAUDE.md.changes what it lacks,"
+  warn "  ask the user one line for each rule that contradicts theirs, show the result; then mark it merged:"
+  warn "  mv $TARGET/CLAUDE.md.new $BASE   (CLAUDE.md.changes can go to the trash)"
 fi
 
 say "Copying hooks…"
