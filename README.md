@@ -202,7 +202,7 @@ memory/
 
 Four types: `user`, `feedback`, `project`, `reference`. Each file has frontmatter (`name`, `description`, `metadata.type`) and uses `[[name]]` wikilinks to connect to others.
 
-See `docs/memory-system.md` and `memory-template/examples/`.
+See `memory-template/README.md` and `memory-template/examples/`.
 
 ## After install
 

@@ -52,7 +52,7 @@ Where: in a named agent's chat, a correction or lesson that concerns only that a
 
 Don't save: code patterns derivable from the repo, git history, debugging recipes, in-progress task state.
 
-To save: write the memory to its own file with frontmatter (`name`, `description`, `metadata.type`), then add a one-line pointer to `MEMORY.md`.
+To save: write the memory to its own file with frontmatter (`name`, `description`, `metadata.type`), then add a one-line pointer to `MEMORY.md`. Format, types and examples: `memory/README.md`.
 
 ## Tools
 
