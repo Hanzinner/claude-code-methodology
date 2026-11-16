@@ -83,10 +83,18 @@ with open(R / "docs/project-work.md", "a") as f: f.write("\nNEW RULE C\n")
 rc, out = inst(); ch = (WS / "PROJECT-WORK.md.changes").read_text()
 ok("13 next version -> .changes holds only NEW RULE C, not B again", "+NEW RULE C" in ch and "+NEW RULE B" not in ch, ch[:300])
 
-# an older installer copied docs/coding-standard.md raw, with no stamps
-shutil.rmtree(ST); (WS / "PO-INTERFACE.md").write_text((R / "docs/po-interface.md").read_text())
-rc, out = inst(); ok("14 an untouched raw copy from an older installer -> replaced silently (links rewritten)",
-                     "](DEV-METHODOLOGY.md" in (WS / "PO-INTERFACE.md").read_text() and not (WS / "PO-INTERFACE.md.new").exists(), out)
+# an older installer copied a docs file raw, with no stamps. Pick one whose workspace version differs from the raw text
+# (has links to rewrite) - the docs change, and a test bound to one file's links went red when that file lost them.
+raw_src = next((s for s in ("coding-standard", "dev-methodology", "po-interface")
+                if run("render", str(R), str(R / f"docs/{s}.md"))[1] != (R / f"docs/{s}.md").read_text()), None)
+if raw_src:
+    name = {"coding-standard": "CODING-STANDARD.md", "dev-methodology": "DEV-METHODOLOGY.md", "po-interface": "PO-INTERFACE.md"}[raw_src]
+    shutil.rmtree(ST); (WS / name).write_text((R / f"docs/{raw_src}.md").read_text())
+    rc, out = inst()
+    ok(f"14 an untouched raw copy from an older installer ({name}) -> replaced silently by the workspace version",
+       (WS / name).read_text() == run("render", str(R), str(R / f"docs/{raw_src}.md"))[1] and not (WS / f"{name}.new").exists(), out)
+else:
+    ok("14 at least one of the documents has links to rewrite (else case 14 tests nothing)", False)
 
 shutil.rmtree(WS); rc, out = inst("--dry-run")
 ok("15 --dry-run -> nothing written", not any((WS / n).exists() for n in NAMES), out)
