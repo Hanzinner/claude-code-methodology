@@ -26,7 +26,7 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/mistakes-journal.md`](docs/mistakes-journal.md) — one file for postmortems, so three of the same mistake become a mechanism instead of a habit.
 - [`docs/coding-standard.md`](docs/coding-standard.md) — the working standard every agent that writes code follows: a one-screen core (each rule marked with what guards it — a mechanism, an audit, or nobody) plus a reference by activity.
 - [`code-pitfalls/`](code-pitfalls/README.md) — 268 technical lessons already paid for, in 11 files by technology (shell, python, git, web, hooks, verification, concurrency, services, VM, Windows, Android); a hook shows the matching headings before an edit.
-- [`docs/hall-of-shame-docs.md`](docs/hall-of-shame-docs.md), [`docs/hall-of-shame-ops.md`](docs/hall-of-shame-ops.md) — two real bad cases kept as models of what not to do: a document written for its author, and a network change declared "done" before the human's own path was checked.
+- [`docs/hall-of-shame-docs.md`](docs/hall-of-shame-docs.md) — a real bad case kept as a model of what not to do: a document written for its author.
 - [`docs/rule-to-mechanism.md`](docs/rule-to-mechanism.md) — the gate ladder (note → detector → structural impossibility): the change cycle, independent review by another model, a supervisor that checks the work, and why written rules alone didn't hold.
 
 **Running a swarm** (many agents — a separate discipline; skip these if you run one agent):

@@ -2,6 +2,12 @@
 
 systemd, cron, network, DNS, watchdogs, logs, backups.
 
+
+### A network or service change: "done" only after a rollback written first, a real reboot, and the self-check log read
+- **Symptom:** the network change "works right now", the agent says done; after the next reboot the machine has no internet or DNS for an hour, and the human repairs it by hand.
+- **Why:** "works now" and a dry run check what is easy to check, not what breaks: the startup path after a reboot (a saved config that refuses to load, a DNS setting that only applies at boot).
+- **Right way:** (1) write the rollback before the change and test it; (2) pass a real reboot, or a service restart proven to repeat the startup path; (3) read the self-check log yourself afterwards: address, route, DNS, a request outward, every path the human uses (editor remote session, sites, LAN). On a Linux VM use `net-change` (`./install.sh --with-net-change`): it schedules the rollback before the change and rolls back by itself if a check fails. Before replacing a NAT or bridge, list what is attached to it (port forwards, static mappings).
+- **Seen:** once, about 3 hours of outage for the human.
 ### A dead DNS server first in `resolv.conf`
 - **Symptom:** a bot/client crash-loops on timeouts (hundreds of restarts) though the network "is up"; every connection takes ~5 s.
 - **Why:** the first nameserver is unreachable → every resolve waits exactly its timeout (5 s) and the client's own timeout fires first.
