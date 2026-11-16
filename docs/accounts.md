@@ -9,10 +9,10 @@ Prices and free tiers below were checked on 2026-11-15 on each provider's own pr
 | Account | Needed? | What you get from it |
 |---|---|---|
 | Claude Code (Anthropic) | **required** | the agent itself |
-| Tavily | optional — web search | 1000 searches a month free, no card |
-| Exa | optional — second search provider | $10 of credits a month free + a one-time $10 bonus, no card |
-| S3-compatible storage (Backblaze B2, Cloudflare R2, …) | optional — offsite backup addon | B2: first 10 GB free |
-| Telegram bot | optional — mobile bot addon | free |
+| Tavily | optional — better web search: the built-in one is weak and runs out | 1000 searches a month free, no card |
+| Exa | optional — a second search that takes over when Tavily's month runs out | $10 of credits a month free + a one-time $10 bonus, no card |
+| S3-compatible storage (Backblaze B2, Cloudflare R2, …) | optional — an encrypted copy of your notes and the agent's memory off the machine, in case it dies or is stolen | B2: first 10 GB free |
+| Telegram bot | optional — talk to your agent from your phone | free |
 
 Without any optional account everything else works: search falls back to Claude Code's built-in `WebSearch`,
 nothing is backed up off the machine, there is no phone access.

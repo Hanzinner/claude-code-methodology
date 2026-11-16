@@ -13,36 +13,50 @@ For a person, not for the agent. Each step says what you do and what you will se
    the hints agents read use them ("ask <your name>"). Change a line and it applies on the next prompt.
 4. **Optional accounts** — web search (Tavily/Exa), offsite backup, the phone bot: [`accounts.md`](accounts.md)
    lists where to sign up, what is free and which file each key goes into. Nothing else depends on them.
-5. **Work as usual.** You will start seeing the mechanisms — see "What you will notice" below.
+5. **Work as usual.** Section 2 says what changed and why.
 
-## 2. Day to day with one agent
+## 2. What your agent can do now, and why
 
-- **One long chat per topic, not a new chat each time.** Memory and the rules carry over between chats,
-  but the working context of a task lives in its chat. Before the chat gets compacted (`/compact`, or
-  Claude Code does it itself when the context fills), run **`/recap`**: it saves what is worth keeping to
-  memory. After a compaction, details are gone; `/recap` is how they survive.
-- **"Remember that …"** — the agent writes a memory file and a line in `memory/MEMORY.md` (the index).
-  Memory is checked weekly for broken links and orphans (you see a line only if something is wrong).
-- **The agent made a mistake and fixed it** → it writes an entry in the mistakes journal (where: the
-  `CCM_MISTAKES` line of `methodology.conf`; a template is `swarm-template/MISTAKES.md`). Three of the
-  same kind = a mechanism to build, not a louder rule.
-- **Code lessons** in `~/.claude/code-pitfalls/` are shown to the agent (headings only) before it edits
-  that kind of code. When it steps on a new one, it appends it there.
-- **Slash commands:** `/recap`, `/audit` (contradictions and stale facts in your rules and memory),
-  `/grill` (stress-test a plan), `/pulse` (what people say about a topic lately), `/dossier` (research a
-  company or person against a hypothesis), `/edit` (break down a video).
+Each line: the problem you would otherwise have, what changed, how to use it.
 
-## 3. What you will notice (the mechanisms working)
+- **It remembers you between chats.** Plain Claude Code starts every new chat from zero. Now say "remember
+  that I …" and it is written to memory (`~/.claude/memory/`) and known in every later chat.
+- **Long work doesn't get lost.** When a chat gets very long, Claude Code compresses it and the details are
+  gone. Type **`/recap`** before that happens: what is worth keeping goes to memory first. Keep one long chat
+  per topic rather than a new chat each time: the working context of a task lives in its chat.
+- **It can't say "done" without checking.** An agent will happily say "fixed" without running anything. Now,
+  after it edits code, it can't finish the reply with "done" until it has run something that shows the result.
+- **It won't break the machine.** Commands that have killed sessions or a whole system before (`pkill -f`,
+  deleting system files) are refused.
+- **It knows how long you were away.** Every message you send carries the time and the gap since your last
+  one, so it doesn't pick up mid-sentence a thing you left three days ago.
+- **It writes so you can follow.** An abbreviation it didn't explain, a price or a law without a source, a
+  reply that just restates your view back to you: the next reply gets a reminder to fix it.
+- **It stops going in circles.** Three failed commands in a row: it is told to stop and look the thing up.
+- **It learns from its mistakes.** A mistake it made and fixed goes into a journal (the `CCM_MISTAKES` line of
+  `methodology.conf`); three of the same kind mean a mechanism is needed, not a louder rule. Lessons about a
+  kind of code (`~/.claude/code-pitfalls/`) are shown to it before it edits that kind of code again.
+- **It doesn't send you to rest.** No "shall we stop for today?" at the end of a reply.
 
-| You see | What it is | If it bothers you |
+**Commands for when you need them:**
+
+- **`/grill`** — before an important decision: it looks for the holes in your plan instead of praising it.
+- **`/dossier`** — before a meeting or a deal: it researches a company or a person and tests what you believe
+  about them, including looking for evidence against it.
+- **`/pulse`** — what people have been saying about a topic lately (Reddit, Hacker News, the web).
+- **`/audit`** — once a month or so: months of rules and notes pile up, some contradict each other, some are
+  out of date. It finds them.
+- **`/edit`** — break a video down by scenes and editing choices.
+
+## 3. If something gets in your way
+
+| You see | What it is | To change it |
 |---|---|---|
-| `[now: … \| gap since previous: …]` at the top of your messages to the agent | the agent knows the time and how long you were away | — |
-| The agent refuses `pkill -f`, `rm` on system files | gates: those commands killed agent sessions and a machine before | intended |
-| The agent can't say "done" after editing code until it runs something | proof-guard: a claim of "fixed" with nothing run after the last code edit does not end the turn | `PROOF_GUARD_BLOCK=0` in `methodology.conf` makes it a hint |
-| The reply doesn't end with "shall we stop for today?" | pause-guard blocks that ending | remove the Stop branch (below) |
-| A hint to expand an abbreviation, to give a source for a price or a law, not to restate your view | detectors on the finished reply; they flag, the hint comes on the next turn | add terms you know to `CCM_GLOSSARY` |
-| "3 failed commands in a row — stop and look it up" | stuck-detector | — |
-| A line "hook failures since the last prompt" | a mechanism crashed; it failed open (nothing was blocked), the error is in `~/.claude/hook-errors.log` | read the log line |
+| `[now: … \| gap since previous: …]` at the top of your messages | the time line above | — |
+| A refused command | a gate: that command caused real damage before | intended |
+| It won't say "done" after a code edit | proof-guard | `PROOF_GUARD_BLOCK=0` in `methodology.conf` makes it a hint |
+| A hint about an abbreviation, a source, restating your view | checks on the finished reply; they flag, nothing is blocked | add terms you know to `CCM_GLOSSARY` |
+| A line "hook failures since the last prompt" | a mechanism crashed; nothing was blocked, the error is in `~/.claude/hook-errors.log` | read the log line |
 
 To turn one mechanism off: remove its line from `~/.claude/settings.json` (hooks) or from
 `~/.claude/hooks/stop-dispatch.sh` (the checks on finished replies). An update puts our lines back, so
@@ -50,7 +64,9 @@ keep a note, or leave the line and empty its list in `methodology.conf` where it
 
 ## 4. More than one agent
 
-Several named agents, each in its own chat with its own folder, talking through inboxes. The installer has
+When one chat holds your work, a renovation and a course at once, it mixes them up. An agent is a separate
+helper for one area: its own chat, folder, notes and to-do list; it knows only its area. Agents pass work to each
+other by letter, and ask you only what only you can decide. The installer has
 already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS.md` (the registry),
 `MISTAKES.md` (one mistakes journal for all agents), `LIBRARY.md` (the catalog of mechanisms),
 `CODING-STANDARD.md` (the rules for agents that write code) and `Agents/_example-agent/` (the template). Files you already had are not touched.
