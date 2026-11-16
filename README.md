@@ -22,7 +22,6 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/getting-started.md`](docs/getting-started.md) — after the install: the first day, day-to-day use, what the mechanisms will do in front of you, and how to add more agents.
 - [`docs/methodology.md`](docs/methodology.md) — the full writeup of the approach (memory, skills, hooks, permissions, communication, workflow rituals, lessons).
 - [`docs/examples.md`](docs/examples.md) — before/after dialogues showing what the rules do to agent behavior.
-- [`docs/case-study.md`](docs/case-study.md) — a real observation session that shaped several of the rules.
 
 **Going deeper** (long sessions, verification, self-correction):
 - [`docs/context-management.md`](docs/context-management.md) — keeping a months-long agent chat alive: hygiene layers, the hybrid lifecycle, and why mechanisms beat remembering.
@@ -119,7 +118,7 @@ scripts, and Claude Code on Windows runs PowerShell unless Git Bash is installed
 | `addons/net-change/` | Network change with snapshot and automatic roll-back unless confirmed |
 | `addons/dashboard/` | Read-only local status page of the agents |
 | `addons/reader/` | Concept only: a reader for documents agents hand to a human |
-| `docs/` | Methodology writeup, architecture, memory system, hooks guide, examples, case study, multi-agent, context management, measurement & proof, mistakes journal, mission control, dev methodology, rule to mechanism |
+| `docs/` | Methodology writeup, architecture, memory system, hooks guide, examples, multi-agent, context management, measurement & proof, mistakes journal, mission control, dev methodology, rule to mechanism |
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
 
