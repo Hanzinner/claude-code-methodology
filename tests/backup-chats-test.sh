@@ -21,6 +21,11 @@ o=$(PATH=$T/bin:$PATH bash "$BC" 2>&1); rc=$?
 ok "3 rsync rc 24 (file vanished) -> success line, rc 0" '[[ $rc == 0 && "$o" == *"backup:"* ]]' "rc=$rc $o"
 ok "4 ...and retention runs (default 365 days)" '[[ ! -d $T/b/2020-01-01 ]]'
 rm -f "$T/bin/rsync"
-o=$(bash "$BC" 2>&1); rc=$?
-ok "5 a real rsync -> the transcript is in today's folder" '[[ $rc == 0 && -n $(find "$T/b/$(date +%F)" -name s.jsonl) ]]' "rc=$rc $o"
+if command -v rsync >/dev/null; then
+  o=$(bash "$BC" 2>&1); rc=$?
+  ok "5 a real rsync -> the transcript is in today's folder" '[[ $rc == 0 && -n $(find "$T/b/$(date +%F)" -name s.jsonl) ]]' "rc=$rc $o"
+else   # a minimal machine without rsync: the backup must say FAIL, not "backup:"
+  o=$(bash "$BC" 2>&1); rc=$?
+  ok "5 no rsync on this machine -> FAIL (rc 127), never a success line" '[[ $rc == 1 && "$o" == *"rc=127"* && "$o" != *"backup:"* ]]' "rc=$rc $o"
+fi
 echo "backup-chats: $pass pass, $fail fail"; (( fail == 0 ))
