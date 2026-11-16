@@ -3,8 +3,6 @@
 One file. Every time an agent breaks something **and figures out why**, it writes the postmortem there —
 immediately, while it's fresh. Not punishment, not confession: **fuel for mechanisms.**
 
-The reasoning is in [`measurement-and-proof.md`](measurement-and-proof.md); this is the practice and its template.
-
 ## Why one file
 
 **One mistake is chance. Three identical ones are a design hole** — something that should be mechanized,

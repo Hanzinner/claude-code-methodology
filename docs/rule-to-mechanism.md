@@ -16,7 +16,7 @@ not about code — they were about the **order of steps**. The steps were alread
 agents followed them.
 
 > **On results:** the effect of these mechanisms is being measured against that baseline. It isn't claimed
-> here until it is measured — see [`measurement-and-proof.md`](measurement-and-proof.md) for why.
+> here until it is measured (what counts as proof: [`coding-standard.md`](coding-standard.md), §3).
 
 ## 1. The change cycle
 

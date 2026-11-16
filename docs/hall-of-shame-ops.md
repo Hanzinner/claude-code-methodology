@@ -46,4 +46,4 @@ before the change** (it fires even if the change cuts the connection), restarts 
 internet, DNS and the laptop; if a check fails it rolls back by itself. Tested 23/23. Not suitable for the
 laptop itself: there the rule is a rollback recorded before the change and a service restart as proof.
 
-Related: [`rule-to-mechanism.md`](rule-to-mechanism.md) · [`measurement-and-proof.md`](measurement-and-proof.md)
+Related: [`rule-to-mechanism.md`](rule-to-mechanism.md) · [`coding-standard.md`](coding-standard.md)
