@@ -1,83 +1,47 @@
-# Agent reports vs. the human: what reaches the operator, and what doesn't
+# What reaches the human
 
-Problem: a swarm of agents writes ~30 technical reports a day. The human (product owner, not a developer)
-has no capacity to read them, and fears missing the important one through fatigue.
+For every agent, before it asks the human anything or reports to them. The human is the product owner, not a
+developer, and several agents write to them; most of what agents want to say is not for them.
 
-Root cause: a report does **two jobs that got glued together**.
+## 1. Is it for the human at all? Both must be "yes"
 
-1. **Engineering record** — for other agents, for the future, for the mistakes journal. Must be technical. Correct as is.
-2. **Operator awareness** — must be flat, filtered, product and decisions only.
+1. Is it **taste, product, priority, or something that can't be undone** (what it should do or look like, which
+   piece comes next, publishing, money, the human's own machine, anything outside)? How to build it is technical:
+   not for the human.
+2. **If the human decided the opposite of what you would do, would anything change?** No → you are asking out of
+   habit. Decide yourself.
 
-The agent writes (1) and sends it as (2). The fix is to **split them**. Technical body goes to the project
-lead agent's inbox and to git. The human gets three lanes, below. Portable: nothing here is specific to one project.
+Never for the human: technical choices, internal quality, "is this ok?" / "shall I continue?" (the answer is yes),
+progress reports. The technical body of a report goes to the project lead's inbox and into git, not to the human.
+Default: silence.
 
-## Routing rule
+## 2. Where to put what passes
 
-- **Report body (technical) → lead agent's inbox + a git commit.** Not addressed to the human. It lives there.
-- **The human receives only the three lanes below.** Everything else the lead agent resolves. **Default = silence.**
+| What | Where | How it reaches the human |
+|---|---|---|
+| 🟥 **Blocker:** the work stands until the human does X | the blocker register only: `scripts/blocker_add.sh <project> "<what exactly>" "<who clears it>" "<check command \| manual>"` (`<project>` is a `Project-*` folder; outside a project: a line in your `human-TODO.md` marked 🟥) | first in every answer to "what's waiting for me" (section 3); cleared by itself when the check passes, and the story moves on |
+| 🟦 **Direction:** a choice of path or look, but you keep working on other things meanwhile | one line in your `human-TODO.md` | not pushed; the human pulls it (section 3) |
+| 👁 **Look with your eyes:** a check only the human can make (visual, hardware, "do I like it") | one line in your `human-TODO.md`, marked 👁 | the same; batched for when the human is at the machine |
+| 📦 **Shipped** | nowhere: it is in git and the release log | the human asks "what's new" and you answer from `git log` |
 
-## Hard filter: is this for the human at all (both must be "yes")
+- **Blocker or direction?** Ask "do I keep working without this answer?" Yes → direction. No → blocker. Check your
+  own queue before calling anything a blocker.
+- **A direction ripens:** once you have nothing else to do on that path, it is a blocker. Register it with
+  `blocker_add.sh`; a line in `human-TODO.md` saying "waiting for the human" without a register number is not a
+  blocker.
+- **One line, plain words:** what to decide or look at, and the choices. A choice of look: a picture "now /
+  proposed", not CSS numbers.
+- **Write a check whenever one exists** (a file appears, a line is in a config, a URL answers): then nobody has to
+  remember to clear it. `manual` only when no command can see it; the human clears it with
+  `scripts/blockers.py clear <project> B<n> "<how>"`.
 
-1. Is it **taste / product / priority / irreversible**? (what it should DO or look like; which epic is next; publishing, money, the human's own machine, anything external.) Versus **technical** (how to build it) — technical never goes up; it is the agent's or lead's call.
-2. **If the human decided the opposite of the agent's default, would anything in the world change?** No → it's a habit of asking. The lead cuts it.
+## 3. When the human asks
 
-The lead agent is **not a pass-through; it is a killer of fake questions.** Assume most "ask the human"
-items are reflex, and cut them. The only legitimate reasons to surface: a product/consent decision · an
-irreversible or external action · a real block only the human can lift. A loop fails when it stops to ask
-where it should have decided.
-
-## The three lanes
-
-1. **Shipped** (FYI, scan or skip) — flat lines taken from **commit subjects** (agents already write them without jargon — a briefing rule). Assembled by a script, zero manual work. Internal plumbing (output mirroring, refactors, gates) is not listed: no product meaning.
-2. **Needs a decision** — taste/product/priority, only the human can say. Each as one flat line plus what to choose. Source: each agent's "for the human" todo file, passed through the filter by the lead (stale items and habit items cut). **Split in two — do not mix them, or you rebuild false urgency:**
-   - **Blocker** — the agent is actually stuck without it, nothing else in its queue. Rare. Only this is urgent.
-   - **Direction** — picks a path or look, but the agent works on something else meanwhile. Common. **Not urgent — waits for the human's convenience.**
-   - **Test:** "does the agent keep going without this decision?" Yes → direction. No → blocker. The lead must check the agent's todo/activity **before** calling anything a blocker, not by eye. (Failure, 2026-08: two directions were presented as blockers; the human caught it.)
-3. **Look with your eyes** (visual / hardware checks only the human can confirm) — batched for when the human is at the machine. Doesn't block, but only they can confirm.
-
-## Pull mode: the human pulls by mood, the panel doesn't push
-
-The human arrives in some state and names a mode; the lead serves the matching lane. Pull under current capacity, not push.
-
-| Human says | Served |
+| The human says | You answer with |
 |---|---|
-| "give me decisions" | Decisions lane — blockers first, then directions. Works from anywhere (mockups/URLs). |
-| "let me click" | Look-with-eyes lane, as a batch. Needs the human **at the test stand** — don't serve it otherwise. |
-| "report / what's up" | Shipped digest, flat. |
-| "what's on fire" | Blockers only. Empty is normal, and the most common answer. |
+| "what's waiting for me" / "what's on fire" | `scripts/blockers.py list` (open blockers with days waiting), then the 🟦/👁 lines from the agents' `human-TODO.md`. No blockers is normal and the most common answer. |
+| "give me decisions" | blockers first, then directions, one line each with the choice |
+| "let me click" / "let me look" | the 👁 lines as one batch, with links; only when the human is at the machine |
+| "what's new" / "report" | shipped work from `git log`, in plain words, no internal plumbing |
 
-Reason: the human works by mood and drive, not by schedule. Heavy work (decisions) is taken when there is
-capacity; light work (clicking) when there isn't. The lead does not decide for them which mode they are in.
-
-## Don't let a direction rot: auto-promotion
-
-The trap of "important, not urgent" is that it **rots**: left long enough, it suddenly becomes urgent.
-So: **direction → blocker automatically** when the owning agent has no other work left on that path (a
-direction with no way around it is already a blocker). This removes the fear of "I postponed it and forgot":
-the system promotes it when it ripens, not the human's memory. *(Mechanism: a gate on the board — an item moves direction → blocker if the owner's queue on that path is empty.)*
-
-## Why not a plain Eisenhower matrix (important × urgent)
-
-Considered. It doesn't fit as is: the "important" axis **does not route** here. An important technical
-item — a data-loss fix on a full disk, maximally important and urgent — is still not the human's. The
-primary axis is **whose call it is** (human: taste/product/priority/irreversible; swarm: technical);
-urgency is secondary and applies only to what is already the human's. Two things were taken from Eisenhower:
-the strategic quadrant (direction) and the "don't let it rot" rule (auto-promotion).
-
-## What does not reach the human
-
-Technical choices · internal quality/plumbing · "is this ok?" / "continue?" (default: yes) · progress · anything that fails the filter above.
-
-## Mechanics (cheap)
-
-- **Shipped:** a script over `git log` subjects. Plain language is already enforced by the briefing.
-- **Decisions / look-with-eyes:** a server aggregates the agents' "for the human" todo files into blocker / direction / look lanes, with the auto-promotion above.
-- **Lead digest:** the lead agent folds the three lanes into one stream/board. The human reads only that.
-- **Briefing rule** (sent to every agent): "report body → lead/git; to the human only through the hard filter, one flat line in the 'for the human' todo file (decision / check)."
-
-## What this gives
-
-30 reports a day → **1 digest + 2–3 real questions.** The human doesn't miss the important item through
-fatigue: decisions and checks are lifted to the top and don't drown; the technical part was never meant to reach them.
-
-Related: [`dev-methodology.md`](dev-methodology.md)
+The human chooses the mode; don't push a lane they didn't ask for.
