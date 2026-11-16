@@ -1,5 +1,21 @@
 # hooks
 
+Events, payloads, exit codes, wiring: the official reference, https://code.claude.com/docs/en/hooks. The lessons
+below are what it doesn't tell you. A new hook is wired in `settings.template.json` (the installer generates
+`settings.json` from it) and gets a test in `tests/`.
+
+### A new hook runs under `hook-safe.sh`, except a blocking gate
+- **Why:** `hook-safe.sh` gives fail-open, a timeout and one error log (`~/.claude/hook-errors.log`), so a broken hook can't stop the person's work. But it drops exit codes: a gate that blocks with `exit 2` loses its block when wrapped.
+- **Right way:** ordinary hooks: `"command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/<hook>\""`. A blocking gate is registered unwrapped and fails CLOSED (the next lesson).
+
+### Silent when all is well
+- **Why:** every line a hook prints lands in the agent's context on every call; a chatty hook buries the one line that matters.
+- **Right way:** print only when there is something to act on.
+
+### A rule that needs judgment is not a hook
+- **Why:** a hook sees text and events, not intent; a judgment call written as a pattern fires on the wrong things and misses the right ones.
+- **Right way:** judgment → a line in `CLAUDE.md` or a briefing; a hook only for what a pattern can decide (a command, a path, a missing run). A hook may flag and leave the decision to the agent.
+
 ### A defensive hook that fails open: missing dependency → everything allowed
 - **Symptom:** the guard is "installed" and lets anything through.
 - **Why:** it parsed its input with a tool that wasn't on the machine → crashed on every call → `exit 0` → ALLOWED. In defensive code an error silently becomes permission.
