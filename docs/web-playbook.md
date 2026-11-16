@@ -1,28 +1,10 @@
-# Web playbook: how agents in a swarm build sites
+# Web playbook: building a site or a page
 
-Agents that build small internal sites (a document reader, a status panel, a catalog, a review UI, a game
-prototype) kept re-learning the same things. This is the shared file they read before starting a new site
-or a big change, and append to afterwards. Each entry exists because someone got it wrong first.
+For the agent about to build a new site or make a big change to a page: read it before you start, and append what you
+learned at the bottom afterwards. Each entry exists because someone got it wrong first. Code-level traps
+(HTML/JS/CSS) are in [`code-pitfalls/web.md`](../code-pitfalls/web.md); the hint hook shows their headings before an edit.
 
-Code-level traps (HTML/JS/CSS) live separately in [`code-pitfalls/web.md`](../code-pitfalls/web.md); a hook
-shows the matching headings before an edit to `.html/.js/.css`. This file is the **recipe and the
-experience**; that one is the **traps**.
-
-Placeholders used below: `<site>` (a site's name), `<port>`, `<code dir>`, `<lan-domain>`.
-
-## 1. Who owns what
-
-- **One agent owns the shared look** (a starter template, a layout test, this playbook) and signs off the
-  look before it goes to the human. Visual corrections from the human go to that agent as a letter.
-- **The agent of the case owns the site's code** (what it can do). The reader site belongs to the library
-  agent, a project's UI to that project's agents, and so on.
-- **A separate infrastructure agent owns "is it alive and reachable"**: the service unit, the reverse proxy,
-  the certificate, name resolution. A site's author does not write units or proxy blocks; they send a letter.
-
-The repo ships none of these agents; see [`getting-started.md`](getting-started.md), section 4, for how roles and letters
-(`scripts/inbox_post.sh`) work.
-
-## 2. The stack, and why it is boring
+## 1. The stack, and why it is boring
 
 - Server: Python standard library (`http.server` + `json`), no framework, no frontend build.
 - Page: one HTML file with inline JS and CSS.
@@ -33,25 +15,7 @@ The repo ships none of these agents; see [`getting-started.md`](getting-started.
   nested lists. Vendor files locally (`vendor/`), never from a CDN, and load heavy ones only when the user
   enters the mode that needs them.
 
-## 3. New site from zero: checklist
-
-0. **Do not start from zero: copy the starter template** (`page.html` + `server.py`) that already contains
-   every fix the human asked for on earlier sites. *(Not in this repo: the starter template and its layout
-   checker are private. Section 4 describes what the checker does, so you can build your own.)*
-1. **Port:** check the port map and the listening sockets, take a free one, write it into the map. Bind
-   `127.0.0.1` if people only come through the reverse proxy.
-2. **Code** goes in the project's folder, not in a home directory of a service account.
-3. **Letter to the infrastructure agent:** service unit (enabled, restart on failure), proxy server block,
-   certificate, favicon, a card on the landing page, name resolution on the people's machines, and a
-   **functional supervisor check** (the page returns 200 *and* the expected content). The supervisor is
-   `scripts/supervisor.py` with checks in `config/supervisor-checks.template.json`; `scripts/checks_lint.py`
-   validates the file.
-4. **Add a line to the mechanism catalog** (`swarm-template/LIBRARY.md`). A site that is not in the catalog
-   does not exist for other agents.
-5. **Show the human one named link**, never a bare numeric address. If the site uses a private CA, the
-   phone will warn; that is expected, say so.
-
-## 4. "Done" for a page means seen, not "it started"
+## 2. "Done" for a page means seen, not "it started"
 
 - Run a layout checker (headless browser, several widths, with panel states if the page has panels). It must
   exit non-zero on failure. **A test that exits 0 on FAIL is not a test for automation**; check the exit
@@ -72,19 +36,8 @@ The repo ships none of these agents; see [`getting-started.md`](getting-started.
   in the guest storefront and was missing for ten days in the buyer's feed, because two functions drew the
   same card.
 
-## 5. Human preferences (only what the human said or corrected)
+## 3. When the human comments on a page
 
-- **Data notes describe content, never attitude.** A catalog entry that said "can be skipped" was a decision
-  made for the human, and was called out. Before handing over, walk your own notes and delete every one
-  about attitude instead of content.
-- **UI state is not tied to a device.** Settings, collapsed sections, "last opened" live on the server, not in
-  `localStorage`: the human works from two laptops and was tired of re-switching.
-- **Long text:** vertical scroll, a narrow centered column, sans-serif, **no hyphenation**, left-aligned.
-- **A quote is a background plate with a side stripe**, not muted or italic text. Tables have no vertical lines.
-- **Side-panel sections are collapsible and collapsed by default**, with a visible triangle.
-- **The default OS scrollbar is unwelcome:** thin, rounded, theme-colored.
-- **Navigation:** links in text colour, not muted; current item filled; group labels smaller and dimmer. Grey
-  links next to grey labels were unreadable.
 - **A complaint is not an instruction to change what you did.** Change only what was pointed at. "Looks
   strange" about empty gaps above each row of tabs was about the group labels sitting on their own line, not
   about tab widths; an agent that also narrowed the tabs was reverted.
@@ -96,7 +49,7 @@ The repo ships none of these agents; see [`getting-started.md`](getting-started.
   on the proper domain then leaves the page white with black boxes. Give every page its own fallback colour
   variables and run the layout test without the shared script as well.
 
-## 6. Side panels, tabs, sticky headers
+## 4. Side panels, tabs, sticky headers
 
 - **A side panel takes width, it does not overlay.** The page narrows smoothly; the grid takes its columns
   from the **container's** width (`auto-fill/minmax`, container queries for small things). A fixed
@@ -121,7 +74,7 @@ The repo ships none of these agents; see [`getting-started.md`](getting-started.
 - `flex:1.6` on one panel in a row of `flex:auto` panels has basis 0 and collapses to a column. For "all in
   one row by content", use `flex:1 1 auto` for all.
 
-## 7. Showing only proven state (status panels)
+## 5. Showing only proven state (status panels)
 
 An early version of a status panel claimed "working/done" from indirect signals (file mtimes, a substring
 match of a commit subject that attributed a commit to the wrong agent).
@@ -139,7 +92,7 @@ match of a commit subject that attributed a commit to the wrong agent).
 - **Show the result "as it will be", not the raw input.** Drop a PNG -> next to it the render through the same
   processing the product uses (48x48 icon, cursor with alpha threshold). The human checks the outcome.
 
-## 8. Testing browser pages
+## 6. Testing browser pages
 
 - **Headless measurement:** disable CSS transitions and shim `requestAnimationFrame` in a test copy, measure
   `getBoundingClientRect`, give each run its own `--user-data-dir` (two runs in one profile start from each
@@ -172,7 +125,7 @@ match of a commit subject that attributed a commit to the wrong agent).
   "hung" run. Do not switch desktop/phone variants by `@media (hover:...)`: headless has no mouse, so the
   desktop variant never reaches a screenshot; use width.
 
-## 9. Deploying a site people already use
+## 7. Deploying a site people already use
 
 - **Do not restart the service in the middle of someone's clicks.** Check for quiet in the access log for
   >= 2 minutes (mind the timezone in the log) and restart in the first quiet window.
@@ -195,7 +148,7 @@ match of a commit subject that attributed a commit to the wrong agent).
 - **Relative paths everywhere** so the same site works at the root and under a prefix.
 - Do not promise a human a `.local` name without trying it from their device (a phone failed to resolve it).
 
-## 10. Page-level patterns that paid off
+## 8. Page-level patterns that paid off
 
 - **Settings the human changes by hand, with delayed writes:** a debounced write loses the last value on F5 or
   tab close. On `pagehide` send the unsaved value with `navigator.sendBeacon(url, new Blob([json],
@@ -241,7 +194,7 @@ match of a commit subject that attributed a commit to the wrong agent).
   human's question: "why draw from scratch instead of taking the finished one and changing it?" Prototype only
   what does not exist yet.
 
-## 11. Maps and heavy rendering (one site's long arc)
+## 9. Maps and heavy rendering (one site's long arc)
 
 - **A city map without libraries:** boundaries and streets converted to metres and simplified in a builder
   (Python); on the page plain `<path>` in SVG with one `transform` per group and
@@ -282,7 +235,7 @@ match of a commit subject that attributed a commit to the wrong agent).
   not fit entirely and mark them as allowed. An element bigger than the window has no mark for the checker;
   leave the SVG window-sized with `overflow:visible`.
 
-## 12. Rules of thumb that cost an evening each
+## 10. Rules of thumb that cost an evening each
 
 - A batch of many point edits in a big file: one Python script where each replacement asserts it found exactly
   one place. ~70 replacements, none landed in the wrong place.

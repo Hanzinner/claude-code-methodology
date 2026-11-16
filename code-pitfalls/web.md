@@ -1,5 +1,10 @@
 # web
 
+### Before a new site or a big page change: read WEB-PLAYBOOK.md in your workspace first, append to it after
+- **Why:** the recipes are there, not in these traps: "done" means seen at phone width, side panels, testing pages in a browser, deploying a site people already use, maps and heavy rendering.
+- **Right way:** open `<workspace>/WEB-PLAYBOOK.md` before the first edit; afterwards add a dated entry at its bottom (what worked, what you stepped on).
+- **Seen:** agents kept re-learning the same page lessons until they had one file to open.
+
 ### State is lost on refresh
 - **Symptom:** after F5 a slider snaps back to its default, or a handler fires twice.
 - **Why:** state lived only in the DOM/JS. A refresh is a clean DOM, so init takes defaults. An init that isn't idempotent binds listeners a second time.
