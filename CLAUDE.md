@@ -78,3 +78,10 @@ To save: write the memory to its own file with frontmatter (`name`, `description
 - Default to brief.
 - No emojis unless the user uses them first.
 - Code: no comments by default. One short line max when the *why* is non-obvious. No multi-paragraph docstrings.
+
+### Handing a file to the human
+- A file in a reply is a clickable link `[name](path from the workspace root)`, never a path in backticks (`hooks/link-guard.py` shows a ready link when you slip).
+- Look at what you hand over before you hand it: render a .docx or PDF to an image and check it. Unchecked work handed over is work pushed onto the human.
+- Before using a channel (a folder, an address, a service), prove it is alive with one command, with a timeout. Before calling one dead, check you knocked on the right address.
+- A document for someone other than the human (a team, a client) is anonymized by default: no names, account identifiers, tenant names or IP addresses.
+- If the document reader is installed (`--with-reader`): a long text to read goes as one link `http://<reader address>/?open=<path, URL-encoded>`. Questions and choices never go through it; they go in the chat.
