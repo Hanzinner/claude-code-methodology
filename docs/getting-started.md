@@ -6,9 +6,9 @@ For a person, not for the agent. Each step says what you do and what you will se
 ## 1. The first day
 
 1. **Restart Claude Code.** A running session doesn't pick up new hooks.
-2. **Read `~/.claude/CLAUDE.md` and rewrite the "personal taste" sections** (communication, output, rule 12)
-   to how you want to be talked to. The rest are mechanisms; leave them. An update never overwrites your
-   edits (you get `CLAUDE.md.new` next to it).
+2. **`~/.claude/CLAUDE.md` is the rule set your agent works by.** The installing agent told you what is in
+   it; add or change anything there whenever you like. An update never overwrites your edits (you get
+   `CLAUDE.md.new` next to it).
 3. **Check `~/.claude/methodology.conf`.** The installer asked for your name, working folder and time zone;
    the hints agents read use them ("ask <your name>"). Change a line and it applies on the next prompt.
 4. **Optional accounts** — web search (Tavily/Exa), offsite backup, the phone bot: [`accounts.md`](accounts.md)

@@ -2,7 +2,7 @@
 
 Configuration files, hooks, scripts, and slash skills for Claude Code.
 
-One person's setup, generalized over months of daily use. The mechanisms (hooks, memory layout, gates) are portable; the communication and output rules are personal taste — `CLAUDE.md` marks which is which. Take the pieces that fit; rewrite the rest.
+One person's setup, generalized over months of daily use. The mechanisms (hooks, memory layout, gates) are portable; `CLAUDE.md` is the rule set the agent works by; after the install the agent tells you what is in it and asks what you want to add.
 
 ## Why each piece exists
 
@@ -64,11 +64,9 @@ You can hand the repo to your own agent and say "install this": it runs `./insta
 > run the check again. Do not delete or move anything in ~/.claude yourself. Tell me which of my existing
 > files the installer backed up or kept (`*.bak-*`, `CLAUDE.md.new`). Then read docs/accounts.md and tell me,
 > one line each, which optional accounts I might want (web search, offsite backup, phone bot): where to sign up
-> and which file the key goes into. Never ask me for a key in the chat. Then make ~/.claude/CLAUDE.md mine: its
-> "personal taste" sections (Communication, Output, rule 12) are someone else's style. Ask me, one short question
-> each, what language you should answer in, how long and how formal your replies should be, whether I want emojis,
-> and whether you may suggest breaks; rewrite those sections to my answers and show me the diff. Leave the other
-> sections as they are. Finally tell me to restart Claude Code.
+> and which file the key goes into. Never ask me for a key in the chat. Then tell me in a few short lines what rules are
+> now in ~/.claude/CLAUDE.md and ask whether I want to add anything; if I do, add it there. Finally tell me to
+> restart Claude Code.
 
 **What it never touches:** your chats and session history (`~/.claude/projects/`, `history.jsonl`),
 `~/.claude.json`, your own commands, agents and MCP servers. It writes only its own folders and merges
