@@ -48,6 +48,8 @@ Memory lives in `.claude/memory/`. `MEMORY.md` is a trigger index ("topic X → 
 
 Save: facts about the user, behavioral feedback (corrections + confirmations), current state of active projects, pointers to external systems.
 
+Where: in a named agent's chat, a correction or lesson that concerns only that agent's work goes into its own `briefing.md` (in its folder), not into shared memory. Shared memory is for what every chat needs. A narrow lesson in shared memory clutters every other chat and goes stale unnoticed.
+
 Don't save: code patterns derivable from the repo, git history, debugging recipes, in-progress task state.
 
 To save: write the memory to its own file with frontmatter (`name`, `description`, `metadata.type`), then add a one-line pointer to `MEMORY.md`.

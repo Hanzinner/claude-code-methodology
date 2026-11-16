@@ -15,7 +15,7 @@ Deliberate memory commit. The native `/compact` is lossy **by design**: it compr
    ```
    `$CLAUDE_METHODOLOGY_DIR` is set by the installer (settings.json env). The script picks this session's transcript by `$CLAUDE_CODE_SESSION_ID`; if it warns that it fell back to the newest file, check that the dialogue is really yours.
 
-2. Work out whose session this is: from the working directory (an agent folder, e.g. `agents/<name>/`) plus that agent's briefing if it has one. This decides WHERE to save (step 4). If this is the main/coordinator session (working directory is the workspace root), everything goes to global memory.
+2. Work out whose session this is: the agent name the chat was opened with (the watchman records it), else the working directory (an agent folder, e.g. `agents/<name>/`), plus that agent's briefing if it has one. Corrections and lessons about that agent's own work go into its `briefing.md`, not global memory. This decides WHERE to save (step 4). If this is the main/coordinator session (working directory is the workspace root), everything goes to global memory.
 
 3. Read the output and decide what is worth saving. Catch anything that could matter in a future conversation:
 

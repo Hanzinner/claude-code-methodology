@@ -69,17 +69,19 @@ keep a note, or leave the line and empty its list in `methodology.conf` where it
 When one chat holds your work, a renovation and a course at once, it mixes them up. An agent is a separate
 helper for one area: its own chat, folder, notes and to-do list; it knows only its area.
 
-**Why not just a separate chat per topic?** That is where most people start, and it breaks in these places:
+**Why not just a separate chat per topic?** That is where most people start, and it breaks in these places. The
+first one matters most: every correction you make in a plain chat lands in the one memory all chats share, so over
+months that memory fills with narrow, outdated lessons. An agent keeps its lessons in its own briefing.
 
 | With plain separate chats | With agents |
 |---|---|
+| You correct a chat ("don't do X here"), and the lesson goes into the one shared memory every chat reads. It piles up, goes stale, and a lesson from one topic gets in the way of another. | The lesson goes into that agent's own `briefing.md`: it applies exactly where it belongs, the agent is shown it again whenever it changes, and the shared memory stays short. |
 | A long chat gets compressed and forgets what it was for; a new chat knows nothing. You explain the role again. | The role, what it owns and its rules live in its `briefing.md`. Open any new chat with the agent's name and it is that agent again; when the briefing changes, it is shown the new one. |
 | You are the messenger: you copy what one chat found into another. | Agents write letters to each other's inboxes and act on them without you. |
 | What each chat still has to do lives in your head. | Each agent keeps its own to-do list and goes through it; open items don't vanish when the chat is compressed. |
 | Questions for you are scattered over a dozen chats. | Each agent keeps one file of what only you can decide (`human-TODO.md`); everything else it decides itself. |
 | Two chats edit the same file and overwrite each other. | Each file has one owner agent, written in the registry; others send the owner a letter. |
 | A chat does nothing until you type in it. | An agent with an alarm wakes up on a new letter or a reminder by itself. |
-| Notes from one topic get mixed into every other topic's memory. | Shared memory holds what all agents need; each agent's own notes stay in its folder. |
 
 So one chat is fine for one thing at a time. Agents pay off once you have several areas running in parallel,
 or one big area (a project with a lead, developers and testing) that is too much for one chat.
