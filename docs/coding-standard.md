@@ -48,7 +48,7 @@ Next to each rule, who guards it: ⚙ mechanism (block or hint, see §5) · 📊
 
 ## 2. While working
 
-**2.1 Change cycle** ([dev-methodology.md](dev-methodology.md) has the cases and costs)
+**2.1 Change cycle**
 | Step | What to do | What stays visible |
 |---|---|---|
 | **0. Look at how it is done** | Before the first command on a new technology: web search (how it is deployed, on which OS, known issues) + your own playbook in full + whether the setup already has it (the tools list, the catalog) + pitfalls ([code-pitfalls/](../code-pitfalls/README.md)). Non-trivial subsystem: read 1-2 proven open-source implementations and adapt. Two sources disagree: do not pick whom to believe, measure with one command | a `source: …` line in the report |
@@ -58,7 +58,7 @@ Next to each rule, who guards it: ⚙ mechanism (block or hint, see §5) · 📊
 | **4. Done = proof** | see §3 | |
 | **Stop rule** | 3 failures in a row: stop, go to step 0 (search), no 4th attempt | |
 
-**How to review so that it catches things** ([dev-methodology.md](dev-methodology.md)):
+**How to review so that it catches things:**
 - The reviewer did not see how the code was written, and you do **not** tell it where to look or "what is minor".
 - A finding counts only with a reproduction (a failing test **before** the fix).
 - The fix is a **class, not an instance** (neighbours, boundaries, the inverse branch).

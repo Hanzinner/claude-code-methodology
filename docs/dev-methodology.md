@@ -1,143 +1,59 @@
-# Orchestrating development with a swarm of agents
+# Starting a project
 
-A reusable way to build software with a swarm of AI agents — written down as a system, not as one
-project's history: roles, a roadmap tied to git, quality gates, and how a "product team" runs when the
-team is agents. This is the delivery layer on top of the swarm mechanisms ([`getting-started.md`](getting-started.md), section 4);
-the rules agents follow day to day are in [`coding-standard.md`](coding-standard.md) and
-[`project-work.md`](project-work.md).
+For the agent asked to start a new project ("start a project X", "set up a team for X"). The team's day-to-day
+rules are in [project-work.md](project-work.md), the rules for code in [coding-standard.md](coding-standard.md).
+Do the steps in order; do not bootstrap by hand.
 
-What is code and what is text: this repository ships the mechanisms (hooks, scripts, the swarm tools) and
-documents the method. The bootstrap described below is partly shipped: `scripts/new_project.sh` stamps a
-project's `release.toml`, roadmap, blocker register and agent folders (briefing, inbox, todo); the rest
-(CI skeleton, incident log, methodology link in briefings, wiring into your shared services) is a description
-you rebuild for your own stack.
+## 1. Ask the human, in one message
 
-## The thesis
+- What is it, for whom, and what does a first version that counts as "done" look like?
+- Is it code (a site, a bot, a game, a service, a tool) or not (documents, research)?
+- For code: is it a site, a game or a tool? (It sets the stands: web test/uat/prod, game dev-build/playtest,
+  tool test/prod.)
 
-In a human team, hygiene — tests, review, CI — costs **person-hours**, so startups cut it and debt piles
-up. In an agent swarm the tedious part costs ~zero labor, so you can hold hygiene **better** than most
-startups, not worse. The proof route is deliberate: invent the method on one project → prove it ports to a
-small one → apply it where it makes money. It has since been run end to end once on an external client
-project (a web shop with accounts and money), in two days.
+Do not ask how many agents; you propose positions in step 3.
 
-## Roles
+## 2. Create it
 
-Each agent is a separate session with its own briefing, raised by name. Roles come in two kinds — and the
-split matters: without it, bootstrapping a new project would duplicate the shared services every time.
+- Code: `scripts/new_project.sh --own-repo --profile web|game|tool <Name>` — a project with code always gets
+  its own repo (and the release queue, if it was installed with `./install.sh --with-releaser`).
+- No code: `scripts/new_project.sh --no-code <Name>` — a folder in the shared workspace.
 
-**Shared** — one instance for the whole swarm, serving every project. Bootstrap *connects* to them, it
-doesn't recreate them:
-- **Orchestrator** — takes "deploy the infrastructure", creates a new project's team, holds the
-  cross-project picture. (It runs bootstrap, because the project's own HQ doesn't exist yet.)
-- **Knowledge/archivist** — knowledge hygiene across the swarm: where things live, delivery into
-  briefings, freshness. Does not author engineering content.
-- **Git agent** — git practice across all repos (conventions, hooks, incident review).
-- **Mechanisms dev agent** — the code of hooks, scripts, tools and the board, for every project: anything
-  testable in a sandbox. Builds mechanisms, not product.
-- **Infra agent** — the live system: schedules, services, network, backups, secrets; first response to
-  outages. (One agent did both until the two kinds of work kept blocking each other — see
-  [rule-to-mechanism.md](rule-to-mechanism.md).)
-- **Growth / PR** — the public image (shared, spans projects).
-- **Secretary** — message routing between agents.
+It creates the project folder, `release.toml`, `ROADMAP.md`, `BLOCKERS.md`, the first commit (own repo) and the
+agents `<Name>-HQ` (the lead) and `<Name>-Dev` with briefing, inbox and to-do. Extra agent names after `<Name>`
+are created too. Exit: 0 ok · 2 usage · 3 already exists · 4 a step failed (it names the step; what was created
+stays). If the script does not fit the case, tell the human; no workaround by hand.
 
-**Project-specific** — bootstrap makes a fresh instance per project:
-- **Project HQ** — architecture, priorities, branch decisions. The **single interface to the human** for
-  this project: it filters the stream and doesn't relay raw agent reports. Delegates; doesn't do the small
-  work itself.
-- **Dev** — implementation (tasks, bugs, release flow).
-- **QA** — testing on user cases; findings → Dev.
-- **Design** — visual / UX, if the product has an interface.
-- **+ project-specific specialists** as needed. Four roles are a floor, not a template: a site that takes
-  money needed eight (front end, security, ops, mobile on top). The lead lists positions; the human
-  decides how many.
+## 3. Propose the positions; the human decides
 
-**Human (not an agent):**
-- **Product owner** — sets epic priority; accepts "done" on what the swarm can't self-verify (visual,
-  hardware, business).
+Write a list, one line per position: the role and why this project needs it (roles: [project-work.md](project-work.md),
+section D-A):
 
-**How the swarm talks:**
-- **inbox = an async channel** between agents — a cheap replacement for an expensive live "dial" (a
-  `-p --resume` invocation costs dollars per call; an inbox line costs zero). Arrived → do it or move it to
-  your own todo → close the inbox item. An empty inbox is normal.
-- **git = shared memory and source of truth.** State is not relayed — you look at the code / log / tag.
-- **A board** (a concept) — agent state + roadmap + queue, all **computed from git**. The portable thing is
-  the board *concept*, not any one implementation.
+- **Lead (HQ)** — always; the only one who talks to the human about this project.
+- **Dev** — always for code.
+- **QA** — once there are users or money; without it the lead runs one-off verifiers (project-work D-A).
+- **Design** — if there is an interface people look at.
+- **Specialists** as the product needs: front end, security, ops, mobile, data. Four roles are a floor, not a
+  template: a site that takes money needed eight.
 
-## Delivery practices
+The human picks. Create each chosen agent with `/register-as <Name>-<Role>`. Shared services (mechanisms dev,
+infra, git, librarian) are one per setup, not per project: connect to them; if one is missing, say so to the
+human, don't create it yourself.
 
-**1. Version control.** git + worktrees (branches don't block each other) + a release train (a release is
-something deployed/built, with a version tag).
+## 4. Hand over to the lead
 
-**2. Roadmap: Epic → Story → Task + a Definition of Done.** An **epic** is a big goal, a **story** a
-user-facing slice, a **task** small work. **DoD = proof it runs** (a test / command / tag / human
-acceptance), never a checkbox and never self-certification. Keep an honest horizon: near work broken into
-stories/tasks, far work named as an epic with no detail — fake precision is worse than an honest "details
-later".
+Write to `<Name>-HQ` (`scripts/inbox_post.sh`) what the human said in step 1, and that its first steps are:
 
-**3. Task fields: size + priority** (for anything in the queue). Size `XS·S·M·L·XL`. Priority `0-100` in
-**bands**, not false precision: 90-100 critical · 70-89 high · 40-69 normal · 10-39 low · 0-9 someday.
-Conversational work (chat/research, not queued) is exempt.
+1. Fill its briefing and each agent's: role in one line, what it owns, what it doesn't touch.
+2. `release.toml`: put the gate command in `test` (it runs before every release; empty = the project shows
+   red). The release queue runs it only after `sudo scripts/releaser.py approve <Name>`: root only, so give the
+   human that exact line to run.
+3. CI and tests first, before features: without them tests rot (project-work 2.7).
+4. `ROADMAP.md`: epics and stories, each with a Definition of Done that is a proof (a test, a command, a tag, the
+   human's acceptance); size and priority on every item (project-work 1.1–1.2). Near work in detail, far work
+   as a named epic only.
+5. Each agent puts `PROJECT-WORK.md` and `CODING-STANDARD.md` on a line of its `.watchlist`, so it sees their
+   changes.
 
-**4. PM link: the roadmap is a live mirror of git.** A commit carries a `Roadmap: E#.S#` trailer; status is
-**computed from git, never hand-maintained** (anti-staleness, below). A rollup script feeds the board.
-"Done" only with proof: `Proof: tag:… | cmd:… | accepted:date`. Self-certification ("it works") doesn't count.
-
-**5. Quality gates** (what most startups lack):
-- **CI on every commit** — build + tests + linter → green/red, catching breakage at the moment it's
-  introduced. Build it **first**; without it, tests rot.
-- **Tests at three levels** — unit (one function), integration (a few together), e2e (the whole system as a
-  user). Rule: **test where the change is** (the new code and around a refactor), don't backfill stable code.
-- **Static analysis** — linter/formatter, free second eyes.
-- **Independent review before merge**, with a *different* viewpoint (an author reviewing themselves is
-  theater). Cheap in a swarm: a reviewer agent, or multi-agent review.
-- **Coverage** — a fog map of what's lit by tests; later, once tests exist.
-
-**6. Incident journal** — see [`mistakes-journal.md`](mistakes-journal.md). One mistake is chance; three
-identical ones are a design hole to mechanize.
-
-**7. ADR — architectural decisions written down.** "Decided X because Y", so a year later you know *why*
-instead of re-deriving it. One file per decision, numbers never reused, a replaced decision is marked, not deleted: [`swarm-template/decisions/`](../swarm-template/decisions/README.md).
-
-**8. Reliability: mechanism > briefing > rules-file.** A rule that must hold gets mechanized (a hook / gate
-/ script), not left to briefing discipline. A briefing is forgotten; a hook isn't.
-
-**9. Anti-staleness.** A document doesn't describe what can be **computed**. Test each line: *"can this
-become false without anyone editing this file?"* Yes → it's **state** (who's busy, current version, branch
-status) → it lives in git / the queue, the file holds only a pointer. No → it's **durable** (roles, rules,
-the spirit of decisions) → write it. A date doesn't save a stale line. Check another agent's status **in
-the source**, don't quote their todo.
-
-## What we don't do
-
-**Sprints, story points, velocity, burndown, estimation rituals.** Those exist for *human* teams — to
-estimate the unknown, sync ten people, report to a manager. A tireless agent swarm needs none of it; it's
-pure overhead. Keep the connective tissue and the computed status; drop the planning ceremony.
-
-## Bootstrap: "deploy the infrastructure for project X" (`scripts/new_project.sh` does the core; the rest is described here)
-
-The **orchestrator** runs it (the project's HQ doesn't exist yet); the **mechanisms dev agent** builds the
-mechanism and the **infra agent** wires it into the live system. One command → a project-specific team raised and **connected** to the shared services (which are
-not recreated). It stamps:
-1. **Structure** — folders for the project agents, the code, project docs.
-2. **Project agents from templates** — HQ/Dev/QA/Design get a briefing skeleton (role, boundaries, how it
-   works, a **link to this methodology** — shared, not a copy).
-3. **A roadmap skeleton** — an empty roadmap (Epic/Story/DoD) + PM rollup + a board entry.
-4. **Git convention + hooks** — commit-message format, the release train (inherited from the shared git agent).
-5. **Quality-gate scaffold** — a CI skeleton for the project's stack, the incident log, the inbox protocol,
-   and an empty blocker register (one line per blocker with a machine check, so a cleared blocker moves the
-   story on by itself instead of waiting for someone to notice).
-6. **Registration** of the new team in the swarm registry + **connection to the shared services** (so the
-   archivist sees it, the git agent covers its repo, the board shows it).
-
-## Portability: what changes, what doesn't
-
-**Identical across projects:** the project-team template (HQ/Dev/QA/Design) + connection to shared
-services, roadmap/DoD, size+priority fields, the PM-git link, the incident log, review, anti-staleness,
-"mechanism > briefing", inbox communication. *(The shared services are not replicated — they're one set for
-the whole swarm.)*
-
-**Changes per project:** the test toolchain (`cargo test` → `pytest`/`jest`/…), the CI target, the set of
-project-specific agents, whether Design/PR exist at all.
-
-Domain specifics from the project where this was forged (a bare-metal OS: `no_std`, a framebuffer) do **not**
-port — but the method does.
+Then tell the human in two lines: the project exists, who is in the team, and that from now on they talk about
+it to `<Name>-HQ` (a new chat whose first message is `<Name>-HQ`).

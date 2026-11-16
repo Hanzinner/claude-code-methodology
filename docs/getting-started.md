@@ -129,7 +129,7 @@ already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS
 8. **When a project needs a team** (a lead agent, developers, QA): `scripts/new_project.sh --own-repo <Name>` (a code project
    with its own git repo) or `--no-code <Name>` (a folder in the shared one) creates the project files (roadmap,
    blockers, release settings) and the agents `<Name>-HQ` (the lead) and `<Name>-Dev`; [`project-work.md`](project-work.md) is the standard the team follows,
-   [`dev-methodology.md`](dev-methodology.md) is how the team is set up. The release queue (a separate system
+   [`dev-methodology.md`](dev-methodology.md) is what the agent that starts a project does. The release queue (a separate system
    user merges into the main branch only after the tests pass) and the git wrapper (blocks history-destroying
    commands in the shared folder) need root and are installed only on request:
    `./install.sh --with-releaser`, `./install.sh --with-git-guard`.

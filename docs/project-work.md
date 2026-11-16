@@ -158,7 +158,7 @@ Tests live in the project's `tests/` and are run by the deploy or CI (§2.7), no
 
 **4.6 What we do NOT do.** Sprints, story points, velocity, burndown, estimate rituals are ceremonies for teams of humans; for a swarm they are pure overhead. We take the task↔commit link + computed status + proof.
 
-**4.7 A new project with code:** bootstrap per the Bootstrap section of [dev-methodology.md](dev-methodology.md): lead agent, ROADMAP skeleton, BLOCKERS, CI first, an entry in the catalog. This is `scripts/new_project.sh`, which creates release.toml, ROADMAP, BLOCKERS, the agents' directories, and the first commit; **a project with code (site, bot, game, service) always gets its own repo and a releaser from day one**; without its own repo only a project without code (documents, research). By hand we do not bootstrap; if the script does not fit, write to the methodology owner, no workaround. Cost: someone did the steps by hand and ended up in the monorepo without a releaser.
+**4.7 A new project with code:** bootstrap per [dev-methodology.md](dev-methodology.md): lead agent, ROADMAP skeleton, BLOCKERS, CI first, an entry in the catalog. This is `scripts/new_project.sh`, which creates release.toml, ROADMAP, BLOCKERS, the agents' directories, and the first commit; **a project with code (site, bot, game, service) always gets its own repo and a releaser from day one**; without its own repo only a project without code (documents, research). By hand we do not bootstrap; if the script does not fit, write to the methodology owner, no workaround. Cost: someone did the steps by hand and ended up in the monorepo without a releaser.
 
 ---
 

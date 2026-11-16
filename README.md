@@ -32,7 +32,7 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/rule-to-mechanism.md`](docs/rule-to-mechanism.md) — the gate ladder (note → detector → structural impossibility): the change cycle, independent review by another model, a supervisor that checks the work, and why written rules alone didn't hold.
 
 **Running a swarm** (many agents — a separate discipline; skip these if you run one agent):
-- [`docs/dev-methodology.md`](docs/dev-methodology.md) — the delivery layer: roles, roadmap + Definition of Done, quality gates, and bootstrap — a product team when the team is agents.
+- [`docs/dev-methodology.md`](docs/dev-methodology.md) — starting a project: what to ask the human, the command, positions to propose, what the lead does first.
 - [`docs/project-work.md`](docs/project-work.md) — the standard for agents working in a project team: the path of a task, stories with a runnable "done when", stands, releases, blockers as records with a check.
 - [`docs/po-interface.md`](docs/po-interface.md) — how ~30 technical reports a day reach a human who isn't a developer: a two-question filter, three lanes, and a pull mode.
 - [`docs/sharing.md`](docs/sharing.md) — how agents hand files and visuals to a human: use the channels that exist, names not numbers in links, questions in the chat.
