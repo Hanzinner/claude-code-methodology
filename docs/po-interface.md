@@ -19,8 +19,8 @@ Default: silence.
 
 | What | Where | How it reaches the human |
 |---|---|---|
-| 🟥 **Blocker:** the work stands until the human does X | the blocker register only: `scripts/blocker_add.sh <project> "<what exactly>" "<who clears it>" "<check command \| manual>"` (`<project>` is a `Project-*` folder; outside a project: a line in your `human-TODO.md` marked 🟥) | first in every answer to "what's waiting for me" (section 3); cleared by itself when the check passes, and the story moves on |
-| 🟦 **Direction:** a choice of path or look, but you keep working on other things meanwhile | one line in your `human-TODO.md` | not pushed; the human pulls it (section 3) |
+| 🟥 **Blocker:** the work stands until the human does X | the blocker register only: `scripts/blocker_add.sh <project> "<what exactly>" "<who clears it>" "<check command \| manual>"` (`<project>` is a `Project-*` folder; outside a project: a line in your `human-TODO.md` marked 🟥) | by itself: before the human's next message you get a "waiting for you" line (when the set of blockers changes, or every 4 h) and put it first in your reply; cleared by itself when the check passes, and the story moves on |
+| 🟦 **Direction:** a choice of path or look, but you keep working on other things meanwhile | one line in your `human-TODO.md` | only counted in that line, once a day; the human pulls the details (section 3) |
 | 👁 **Look with your eyes:** a check only the human can make (visual, hardware, "do I like it") | one line in your `human-TODO.md`, marked 👁 | the same; batched for when the human is at the machine |
 | 📦 **Shipped** | nowhere: it is in git and the release log | the human asks "what's new" and you answer from `git log` |
 
