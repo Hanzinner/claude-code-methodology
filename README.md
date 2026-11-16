@@ -174,9 +174,8 @@ Mobile-bot addon adds two more (no-ops outside the bot):
 |------|--------|
 | `pdf-extract.sh <pdf> [--images] [--dpi=N]` | PDF → `.txt` (full) + `.meta.txt` + `.pages/p####.txt` + optional `.images/p####.png`. Idempotent. |
 | `html-extract.sh <html>` | HTML → `.txt` via `lynx -dump`. Plain text. |
-| `html-to-md.sh <html>` | HTML → `.md` via `pandoc`. Preserves structure. |
-| `backup-chats.sh` | Daily rsync backup of Claude Code transcripts with hard-link dedup. Not scheduled by `install.sh`: add a cron line yourself (e.g. 3 AM). |
-| `daily-git-snapshot.sh [REPO]` | Auto-commit uncommitted changes in REPO. Not scheduled by `install.sh`: add a cron line yourself. |
+| `backup-chats.sh` | Daily rsync copy of Claude Code transcripts with hard-link dedup. Scheduled by `install.sh` (03:10); deletes nothing unless `--enable-cleanup`. |
+| `daily-git-snapshot.sh [REPO]` | Auto-commit uncommitted changes in REPO. Scheduled only with `install.sh --with-git-snapshot`. |
 | `curate_memory.py` | Memory health: orphans, broken links, unresolved wikilinks. Exit 0 clean, 1 with findings. |
 | `recap_extract.py` | Extract user/assistant messages since last compaction boundary. Called by `/recap`. |
 | `cross-review.sh --git <range>` | Independent review of a diff by a different model (fresh `claude -p`, read-only tools). See `docs/rule-to-mechanism.md`. |

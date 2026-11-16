@@ -105,6 +105,25 @@
       "cmd": "\"__CLAUDE_DIR__/scripts/git_empty_objects_check.sh\""
     },
     {
+      "name": "Chat backup is fresh",
+      "kind": "cmd",
+      "severity": "human",
+      "owner": "",
+      "cmd": "\"__CLAUDE_DIR__/scripts/chat_backup_check.sh\"",
+      "note": "backup-chats.sh daily 03:10: last run a success, not older than 26 h, today's folder has a .jsonl",
+      "only_if_exists": "__HOME__/.claude/logs/chat-backup.log"
+    },
+    {
+      "name": "Git snapshot of the workspace",
+      "kind": "cmd",
+      "severity": "human",
+      "owner": "",
+      "cmd": "\"__CLAUDE_DIR__/scripts/git_snapshot_2fail_check.sh\"",
+      "ok_rc": [0, 3],
+      "note": "only with install.sh --with-git-snapshot; red after two failed snapshots in a row (3 = fewer than two results yet)",
+      "only_if_exists": "__HOME__/.claude/logs/git-snapshot.log"
+    },
+    {
       "name": "Public gate selftest",
       "kind": "cmd",
       "severity": "infra",

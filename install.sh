@@ -16,10 +16,11 @@
 #   --timezone ZONE              # IANA zone for timestamps, e.g. Europe/Berlin
 #   --no-verify                  # skip the checks at the end
 #   --verify-all                 # also run every installed test (~5 min) instead of the quick check
-#   --enable-cleanup             # also schedule deleting trash items older than CCM_TRASH_DAYS (off by default)
+#   --enable-cleanup             # also delete trash items older than CCM_TRASH_DAYS and chat-backup copies older than 365 days (off by default)
 #   --with-releaser              # (root) release queue: a system user merges into master after gates; cron as root
 #   --with-git-guard             # put a git wrapper first in PATH: blocks destructive git in the shared workspace
 #   --with-consolidation         # daily memory consolidation + correction stats: each runs a model (your quota)
+#   --with-git-snapshot          # daily auto-commit of the workspace (it must be a git repo): every uncommitted change is saved
 #   --with-mobile-bot            # Telegram bridge to Claude Code: copy to <dir>/mobile-bot/; the system part (service, secrets file, sudoers) is setup-mobile-bot.sh (root)
 #   --with-offsite-backup        # restic backup of your files to S3-compatible storage: copy to <dir>/addons/offsite-backup/, run its setup (own crontab, no root)
 #   --with-agent-browser         # a headless browser the agents drive: copy to <dir>/addons/agent-browser/, fetch its engine (no root); service/links = setup-agent-browser.sh (root, optional)
@@ -45,6 +46,7 @@ CLEANUP=0
 WITH_RELEASER=0
 WITH_GIT_GUARD=0
 WITH_CONSOLIDATION=0
+WITH_GIT_SNAPSHOT=0
 WITH_MOBILE_BOT=0
 WITH_OFFSITE_BACKUP=0
 WITH_AGENT_BROWSER=0
@@ -70,6 +72,7 @@ while [[ $# -gt 0 ]]; do
     --with-releaser) WITH_RELEASER=1 ;;
     --with-git-guard) WITH_GIT_GUARD=1 ;;
     --with-consolidation) WITH_CONSOLIDATION=1 ;;
+    --with-git-snapshot) WITH_GIT_SNAPSHOT=1 ;;
     --with-mobile-bot) WITH_MOBILE_BOT=1 ;;
     --with-offsite-backup) WITH_OFFSITE_BACKUP=1 ;;
     --with-agent-browser) WITH_AGENT_BROWSER=1 ;;
@@ -487,7 +490,7 @@ CRON_END="# <<< claude-code-methodology ($TARGET)"
 q() { printf '%q' "$1"; }
 # Nothing that DELETES is scheduled unless asked: trash cleanup needs --enable-cleanup or a "y" here.
 if [[ $CLEANUP -eq 0 && $YES -eq 0 ]]; then
-  yn=$(ask "Delete trash items older than the age limit automatically, daily? (y/N)" "N")
+  yn=$(ask "Delete trash items (older than CCM_TRASH_DAYS) and chat-backup copies (older than 365 days) automatically, daily? (y/N)" "N")
   [[ "$yn" =~ ^[Yy]$ ]] && CLEANUP=1
 fi
 CRON_LINES="$CRON_BEGIN
@@ -510,17 +513,25 @@ CRON_LINES="$CRON_BEGIN
 50 12 * * * $(q "$TARGET/scripts/swarm_tools_check.sh") >/dev/null 2>&1
 @reboot sleep 120 && $(q "$TARGET/scripts/git_empty_objects_check.sh") >/dev/null 2>&1
 25 5 * * * $(q "$TARGET/scripts/public_gate_selftest.sh") >/dev/null 2>&1
-30 12 * * 0 $(q "$TARGET/scripts/prune_watchman_state.sh") >/dev/null 2>&1"
+30 12 * * 0 $(q "$TARGET/scripts/prune_watchman_state.sh") >/dev/null 2>&1
+10 3 * * * mkdir -p $(q "$HOME/.claude/logs") && RETENTION_DAYS=$([[ $CLEANUP -eq 1 ]] && echo 365 || echo 0) $(q "$TARGET/scripts/backup-chats.sh") >> $(q "$HOME/.claude/logs/chat-backup.log") 2>&1"
+# the chat backup is a COPY (rsync with hard links): it deletes nothing unless cleanup is on, then day-folders > 365 days
 [[ $WITH_CONSOLIDATION -eq 1 ]] && CRON_LINES="$CRON_LINES
 20 * * * * $(q "$TARGET/scripts/memory_consolidation.sh") >/dev/null 2>&1
 20 * * * * python3 $(q "$TARGET/scripts/stats_corrections.py") --days 3 --after 6 >/dev/null 2>&1"
+if [[ $WITH_GIT_SNAPSHOT -eq 1 ]]; then
+  WS_SNAP=$(python3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
+  git -C "$WS_SNAP" rev-parse --git-dir >/dev/null 2>&1 || warn "--with-git-snapshot: $WS_SNAP is not a git repo yet — the snapshot will log FAIL until you run git init there"
+  CRON_LINES="$CRON_LINES
+0 4 * * * mkdir -p $(q "$HOME/.claude/logs") && LOG=$(q "$HOME/.claude/logs/git-snapshot.log") $(q "$TARGET/scripts/daily-git-snapshot.sh") $(q "$WS_SNAP") >/dev/null 2>&1"
+fi
 [[ $CLEANUP -eq 1 ]] && CRON_LINES="$CRON_LINES
 35 4 * * * python3 $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1"
 CRON_LINES="$CRON_LINES
 $CRON_END"
 echo
-if [[ $CLEANUP -eq 1 ]]; then say "Scheduled jobs: supervisor, quota, reports, stats, journal checks, reminders, blockers, trash size + cleanup (on)"
-else say "Scheduled jobs: supervisor, quota, reports, stats, journal checks, reminders, blockers, trash size (cleanup off: --enable-cleanup; model-run jobs off: --with-consolidation)"; fi
+if [[ $CLEANUP -eq 1 ]]; then say "Scheduled jobs: supervisor, quota, reports, stats, journal checks, reminders, blockers, trash size, chat backup + cleanup (on: trash, chat copies > 365 days)"
+else say "Scheduled jobs: supervisor, quota, reports, stats, journal checks, reminders, blockers, trash size, chat backup — a copy, nothing deleted (cleanup off: --enable-cleanup; model-run jobs off: --with-consolidation; workspace auto-commit off: --with-git-snapshot)"; fi
 case "$TARGET" in
   /tmp/*|/var/tmp/*|"${TMPDIR:-/nonexistent}"/*) [[ $NO_CRON -eq 1 ]] || warn "install dir is under a temp dir — crontab left alone (a test install must not schedule jobs)"; NO_CRON=1 ;;
 esac

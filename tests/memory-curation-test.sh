@@ -6,7 +6,8 @@ set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 MC=${MC:-$HERE/../hooks/memory-curation-check.sh}
 CM=${CM:-$HERE/../scripts/curate_memory.py}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) && [[ -d "$T" && "$T" != / ]] || { echo "no temp dir (mktemp missing?) - refusing to run: every path below would land in /" >&2; exit 2; }
+trap 'rm -rf "$T"' EXIT
 export HOME=$T/home CLAUDE_METHODOLOGY_CONF=$T/none.conf CLAUDE_METHODOLOGY_DIR=$T/c
 unset CLAUDE_MEMORY_DIR
 M=$T/c/memory; mkdir -p "$M/episodic" "$T/c/scripts" "$HOME"

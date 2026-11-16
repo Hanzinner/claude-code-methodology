@@ -4,11 +4,12 @@
 # unchanged files share inodes across day-folders.
 #
 # Recommended cron: 0 3 * * *  (3 AM daily)
-# Retention: configurable, default 365 days.
+# Retention: nothing is deleted unless asked — RETENTION_DAYS=0 (default) keeps every day-folder. The installer
+# schedules this daily; with install.sh --enable-cleanup the cron line passes RETENTION_DAYS=365.
 #
 # Override defaults via env:
 #   BACKUP_DIR=/some/path         (default: $HOME/.claude-backups)
-#   RETENTION_DAYS=90             (default: 365)
+#   RETENTION_DAYS=90             (default: 0 = keep everything)
 #   CLAUDE_PROJECTS_DIRS="..."    (space-separated; default: standard locations)
 #
 # Layout: <BACKUP_DIR>/<date>/<label>/... where label is "home" for
@@ -20,7 +21,7 @@ set -e
 
 DATE=$(date +%Y-%m-%d)
 BACKUP_DIR="${BACKUP_DIR:-$HOME/.claude-backups}"
-RETENTION_DAYS="${RETENTION_DAYS:-365}"
+RETENTION_DAYS="${RETENTION_DAYS:-0}"
 TARGET="$BACKUP_DIR/$DATE"
 
 # Default: back up both user and root claude projects if they exist
@@ -53,7 +54,9 @@ for src in "${DIRS[@]}"; do
   fi
 done
 
-find "$BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d -mtime +$RETENTION_DAYS -exec rm -rf {} \; 2>/dev/null || true
+if [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] && (( RETENTION_DAYS > 0 )); then
+  find "$BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d -name '2*-*-*' -mtime +"$RETENTION_DAYS" -exec rm -rf {} + 2>/dev/null || true
+fi
 
 TOTAL=$(du -sh "$BACKUP_DIR" 2>/dev/null | awk '{print $1}')
 TODAY=$(du -sh "$TARGET" 2>/dev/null | awk '{print $1}')

@@ -5,7 +5,8 @@
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 XR=${XR:-$HERE/../scripts/cross-review.sh}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) && [[ -d "$T" && "$T" != / ]] || { echo "no temp dir (mktemp missing?) - refusing to run: every path below would land in /" >&2; exit 2; }
+trap 'rm -rf "$T"' EXIT
 export HOME=$T/home CLAUDE_METHODOLOGY_CONF=$T/none.conf MACHINE_USAGE=$T/usage.jsonl CLAUDE_BIN=$T/claude
 unset CCM_FORBIDDEN_SUBAGENT_MODELS CROSS_REVIEW_ALLOW_FORBIDDEN
 mkdir -p "$HOME"

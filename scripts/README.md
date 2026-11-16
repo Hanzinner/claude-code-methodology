@@ -8,7 +8,6 @@ Utilities called from hooks or directly. All idempotent. Paths are set per scrip
 |--------|--------|
 | `pdf-extract.sh <pdf> [--images] [--dpi=N]` | PDF → `.txt` (full) + `.meta.txt` + `.pages/p####.txt` + optional `.images/p####.png`. |
 | `html-extract.sh <html>` | HTML → `.txt` via `lynx -dump` (plain text). |
-| `html-to-md.sh <html>` | HTML → `.md` via `pandoc` (GFM, preserves structure). |
 
 System deps: `poppler-utils`, `lynx`, `pandoc`.
 
@@ -16,8 +15,8 @@ System deps: `poppler-utils`, `lynx`, `pandoc`.
 
 | Script | Action |
 |--------|--------|
-| `backup-chats.sh` | Daily rsync backup of Claude Code transcripts with hard-link dedup. Not scheduled by `install.sh`: add a cron line yourself (e.g. 3 AM). |
-| `daily-git-snapshot.sh [REPO]` | Auto-commit uncommitted changes in REPO. Not scheduled by `install.sh`: add a cron line yourself. |
+| `backup-chats.sh` | Daily rsync copy of Claude Code transcripts with hard-link dedup. `install.sh` schedules it at 03:10 (log `~/.claude/logs/chat-backup.log`). Deletes nothing unless `--enable-cleanup` (then day-folders older than 365 days). |
+| `daily-git-snapshot.sh [REPO]` | Auto-commit uncommitted changes in REPO; a failed add/commit logs FAIL. Scheduled only with `install.sh --with-git-snapshot` (the workspace, 04:00, log `~/.claude/logs/git-snapshot.log`). |
 | `curate_memory.py` | Memory health (orphans, broken links, unresolved wikilinks). Exit 0 if clean, 1 with findings. |
 | `recap_extract.py` | Dump user/assistant messages since the last compaction boundary. Used by `/recap`. |
 | `claude_machine.py` | Run `claude -p` from a script without saving a session, with cost accounting. |
@@ -25,7 +24,6 @@ System deps: `poppler-utils`, `lynx`, `pandoc`.
 | `extract_scenes.sh` | Scene-change frames from a video (URL via yt-dlp, or a file); used by `/edit`. |
 | `rename_session.py` | Set a custom title on a Claude Code session. |
 | `transcript_tail.py` | The transcript lines of the last turn, without reading the whole file (Stop checks share it). |
-| `ai-studio-to-md` | Convert Google AI Studio JSON exports to Markdown. |
 
 ## Layer 2 — several agents
 
@@ -91,7 +89,7 @@ Watchers, catalogs, reports and statistics. Who gets a letter when something bre
 | `tab_stuck_check.py` | An agent's tab whose last reply is a synthetic service error, older than 10 min, with no live alarm. Needs `CCM_WORK_GUARD_AGENTS` (empty = off). Writes one line per case into the agent's `human-TODO.md` (the one place it changes anything). Supervisor. |
 | `presence_check.py` | Is the human at the machine: a fresh prompt (< 15 min), else the idle time printed by `CCM_PRESENCE_CMD`. rc 0 present, 1 away, 2 unknown (fail-closed). For things that push messages. Manual; the template entry is disabled. |
 | `cron_state_check.py <name> <max_hours>` | Red when a job run by `catchup-run` has a `.fail` file or its last success is older than `max_hours`; machine downtime (from `journalctl --list-boots`) is subtracted. Supervisor: the template entry `example_job` is disabled, copy it per job. |
-| `chat_backup_check.sh` | The last `backup-chats.sh` line in the log is a success, not older than 26 h, and today's folder holds a `.jsonl`. Manual: neither cron nor the template runs it (it expects the backup cron line to log to `~/.claude/logs/chat-backup.log`). |
+| `chat_backup_check.sh` | The last `backup-chats.sh` line in the log is a success, not older than 26 h, and today's folder holds a `.jsonl`. Supervisor check "Chat backup is fresh" (active once the log exists). |
 
 ### Mistakes journal and catalogs
 
@@ -109,7 +107,7 @@ Watchers, catalogs, reports and statistics. Who gets a letter when something bre
 | Script | Action |
 |--------|--------|
 | `git_empty_objects_check.sh` | Zero-byte files in the workspace's `.git/objects` (a cut-off write). Does not repair; one letter to `CCM_GIT_KEEPER` per new set. Cron `@reboot` after 120 s; supervisor, severity `human`. |
-| `git_snapshot_2fail_check.sh` | Red when the last two results in the `daily-git-snapshot.sh` log (`SNAP_LOG`) are both failures. Manual: neither cron nor the template runs it. |
+| `git_snapshot_2fail_check.sh` | Red when the last two results in the `daily-git-snapshot.sh` log are both failures. Supervisor check "Git snapshot of the workspace" (active once the log exists). |
 | `mech_snapshot.sh` | Commits the code of the mechanisms (`scripts/*.sh`, `scripts/*.py`, `hooks/*`, `lib/*.py` by default) into a separate git (`~/.claude/mech.git`, outside the workspace repo). Whitelist only, a blocking pre-commit secret scan, a file that vanished leaves the index but stays in history. A secret or a broken whitelist -> letter to `CCM_MECH_OWNER`. Writes a git repo; deletes nothing. Cron every 10 min; supervisor checks its log. |
 | `public_gate.sh <snapshot-dir> \| --selftest` | Gate before a public push; exit 1 forbids it. Checks tracked files and the whole history for Cyrillic, names from `CCM_PUBLIC_GATE_NAMES`, internal files (`CCM_PUBLIC_GATE_INTERNAL`) and secret formats; fewer than 5 files = a broken gate. Runs its own `--selftest` matrix first. `CCM_PUBLIC_GATE_CYRILLIC=1` (the default) fails the gate on any Cyrillic letter in a tracked file, `0` skips that check. Manual. |
 | `public_gate_selftest.sh [--check]` | Runs the gate's self-test in a clean environment and logs the result; `--check` is the verdict (green and not older than 26 h). Cron daily 05:25; supervisor runs `--check`. |

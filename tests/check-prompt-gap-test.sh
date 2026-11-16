@@ -6,7 +6,8 @@ set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 CPG=${CPG:-$HERE/../hooks/check-prompt-gap.sh}
 PC=$HERE/../scripts/presence_check.py
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) && [[ -d "$T" && "$T" != / ]] || { echo "no temp dir (mktemp missing?) - refusing to run: every path below would land in /" >&2; exit 2; }
+trap 'rm -rf "$T"' EXIT
 export HOME=$T/home CLAUDE_METHODOLOGY_CONF=$T/none.conf CCM_TIMEZONE=UTC
 unset CLAUDE_METHODOLOGY_DIR CCM_MACHINE_SESSION
 mkdir -p "$HOME"

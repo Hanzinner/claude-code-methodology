@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Not scheduled by install.sh and not in the supervisor template: the backup/snapshot scripts it reads are run by hand.
-# If you schedule them, add an entry {"name": ..., "kind": "cmd", "cmd": "<install dir>/scripts/git_snapshot_2fail_check.sh"} to checks.json.
+# In the supervisor template ("Git snapshot of the workspace"), active once the snapshot has logged a run; the snapshot
+# itself is scheduled only with install.sh --with-git-snapshot (it commits the workspace — invasive, so opt-in).
 # git_snapshot_2fail_check.sh - the doc snapshot job (daily-git-snapshot.sh, log SNAP_LOG): the last two results in a row
 # FAIL / skipped -> exit 1 (the supervisor turns it into a red check for the human: "two failures in a row must wake the
 # owner, not lie in an inbox"). One failure alone is not enough.

@@ -29,8 +29,15 @@ if git diff-index --quiet HEAD -- && [ -z "$(git ls-files --others --exclude-sta
   exit 0
 fi
 
-git add -A
+# A failed add/commit must leave a FAIL line: under set -e it used to exit silently, the last line in the log stayed the
+# previous "commit OK", and git_snapshot_2fail_check.sh saw nothing wrong.
+if ! git add -A >> "$LOG" 2>&1; then
+  echo "$(date -Iseconds) FAIL: git add -A in $REPO" >> "$LOG"; exit 1
+fi
 date_str=$(date +%Y-%m-%d)
 count=$(git diff --cached --name-only | wc -l)
-git commit -m "auto: daily snapshot ${date_str} (${count} file(s))" >> "$LOG" 2>&1
-echo "$(date -Iseconds) commit OK ($count files)" >> "$LOG"
+if git commit -m "auto: daily snapshot ${date_str} (${count} file(s))" >> "$LOG" 2>&1; then
+  echo "$(date -Iseconds) commit OK ($count files)" >> "$LOG"
+else
+  echo "$(date -Iseconds) FAIL: git commit in $REPO (see the lines above)" >> "$LOG"; exit 1
+fi

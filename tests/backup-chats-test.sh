@@ -5,7 +5,8 @@
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 BC=${BC:-$HERE/../scripts/backup-chats.sh}
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d) && [[ -d "$T" && "$T" != / ]] || { echo "no temp dir (mktemp missing?) - refusing to run: every path below would land in /" >&2; exit 2; }
+trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/p/a" "$T/bin" "$T/b/2020-01-01"; echo '{}' > "$T/p/a/s.jsonl"; touch -d '2 years ago' "$T/b/2020-01-01"
 export HOME=$T BACKUP_DIR=$T/b CLAUDE_PROJECTS_DIRS=$T/p
 pass=0; fail=0
@@ -19,7 +20,10 @@ ok "2 ...and the 2-year-old copy is kept (no retention sweep)" '[[ -d $T/b/2020-
 stub 24
 o=$(PATH=$T/bin:$PATH bash "$BC" 2>&1); rc=$?
 ok "3 rsync rc 24 (file vanished) -> success line, rc 0" '[[ $rc == 0 && "$o" == *"backup:"* ]]' "rc=$rc $o"
-ok "4 ...and retention runs (default 365 days)" '[[ ! -d $T/b/2020-01-01 ]]'
+ok "4 default RETENTION_DAYS=0 -> nothing deleted, the 2-year-old copy stays" '[[ -d $T/b/2020-01-01 ]]'
+mkdir -p "$T/b/notes"; touch -d '2 years ago' "$T/b/notes"
+o=$(PATH=$T/bin:$PATH RETENTION_DAYS=365 bash "$BC" 2>&1); rc=$?
+ok "4b RETENTION_DAYS=365 (install --enable-cleanup) -> the old day-folder goes, a non-date folder stays" '[[ ! -d $T/b/2020-01-01 && -d $T/b/notes ]]'
 rm -f "$T/bin/rsync"
 if command -v rsync >/dev/null; then
   o=$(bash "$BC" 2>&1); rc=$?
