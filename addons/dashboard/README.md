@@ -29,5 +29,3 @@ python3 addons/dashboard/dashboard.py --port 9000 --stale-min 45
 entry: the page is started by hand and has no fixed port to probe.
 
 Test: `tests/dashboard-test.py` (temp status dir, random localhost port).
-
-What the live system's much bigger control panel does beyond this is described in `CONCEPT.md`.
