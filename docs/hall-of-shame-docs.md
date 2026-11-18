@@ -55,9 +55,8 @@ Before handing over: run every line through the test at the top. If you can't sa
 person does with it, cut it. This is not style; it is the difference between "the document works" and
 "slop you'd be ashamed of".
 
-**Librarian agent:** on a repeat by another agent, mechanize (a pre-publish gate or a hook, built by the
-mechanisms dev agent). Discipline will not hold it, because an agent does not hear itself: here the author
-twice said "clean" without having re-read the text.
+Discipline alone does not hold this: an agent does not hear its own text. Here the author twice said "clean"
+without having re-read it. Re-read the whole document against the test before saying it is ready.
 
 ## Deeper: pass a standard by example, not by specification
 
