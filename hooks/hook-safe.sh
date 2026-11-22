@@ -14,8 +14,21 @@
 #
 # Config: HOOK_TIMEOUT seconds (default 20)
 
+# Windows (Git Bash), or python3 is not a working Python: install.sh wrote lib/pyshim/env.sh - `python3` first in PATH
+# runs the real Python, plus UTF-8 and \n line ends. Not there on Linux/macOS. A SessionStart hook also hands that PATH
+# to the agent's own Bash commands (CLAUDE_ENV_FILE), so `python3 <script>` works for the agent too.
+pyenv="$(dirname "$0")/../lib/pyshim/env.sh"
+if [ -f "$pyenv" ]; then
+    . "$pyenv"
+    if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -qsF "$CCM_PYSHIM" "$CLAUDE_ENV_FILE"; then
+        printf 'export PATH="%s:$PATH"\n' "$CCM_PYSHIM" >> "$CLAUDE_ENV_FILE" 2>/dev/null
+    fi
+fi
+
 real="$1"; shift
 hook_name=$(basename "$real")   # for the log: after a shebang launch $real is the interpreter
+# "<dir>/hook-safe.sh" python "<dir>/x.py" (install.sh writes it so where python3 is not a working Python): name the script
+case "$hook_name" in *.py|*.sh) ;; *) for a in "$@"; do case "$a" in *.py|*.sh) hook_name=$(basename "$a"); break ;; esac; done ;; esac
 ERRLOG="$HOME/.claude/hook-errors.log"
 t="${HOOK_TIMEOUT:-20}"
 

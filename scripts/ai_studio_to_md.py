@@ -14,6 +14,8 @@ Roles: "user" is labelled with CCM_HUMAN_NAME, "model" as Gemini.
 rc: 0 · 2 the path does not exist.
 Test: tests/ai-studio-to-md-test.py
 """
+from __future__ import annotations  # "str | None" in annotations on Python 3.9
+
 import json
 import os
 import sys

@@ -137,3 +137,9 @@ Setup these come from: a Linux VM on a Windows Hyper-V host, driven over SSH (Po
 - **Why:** PowerShell variable names are case-insensitive; the loop overwrote `$R` with `$r`.
 - **Right way:** different words, not different case: `$Clone`, `$Br`. Check: `$R='a'; $r='b'; $R` prints `b`.
 - **Seen:** once.
+
+### Git Bash: `python3` is the Microsoft Store stub
+- **Symptom:** `install.sh` stops with exit 127 at its first `python3`, or a hook is silently off: `python3` prints "Python was not found; run without arguments to install from the Microsoft Store" and exits 9009, although Python is installed.
+- **Why:** Windows puts app-execution aliases `python.exe` / `python3.exe` in `...\WindowsApps`; the python.org installer gives `python` and the `py` launcher, never `python3`. `command -v python3` finds the stub.
+- **Right way:** test a candidate by running it (`X -c 'import sys; sys.exit(sys.version_info < (3, 9))'`), not by `command -v`; try `python3`, `python`, `py -3` in that order. A `#!/usr/bin/env python3` script needs a `python3` earlier in PATH that runs the real one (`lib/pyshim/` here).
+- **Seen:** once (a test install in Git Bash, 2026-11).

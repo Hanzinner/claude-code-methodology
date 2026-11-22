@@ -53,8 +53,9 @@ branch=$(git -C "$WT" rev-parse --abbrev-ref HEAD)
 [[ "$branch" != HEAD && "$branch" != master ]] || { echo "$WT is not on the agent's branch ($branch)"; exit 2; }
 
 # ── one delivery per project at a time. Redirect in braces: a bare `exec 8>... 2>/dev/null` silenced the whole script's stderr
-{ exec 8>"/var/lock/wt_deliver-$PROJ.lock"; } 2>/dev/null || exec 8>"${TMPDIR:-/tmp}/wt_deliver-$PROJ.lock"
-flock -w 120 8 || { echo "another delivery of $DIR has been running for over 2 min - try later"; exit 9; }
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_lock.sh"   # flock, or a mkdir lock where there is none (macOS, Git Bash)
+lk="/var/lock/wt_deliver-$PROJ.lock"; { : >>"$lk"; } 2>/dev/null || lk="${TMPDIR:-/tmp}/wt_deliver-$PROJ.lock"
+ccm_lock 8 "$lk" 120 60 || { echo "another delivery of $DIR has been running for over 2 min - try later"; exit 9; }
 
 # the main tree must stand on master - otherwise the ff would move somebody else's branch and we would say "delivered to master"
 head=$(git -C "$REPO" symbolic-ref --short HEAD 2>/dev/null) || head="?"
@@ -67,7 +68,7 @@ dirty=$(git -c core.quotepath=off -C "$WT" status --porcelain) || refuse 3 "git 
 run_in() {   # run_in <dir> <command> -> rc; output in $out_file
     ( cd "$1" && bash -c "$2" ) > "$out_file" 2>&1
 }
-out_file=$(mktemp); trap 'rm -f "$out_file"' EXIT
+out_file=$(mktemp); trap 'rm -f "$out_file"; ccm_unlock' EXIT
 
 owners_bad() {   # owners_bad <sha> -> stdout: someone else's/nobody's files; rc != 0 - OWNERS could not be parsed
     # --no-renames: renaming someone else's file into your folder would otherwise show only the NEW name; -z: non-ASCII names without quotes

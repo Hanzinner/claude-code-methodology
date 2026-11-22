@@ -39,7 +39,7 @@ Config: CODE_PITFALLS_DIR (default <install>/code-pitfalls), CCM_CODING_STANDARD
 CCM_DECISIONS_DIR (default <workspace>/decisions), CPH_ISSUE_LOG, CPH_TASK_STATE (tests). Format of the pitfall
 files: see code-pitfalls/README.md.
 """
-import fnmatch, glob, json, os, re, sys, time, zlib
+import fnmatch, glob, json, os, re, sys, tempfile, time, zlib
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 INSTALL = os.path.dirname(HERE)
@@ -159,6 +159,9 @@ def headings(topic):
         return []
 
 
+TMP = "/tmp" if os.name != "nt" else tempfile.gettempdir()   # Windows Python: /tmp = C:\tmp, absent
+
+
 def once(mark):
     """True the first time this marker is taken (O_EXCL: parallel tool calls can't both pass)."""
     try:
@@ -176,7 +179,7 @@ GIT_RESET_SOFT = re.compile(r"\bgit\b[^;&|\n]*\breset\s+(?:-q\s+)?--soft\s+(?:-q
 
 def git_reset_hint(cmd, sid, hour):
     m = GIT_RESET_SOFT.search(cmd)
-    if not m or not once(f"/tmp/cph-{sid}-gitreset-{hour}"):
+    if not m or not once(f"{TMP}/cph-{sid}-gitreset-{hour}"):
         return ""
     b = m.group(1)
     return (f"`reset --soft {b}`: if {b} moved after you branched, HEAD becomes the new {b} while your files stay from the "
@@ -191,7 +194,7 @@ def live_script_hint(tool, ti, sid, hour):
     fp = ti.get("file_path", "") or ""
     if not fp.startswith(LIVE_DIRS) or fp.endswith(".new") or not os.path.isfile(fp):
         return ""
-    if not once(f"/tmp/cph-{sid}-live-{zlib.crc32(fp.encode()):08x}-{hour}"):   # crc32, not hash(): stable across runs
+    if not once(f"{TMP}/cph-{sid}-live-{zlib.crc32(fp.encode()):08x}-{hour}"):   # crc32, not hash(): stable across runs
         return ""
     return (f"{os.path.basename(fp)} is a LIVE script (cron or a hook may be running it right now): an in-place edit "
             f"breaks bash mid-run. Write {fp}.new → test it → `swap-live {fp}.new` (syntax check, permissions, "
@@ -220,7 +223,7 @@ def decisions_line(fp, sid, hour):
     arch = os.path.join(pre, "ARCHITECTURE.md") if proj else ""
     if not hits and not (arch and os.path.isfile(arch)):
         return ""
-    if not once(f"/tmp/cph-{sid}-adr-{zlib.crc32((proj or base).encode()):08x}-{hour}"):
+    if not once(f"{TMP}/cph-{sid}-adr-{zlib.crc32((proj or base).encode()):08x}-{hour}"):
         return ""
     out = "There is a decision about this — check it before changing:\n" + "".join(f"   {DECISIONS}/{h}\n" for h in hits[:4])
     if arch and os.path.isfile(arch):
@@ -315,7 +318,7 @@ def main():
     blocks = []
     for tp in topics:
         hs = headings(tp)
-        if not hs or not once(f"/tmp/cph-{sid}-{tp}-{hour}"):
+        if not hs or not once(f"{TMP}/cph-{sid}-{tp}-{hour}"):
             continue
         blocks.append(os.path.join(ROOT, f"{tp}.md") + " — " + " · ".join(hs))
         if tp == "web" and os.path.isfile(WEB_PLAYBOOK):

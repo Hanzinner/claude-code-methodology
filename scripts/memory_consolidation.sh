@@ -68,8 +68,8 @@ Report format (markdown, short; the keeper reads it in the morning):
 Every item needs evidence (file:line or a quote). No evidence - do not write it."
 
 # one run at a time: a manual --force and cron would write the same $out.tmp
-exec 8>"$(dirname "$STAMP")/run.lock"
-flock -n 8 || { log "another run is in progress - skipped"; exit 0; }
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_lock.sh"   # flock, or a mkdir lock where there is none (macOS, Git Bash)
+ccm_lock 8 "$(dirname "$STAMP")/run.lock" 0 60 || { log "another run is in progress - skipped"; exit 0; }
 log "start (model $MODEL, force=$force${why:+, $why})"
 {
     echo "# Memory consolidation - $today - model $MODEL"

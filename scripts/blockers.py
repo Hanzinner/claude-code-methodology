@@ -36,11 +36,15 @@ Config: CCM_WORKSPACE, CCM_AGENTS_DIR, CCM_PROJECTS_GLOB (NEW, default "Project-
 State: ~/.claude/blockers/ (blockers.log, approved-checks.json, open.json, cleared.log).
 Env overrides (tests): BLOCKERS_REPO, BLOCKERS_POST, BLOCKERS_LOG, BLOCKERS_APPROVED, BLOCKERS_SNAP, BLOCKERS_STATE.
 """
-import datetime as dt, fcntl, glob, hashlib, json, os, re, subprocess, sys, time
+import datetime as dt, glob, hashlib, json, os, re, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+try:
+    import fcntl
+except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
+    import ccm_lock as fcntl
 
 STATE = os.environ.get("BLOCKERS_STATE", os.path.join(os.path.expanduser("~"), ".claude", "blockers"))
 REPO = os.environ.get("BLOCKERS_REPO", conf("CCM_WORKSPACE"))
@@ -211,7 +215,7 @@ def post(agent, text):
         log(f"inbox_post not found at {POST}: message to {agent} not sent")
         return
     try:
-        subprocess.run([POST, agent], input=text, text=True, capture_output=True, timeout=30)
+        subprocess.run((['bash'] if os.name == 'nt' else []) + [POST, agent], input=text, text=True, capture_output=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
         log(f"message to {agent} failed: {e}")
 
@@ -249,6 +253,8 @@ def load_approved():
     empty = {"checks": {}, "told": {}}
     try:
         st = os.stat(APPROVED)
+        if not hasattr(os, "geteuid"):   # Windows: no owner/mode to check - closed, as for a file open to others
+            log(f"{APPROVED}: owner and mode cannot be checked on this system - treating every command as unapproved"); return empty
         if st.st_uid != os.geteuid() or st.st_mode & 0o077:
             log(f"{APPROVED}: not owner-only 0600 - treating every command as unapproved"); return empty
         d = json.load(open(APPROVED, encoding="utf-8"))

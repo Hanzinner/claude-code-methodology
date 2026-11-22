@@ -17,6 +17,8 @@
 # Idempotent: pdf-extract.sh / html-extract.sh skip if .txt is newer than source.
 
 set -euo pipefail
+# Windows / no working python3: the same python3 as under hook-safe.sh (this hook runs without it - see settings.json)
+if [ -f "$(dirname "$0")/../lib/pyshim/env.sh" ]; then . "$(dirname "$0")/../lib/pyshim/env.sh"; fi
 
 CLAUDE_DIR="${CLAUDE_METHODOLOGY_DIR:-$HOME/.claude}"
 LARGE_PDF_MB=10

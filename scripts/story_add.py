@@ -23,7 +23,6 @@ rc: 0 written · 1 usage/write error · 2 --from-human: no such message · 3 no 
 Config: CCM_WORKSPACE, CCM_PROJECTS_GLOB, CCM_HUMAN_NAME, CCM_TIMEZONE (empty = system). Env overrides (tests):
 STORY_ADD_REPO (workspace), CLAUDE_PROJECTS_DIR (transcripts), CLAUDE_CODE_SESSION_ID."""
 import datetime
-import fcntl
 import os
 import re
 import sys
@@ -31,6 +30,10 @@ import sys
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+try:
+    import fcntl
+except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
+    import ccm_lock as fcntl
 import human_quote  # noqa: E402
 
 REPO = os.environ.get("STORY_ADD_REPO") or conf("CCM_WORKSPACE")

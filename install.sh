@@ -119,11 +119,51 @@ do_or_show() {  # do_or_show <cmd> <arg>... — arguments are passed as-is, neve
   fi
 }
 
+# ---- which Python -------------------------------------------------------------
+# On Windows (Git Bash) `python3` is often the Microsoft Store stub: it prints "Python was not found" and exits 9009.
+# The real interpreter there is `python` or the launcher `py -3`. A candidate counts only if it runs and is 3.9 or
+# newer. The one chosen runs every python call below and goes into the hook commands of settings.json. When it is not
+# python3, <install dir>/lib/pyshim/ gets a `python3` that runs it, and hook-safe.sh puts that folder first in PATH,
+# so `python3` inside the hooks and scripts works too. On Linux and macOS python3 is chosen and nothing changes.
+ON_WINDOWS=0
+case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) ON_WINDOWS=1 ;; esac
+[[ -n "${MSYSTEM:-}" ]] && ON_WINDOWS=1
+py_works() { "$@" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' </dev/null >/dev/null 2>&1; }
+PY=()
+for cand in python3 python "py -3"; do
+  read -ra words <<<"$cand"
+  command -v "${words[0]}" >/dev/null 2>&1 || continue
+  if py_works "${words[@]}"; then PY=("${words[@]}"); break; fi
+done
+if [[ ${#PY[@]} -eq 0 ]]; then
+  for cand in python3 python; do
+    p=$(command -v "$cand" 2>/dev/null) || continue
+    v=$("$cand" -c 'import sys; print("%d.%d" % sys.version_info[:2])' </dev/null 2>&1 | tr -d '\r') || true
+    if [[ "$p" == *WindowsApps* || "$v" == *"Microsoft Store"* ]]; then warn "$cand ($p) is the Microsoft Store stub, not Python"
+    elif [[ "$v" =~ ^[0-9]+\.[0-9]+$ ]]; then warn "$cand is Python $v - 3.9 or newer is needed"; fi
+  done
+  [[ $ON_WINDOWS -eq 1 ]] && die "Python 3.9+ is required. Windows: winget install Python.Python.3.12 (or python.org, tick \"Add python.exe to PATH\"), then open a new Git Bash and re-run"
+  die "python3 (3.9 or newer) is required (hooks and the installer use it)"
+fi
+py3() { "${PY[@]}" "$@"; }
+PY_CMD=$(printf '%q ' "${PY[@]}"); PY_CMD=${PY_CMD% }   # as a shell command line: "python3", "python", "py -3"
+[[ "$PY_CMD" == python3 ]] || ok "Python: $PY_CMD ($(py3 -c 'import sys; print(sys.version.split()[0])' | tr -d '\r')) - python3 here is not a working Python"
+if [[ $ON_WINDOWS -eq 1 ]]; then
+  # Windows Python reads paths natively: /c/Users/... would be C:\c\Users\... to it. C:/Users/... works for both
+  # Git Bash and Python, so every path this installer writes (methodology.conf, settings.json) is built from it.
+  HOME=$(cygpath -m "$HOME"); export HOME
+  REPO_DIR=$(cygpath -m "$REPO_DIR")
+  export PYTHONUTF8=1   # print() of "—" or "→" into a pipe: the Windows code page cannot encode it
+  # Python on Windows ends printed lines with \r\n; lib/pyshim/sitecustomize.py makes it \n, so $(python ...) gives
+  # "x", not "x\r" (the \r would end up inside every path read from methodology.conf)
+  export PYTHONPATH="$(cygpath -m "$REPO_DIR/lib/pyshim")${PYTHONPATH:+;$PYTHONPATH}"
+fi
+
 # ---- --prune-cron: our marked blocks whose install dir is gone (test installs in /tmp leave them behind) ----
 if [[ $PRUNE_CRON -eq 1 ]]; then
   command -v crontab >/dev/null 2>&1 || die "no crontab on this machine"
   cur=$(crontab -l 2>/dev/null)
-  new=$(printf '%s\n' "$cur" | python3 -c '
+  new=$(printf '%s\n' "$cur" | py3 -c '
 import os, re, sys
 out, skip, dropped = [], False, []
 for line in sys.stdin.read().split("\n"):
@@ -141,10 +181,10 @@ print("\n".join(out).rstrip("\n"))')
 fi
 
 # ---- system commands the mechanisms call ----------------------------------
-# python3 is required; flock, timeout, setsid, crontab are not on a stock macOS. Without them nothing fails loudly
-# (hooks under hook-safe.sh fail open, locks "time out"), so name each one and what it stops, then go on (warn, not die).
-command -v python3 >/dev/null 2>&1 || die "python3 is required (hooks and the installer use it)"
-DEPS_MISSING=$(python3 "$REPO_DIR/lib/deps_check.py" 2>&1) || DEPS_MISSING="deps_check.py failed: $DEPS_MISSING"
+# flock, timeout, setsid, crontab are not on a stock macOS; Git Bash on Windows lacks flock, setsid and crontab. Without
+# them nothing fails loudly (hooks under hook-safe.sh fail open, jobs are not scheduled), so name each one and what it
+# stops, then go on (warn, not die).
+DEPS_MISSING=$(py3 "$REPO_DIR/lib/deps_check.py" 2>&1) || DEPS_MISSING="deps_check.py failed: $DEPS_MISSING"
 if [[ -n "$DEPS_MISSING" ]]; then
   warn "Some system commands are missing — the install goes on, but these parts will not work until you install them:"
   printf '%s\n' "$DEPS_MISSING" | sed 's/^/  /' >&2
@@ -184,6 +224,7 @@ elif [[ "$SCOPE" == "project" ]]; then
   fi
   [[ -d "$PROJECT_DIR" ]] || die "project dir does not exist: $PROJECT_DIR"
   PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd)   # absolute: hooks run with any cwd
+  [[ $ON_WINDOWS -eq 1 ]] && PROJECT_DIR=$(cygpath -m "$PROJECT_DIR")   # C:/...: Windows Python reads this path too
   TARGET="$PROJECT_DIR/.claude"
 fi
 
@@ -205,7 +246,7 @@ else
   if [[ "$SCOPE" == "project" ]]; then
     def_ws="$HOME/claude-workspace/$(basename "$PROJECT_DIR")"
     if [[ -e "$def_ws" && "$(cat "$def_ws/.ccm-project" 2>/dev/null)" != "$PROJECT_DIR" ]]; then
-      def_ws="$def_ws-$(python3 -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:8])' "$PROJECT_DIR")"
+      def_ws="$def_ws-$(py3 -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:8])' "$PROJECT_DIR")"
     fi
   else def_ws="$HOME/claude-projects"; fi
   def_tz=$(cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || true)
@@ -216,15 +257,16 @@ else
   case "$C_WS" in
     "~") C_WS="$HOME" ;;
     "~/"*) C_WS="$HOME/${C_WS#\~/}" ;;
-    /*) ;;
+    /*|[A-Za-z]:[/\\]*) ;;   # C:/... or C:\... = absolute on Windows
     *) warn "workspace \"$C_WS\" is relative — using $HOME/$C_WS"; C_WS="$HOME/$C_WS" ;;
   esac
+  [[ $ON_WINDOWS -eq 1 ]] && C_WS=$(cygpath -m "$C_WS")   # /c/x or C:\x -> C:/x: Windows Python reads this path
   C_TRASH="$HOME/.claude-trash"
   C_SECRETS="$HOME/.config/claude-secrets"
   if [[ $DRY_RUN -eq 1 ]]; then
     echo "  DRY: would write $CONF (name=$C_NAME, workspace=$C_WS, timezone=$C_TZ)"
   else
-    python3 - "$REPO_DIR/methodology.conf.template" "$CONF" "$C_NAME" "$C_WS" "$C_TRASH" "$C_SECRETS" "$C_TZ" <<'PYCONF'
+    py3 - "$REPO_DIR/methodology.conf.template" "$CONF" "$C_NAME" "$C_WS" "$C_TRASH" "$C_SECRETS" "$C_TZ" <<'PYCONF'
 import os, shlex, sys
 src, dst, name, ws, trash, secrets, tz = sys.argv[1:]
 hb = os.path.join(os.path.expanduser("~"), ".claude", "supervisor", "heartbeat")
@@ -258,7 +300,7 @@ say "Copying CLAUDE.md (operating core)…"
 # CLAUDE.md is meant to be edited (the personal-taste sections). Overwrite it only if it is
 # exactly what we installed last time; otherwise keep the user's file and put ours next to it.
 STAMP_DIR="$TARGET/.methodology-installed"
-sha_of() { python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1"; }
+sha_of() { py3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1"; }
 # CLAUDE.md: never overwrite a file the user wrote or edited. Our rules then go next to it (CLAUDE.md.new) together with
 # CLAUDE.md.changes = what changed in OUR rules since the version this user last merged (.methodology-installed/
 # CLAUDE.md.base; no base = the whole file). The installing agent merges by meaning: keep the user's notes, add ours,
@@ -308,10 +350,41 @@ for f in "$REPO_DIR"/scripts/*; do
 done
 
 say "Copying shared library, tools and tests…"
-for f in "$REPO_DIR"/lib/*.py; do
+for f in "$REPO_DIR"/lib/*.py "$REPO_DIR"/lib/*.sh; do
   [[ -f "$f" ]] || continue
   do_or_show cp "$f" "$TARGET/lib/$(basename "$f")"
 done
+# Windows, or python3 is not a working Python: lib/pyshim/ (see "which Python" at the top). env.sh is sourced by
+# hook-safe.sh before every hook; python3 there runs the chosen Python; sitecustomize.py (Windows only) gives \n line ends.
+SHIM="$TARGET/lib/pyshim"
+if [[ $ON_WINDOWS -eq 1 || "$PY_CMD" != python3 ]]; then
+  if [[ $DRY_RUN -eq 1 ]]; then echo "  DRY: would write $SHIM/ (python3 -> $PY_CMD, env.sh)"
+  else
+    mkdir -p "$SHIM"
+    shim_u="$SHIM"; [[ $ON_WINDOWS -eq 1 ]] && shim_u=$(cygpath -u "$SHIM")   # a PATH entry: C:/ would split at the colon
+    { echo "# Written by install.sh: sourced by hooks/hook-safe.sh before every hook. Re-run install.sh to change it."
+      printf 'CCM_PYSHIM=%q\n' "$shim_u"
+      echo 'case ":$PATH:" in *":$CCM_PYSHIM:"*) ;; *) PATH="$CCM_PYSHIM:$PATH" ;; esac'
+      if [[ $ON_WINDOWS -eq 1 ]]; then
+        cp "$REPO_DIR/lib/pyshim/sitecustomize.py" "$SHIM/sitecustomize.py"
+        printf 'CCM_PYSHIM_W=%q\n' "$(cygpath -m "$SHIM")"
+        echo 'case ";${PYTHONPATH:-};" in *";$CCM_PYSHIM_W;"*) ;; *) PYTHONPATH="$CCM_PYSHIM_W${PYTHONPATH:+;$PYTHONPATH}" ;; esac'
+        echo 'PYTHONUTF8=1; export PYTHONPATH PYTHONUTF8'
+      fi
+      echo 'export PATH CCM_PYSHIM'; } > "$SHIM/env.sh"
+    # python3 = the chosen Python, looked up in PATH without this folder (so python3 as the choice is not this file);
+    # PATH itself stays as it is, so a bash script the Python starts still finds this python3.
+    { echo '#!/usr/bin/env bash'
+      echo "# Written by install.sh: python3 on this machine runs $PY_CMD. Re-run install.sh to change it."
+      echo '. "$(dirname "$0")/env.sh"'
+      echo 'p=":$PATH:"; p=${p//":$CCM_PYSHIM:"/:}'
+      echo "real=\$(PATH=\${p:1:\${#p}-2} command -v ${PY[0]}) || { echo \"python3 (lib/pyshim): ${PY[0]} is not in PATH\" >&2; exit 127; }"
+      echo "exec \"\$real\"${PY[1]:+ ${PY[*]:1}} \"\$@\""; } > "$SHIM/python3"
+    chmod +x "$SHIM/python3"
+    . "$SHIM/env.sh"   # from here on, what this installer starts (supervisor, checks, add-on setup) finds it too
+    ok "lib/pyshim: python3 in hooks and scripts runs $PY_CMD"
+  fi
+fi
 for f in "$REPO_DIR"/bin/*; do
   [[ -f "$f" ]] || continue
   name=$(basename "$f")
@@ -340,7 +413,7 @@ for f in "$REPO_DIR"/config/*; do
   do_or_show cp "$f" "$TARGET/config/$(basename "$f")"
 done
 if [[ $DRY_RUN -eq 0 && -f "$TARGET/scripts/supervisor.py" ]]; then
-  python3 "$TARGET/scripts/supervisor.py" --init "$TARGET/config/supervisor-checks.template.json" 2>&1 | tail -1 || warn "supervisor --init failed"
+  py3 "$TARGET/scripts/supervisor.py" --init "$TARGET/config/supervisor-checks.template.json" 2>&1 | tail -1 || warn "supervisor --init failed"
 fi
 
 say "Copying MCP servers…"
@@ -353,7 +426,7 @@ done
 # the environment). Keys go to <secrets>/search.env (0600), never into the workspace. With a key and the claude CLI,
 # the server is registered right away — a key without the registration would leave the agent with no search at all.
 if [[ -f "$REPO_DIR/mcp/search_mcp.py" && $DRY_RUN -eq 0 ]]; then
-  SECRETS=$(python3 "$TARGET/lib/ccm_conf.py" CCM_SECRETS_DIR); SENV="$SECRETS/search.env"
+  SECRETS=$(py3 "$TARGET/lib/ccm_conf.py" CCM_SECRETS_DIR); SENV="$SECRETS/search.env"
   t_key="${TAVILY_API_KEY:-}"; e_key="${EXA_API_KEY:-}"
   if [[ $YES -eq 0 && ! -s "$SENV" ]]; then
     echo; say "Web search for agents (optional; free tiers exist): paste keys, Enter to skip"
@@ -370,10 +443,10 @@ if [[ -f "$REPO_DIR/mcp/search_mcp.py" && $DRY_RUN -eq 0 ]]; then
   if [[ -s "$SENV" ]]; then
     if command -v claude >/dev/null 2>&1; then
       if claude mcp get search >/dev/null 2>&1; then ok "search MCP server already registered"
-      elif claude mcp add --scope user search -- python3 "$TARGET/mcp/search_mcp.py" >/dev/null 2>&1; then ok "search MCP server registered (claude mcp add --scope user search)"
-      else warn "could not register the search server: claude mcp add --scope user search -- python3 \"$TARGET/mcp/search_mcp.py\""; fi
+      elif claude mcp add --scope user search -- "${PY[@]}" "$TARGET/mcp/search_mcp.py" >/dev/null 2>&1; then ok "search MCP server registered (claude mcp add --scope user search)"
+      else warn "could not register the search server: claude mcp add --scope user search -- $PY_CMD \"$TARGET/mcp/search_mcp.py\""; fi
     else
-      warn "keys saved; register the search server once the claude CLI is installed: claude mcp add --scope user search -- python3 \"$TARGET/mcp/search_mcp.py\""
+      warn "keys saved; register the search server once the claude CLI is installed: claude mcp add --scope user search -- $PY_CMD \"$TARGET/mcp/search_mcp.py\""
     fi
   fi
 fi
@@ -411,7 +484,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
   echo "  DRY: would copy missing files of swarm-template/ into the workspace and <agents dir>/_example-agent/"
   echo "  DRY: would put CODING-STANDARD.md, PROJECT-WORK.md, DEV-METHODOLOGY.md, PO-INTERFACE.md, WEB-PLAYBOOK.md, DOC-SLOP.md into the workspace (yours kept, ours as .new)"
 else
-  WS=$(python3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE); AG=$(python3 "$TARGET/lib/ccm_conf.py" CCM_AGENTS_DIR)
+  WS=$(py3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE); AG=$(py3 "$TARGET/lib/ccm_conf.py" CCM_AGENTS_DIR)
   added=0
   while IFS= read -r -d '' f; do
     rel=${f#"$REPO_DIR/swarm-template/"}
@@ -425,14 +498,14 @@ else
   # to the workspace; an edited one is kept and the new version goes next to it as .new (+ .changes), like CLAUDE.md
   while IFS= read -r l; do
     case "$l" in "  "*"is yours"*) warn "${l#  }" ;; "  "*) say "${l#  }" ;; *) ok "$l" ;; esac
-  done < <(python3 "$REPO_DIR/lib/ws_docs.py" install "$REPO_DIR" "$WS" "$STAMP_DIR" || echo "  ws_docs.py failed - workspace documents not updated")
+  done < <(py3 "$REPO_DIR/lib/ws_docs.py" install "$REPO_DIR" "$WS" "$STAMP_DIR" || echo "  ws_docs.py failed - workspace documents not updated")
 fi
 
 # Memory = the folder Claude Code's own auto memory loads MEMORY.md from and writes to. Without autoMemoryDirectory in
 # settings it uses ~/.claude/projects/<cwd>/memory/, and our memory-template, memory-write-gate and curation would sit on
 # a folder Claude never reads. So: a folder the person already set wins; otherwise <install dir>/memory, written into
 # settings.json below. Every mechanism finds it through lib/ccm_conf.py (CCM_MEMORY_DIR).
-MEMDIR=$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import ccm_conf; print(ccm_conf.memory_dir(sys.argv[2]))' "$REPO_DIR/lib" "$TARGET")
+MEMDIR=$(py3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import ccm_conf; print(ccm_conf.memory_dir(sys.argv[2]))' "$REPO_DIR/lib" "$TARGET")
 MEM_SET=0; [[ "$MEMDIR" != "$TARGET/memory" ]] && MEM_SET=1
 say "Copying memory template into $MEMDIR…"
 do_or_show mkdir -p "$MEMDIR"
@@ -464,18 +537,30 @@ if [[ $DRY_RUN -eq 0 ]]; then
   # so the workspace goes into permissions.additionalDirectories (the agents write their journal and inboxes there)
   EXTRA_DIR=""
   if [[ "$SCOPE" == "project" ]]; then
-    EXTRA_DIR=$(python3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
+    EXTRA_DIR=$(py3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
     case "$EXTRA_DIR/" in "$PROJECT_DIR/"*) EXTRA_DIR="" ;; esac
   fi
-  python3 - "$REPO_DIR/settings.template.json" "$SETTINGS" "$TARGET" "$MEMDIR" "$MEM_SET" "$EXTRA_DIR" <<'PYSUB'
-import json, sys
-src, dst, target, memdir, mem_set, extra_dir = sys.argv[1:]
+  py3 - "$REPO_DIR/settings.template.json" "$SETTINGS" "$TARGET" "$MEMDIR" "$MEM_SET" "$EXTRA_DIR" "$PY_CMD" "$ON_WINDOWS" <<'PYSUB'
+import json, re, sys
+src, dst, target, memdir, mem_set, extra_dir, py_cmd, on_windows = sys.argv[1:]
 # in commands the path sits inside shell double quotes → escape \ " $ ` for the shell first
 sh = target.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
 text = open(src).read()
 text = text.replace("__CLAUDE_DIR_RAW__", json.dumps(target)[1:-1])
 text = text.replace("__CLAUDE_DIR__", json.dumps(sh)[1:-1])
 ours = json.loads(text)  # fail loudly if the template didn't render to valid JSON
+# python3 is not a working Python here (Windows: the Microsoft Store stub): a hook that is a .py file runs through the
+# Python install.sh chose - "<dir>/hooks/hook-safe.sh" python "<dir>/hooks/x.py". On Linux and macOS (python3) the
+# commands stay as they are and the .py runs by its #! line.
+if py_cmd != "python3":
+    for groups in ours["hooks"].values():
+        for g in groups:
+            for h in g.get("hooks", []):
+                m = re.match(r'(\s*(?:"[^"]*/hook-safe\.sh"\s+)?)("[^"]*\.py"(?:\s.*)?)$', h.get("command", ""))
+                if m:
+                    h["command"] = m.group(1) + py_cmd + " " + m.group(2)
+if on_windows == "1":   # print() of "—" or "→" into a pipe: the Windows code page cannot encode it
+    ours.setdefault("env", {})["PYTHONUTF8"] = "1"
 try:
     have = json.load(open(dst))
     if not isinstance(have, dict):
@@ -546,28 +631,30 @@ fi
 CRON_BEGIN="# >>> claude-code-methodology ($TARGET)"
 CRON_END="# <<< claude-code-methodology ($TARGET)"
 q() { printf '%q' "$1"; }
+# quota every minute, one run at a time: flock where there is one (none on macOS/Windows: the run is short, timeout 50 caps it)
+QLOCK=""; command -v flock >/dev/null 2>&1 && QLOCK="flock -n $(q "$HOME/.claude/quota.lock")"
 # Nothing that DELETES is scheduled unless asked: trash cleanup needs --enable-cleanup or a "y" here.
 if [[ $CLEANUP -eq 0 && $YES -eq 0 ]]; then
   yn=$(ask "Delete trash items (older than CCM_TRASH_DAYS) and chat-backup copies (older than 365 days) automatically, daily? (y/N)" "N")
   [[ "$yn" =~ ^[Yy]$ ]] && CLEANUP=1
 fi
 CRON_LINES="$CRON_BEGIN
-*/10 * * * * python3 $(q "$TARGET/hooks/trash-guard.py") --measure >/dev/null 2>&1
-55 * * * * python3 $(q "$TARGET/hooks/abbr-guard.py") --build-vocab >/dev/null 2>&1
-* * * * * python3 $(q "$TARGET/scripts/remind.py") --fire >/dev/null 2>&1
-*/15 * * * * python3 $(q "$TARGET/scripts/blockers.py") run >/dev/null 2>&1
-*/15 * * * * python3 $(q "$TARGET/scripts/supervisor.py") >/dev/null 2>&1
-* * * * * flock -n $(q "$HOME/.claude/quota.lock") timeout 50 python3 $(q "$TARGET/scripts/quota_status.py") --json --out $(q "$HOME/.claude/quota-status.json") 2>>$(q "$HOME/.claude/quota.err")
-7 * * * * python3 $(q "$TARGET/scripts/quota_log_line.py") >/dev/null 2>&1
-15 * * * * python3 $(q "$TARGET/scripts/token_daily_report.py") --after 8 >/dev/null 2>&1
+*/10 * * * * $PY_CMD $(q "$TARGET/hooks/trash-guard.py") --measure >/dev/null 2>&1
+55 * * * * $PY_CMD $(q "$TARGET/hooks/abbr-guard.py") --build-vocab >/dev/null 2>&1
+* * * * * $PY_CMD $(q "$TARGET/scripts/remind.py") --fire >/dev/null 2>&1
+*/15 * * * * $PY_CMD $(q "$TARGET/scripts/blockers.py") run >/dev/null 2>&1
+*/15 * * * * $PY_CMD $(q "$TARGET/scripts/supervisor.py") >/dev/null 2>&1
+* * * * * $QLOCK timeout 50 $PY_CMD $(q "$TARGET/scripts/quota_status.py") --json --out $(q "$HOME/.claude/quota-status.json") 2>>$(q "$HOME/.claude/quota.err")
+7 * * * * $PY_CMD $(q "$TARGET/scripts/quota_log_line.py") >/dev/null 2>&1
+15 * * * * $PY_CMD $(q "$TARGET/scripts/token_daily_report.py") --after 8 >/dev/null 2>&1
 */10 * * * * $(q "$TARGET/scripts/mech_snapshot.sh") >/dev/null 2>&1
-35 * * * * python3 $(q "$TARGET/scripts/stats_collect.py") >/dev/null 2>&1
-40 * * * * python3 $(q "$TARGET/scripts/stats_adoption.py") >/dev/null 2>&1
-45 * * * * python3 $(q "$TARGET/scripts/stats_orphan_docs.py") >/dev/null 2>&1
-*/15 * * * * python3 $(q "$TARGET/scripts/stats_projects.py") >/dev/null 2>&1
+35 * * * * $PY_CMD $(q "$TARGET/scripts/stats_collect.py") >/dev/null 2>&1
+40 * * * * $PY_CMD $(q "$TARGET/scripts/stats_adoption.py") >/dev/null 2>&1
+45 * * * * $PY_CMD $(q "$TARGET/scripts/stats_orphan_docs.py") >/dev/null 2>&1
+*/15 * * * * $PY_CMD $(q "$TARGET/scripts/stats_projects.py") >/dev/null 2>&1
 35 12 * * 0 mkdir -p $(q "$HOME/.claude/logs") && $(q "$TARGET/scripts/mistakes_review.sh") >> $(q "$HOME/.claude/logs/mistakes-review.log") 2>&1
 @reboot sleep 300 && $(q "$TARGET/scripts/mistakes_review_catchup.sh") >/dev/null 2>&1
-52 12 * * * python3 $(q "$TARGET/scripts/library_check.py") >/dev/null 2>&1
+52 12 * * * $PY_CMD $(q "$TARGET/scripts/library_check.py") >/dev/null 2>&1
 50 12 * * * $(q "$TARGET/scripts/swarm_tools_check.sh") >/dev/null 2>&1
 @reboot sleep 120 && $(q "$TARGET/scripts/git_empty_objects_check.sh") >/dev/null 2>&1
 25 5 * * * $(q "$TARGET/scripts/public_gate_selftest.sh") >/dev/null 2>&1
@@ -576,22 +663,22 @@ CRON_LINES="$CRON_BEGIN
 # the chat backup is a COPY (rsync with hard links): it deletes nothing unless cleanup is on, then day-folders > 365 days
 [[ $WITH_CONSOLIDATION -eq 1 ]] && CRON_LINES="$CRON_LINES
 20 * * * * $(q "$TARGET/scripts/memory_consolidation.sh") >/dev/null 2>&1
-20 * * * * python3 $(q "$TARGET/scripts/stats_corrections.py") --days 3 --after 6 >/dev/null 2>&1"
+20 * * * * $PY_CMD $(q "$TARGET/scripts/stats_corrections.py") --days 3 --after 6 >/dev/null 2>&1"
 if [[ $WITH_GIT_SNAPSHOT -eq 1 ]]; then
-  WS_SNAP=$(python3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
+  WS_SNAP=$(py3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
   git -C "$WS_SNAP" rev-parse --git-dir >/dev/null 2>&1 || warn "--with-git-snapshot: $WS_SNAP is not a git repo yet — the snapshot will log FAIL until you run git init there"
   CRON_LINES="$CRON_LINES
 0 4 * * * mkdir -p $(q "$HOME/.claude/logs") && LOG=$(q "$HOME/.claude/logs/git-snapshot.log") $(q "$TARGET/scripts/daily-git-snapshot.sh") $(q "$WS_SNAP") >/dev/null 2>&1"
 fi
 # the reader add-on is started after a reboot from here (no root, no service manager needed); install.sh starts it now too
 [[ $WITH_READER -eq 1 ]] && CRON_LINES="$CRON_LINES
-@reboot sleep 30 && mkdir -p $(q "$HOME/.claude/logs") && python3 $(q "$TARGET/addons/reader/reader-server.py") >> $(q "$HOME/.claude/logs/reader.log") 2>&1"
+@reboot sleep 30 && mkdir -p $(q "$HOME/.claude/logs") && $PY_CMD $(q "$TARGET/addons/reader/reader-server.py") >> $(q "$HOME/.claude/logs/reader.log") 2>&1"
 # session hygiene rewrites chat files: only from 04:00 (after the 03:10 chat backup), retried hourly by catchup-run while
 # that backup is not fresh (rc 75); it touches only sessions the backup holds exactly as they are now
 [[ $WITH_SESSION_HYGIENE -eq 1 ]] && CRON_LINES="$CRON_LINES
-7 * * * * $(q "$TARGET/bin/catchup-run") session_hygiene daily --after 4 -- python3 $(q "$TARGET/addons/session-hygiene/session-hygiene.py")"
+7 * * * * $(q "$TARGET/bin/catchup-run") session_hygiene daily --after 4 -- $PY_CMD $(q "$TARGET/addons/session-hygiene/session-hygiene.py")"
 [[ $CLEANUP -eq 1 ]] && CRON_LINES="$CRON_LINES
-35 4 * * * python3 $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1"
+35 4 * * * $PY_CMD $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1"
 CRON_LINES="$CRON_LINES
 $CRON_END"
 echo
@@ -608,18 +695,24 @@ elif command -v crontab >/dev/null 2>&1; then
   { crontab -l 2>/dev/null | awk -v b="$CRON_BEGIN" -v e="$CRON_END" '$0==b{skip=1;next} $0==e{skip=0;next} !skip'
     printf '%s\n' "$CRON_LINES"; } | crontab - && ok "crontab updated ($(crontab -l | grep -cF "$TARGET") lines)"
 else
-  warn "no crontab on this machine — add these lines to your scheduler by hand:"
+  warn "no crontab on this machine — these scheduled jobs will not run until you add them to your scheduler by hand:"
   printf '%s\n' "$CRON_LINES" >&2
+  if [[ $ON_WINDOWS -eq 1 ]]; then
+    # Task Scheduler runs a job through Git Bash's bash.exe; the most needed one is the reminders (every minute)
+    warn "Windows: Task Scheduler takes the same commands through Git Bash. The reminders, every minute (in cmd or PowerShell):"
+    warn "  schtasks /Create /SC MINUTE /MO 1 /TN ccm-remind /TR \"\\\"$(cygpath -w "$(command -v bash)")\\\" -lc '. $(q "$SHIM/env.sh"); python3 $(q "$TARGET/scripts/remind.py") --fire'\""
+    warn "  the rest the same way (. env.sh first: the jobs call python3), /SC MINUTE /MO 10 for */10, /SC HOURLY for an hourly line, /SC DAILY /ST 03:10 for a daily one (README.md, Platforms)"
+  fi
 fi
 
 # ---- add-ons (each only with its own flag) -----------------------------------
 # An add-on is copied to <dir>/addons/<name>/ (mobile-bot: <dir>/mobile-bot/). Its non-root setup runs here; setup that needs
 # root runs only when this installer is root already - otherwise the exact sudo line is printed (we never call sudo here).
 # Its supervisor entries are merged into the registry by name: missing ones are added, existing ones are never touched.
-REGISTRY="$(python3 "$TARGET/lib/ccm_conf.py" CCM_SUPERVISOR_DIR 2>/dev/null || echo "$HOME/.claude/supervisor")/checks.json"
+REGISTRY="$(py3 "$TARGET/lib/ccm_conf.py" CCM_SUPERVISOR_DIR 2>/dev/null || echo "$HOME/.claude/supervisor")/checks.json"
 SETUP_DRY=(); [[ $DRY_RUN -eq 1 ]] && SETUP_DRY=(--dry-run)
 ADDONS_DONE=()
-SEC=$(python3 "$TARGET/lib/ccm_conf.py" CCM_SECRETS_DIR 2>/dev/null || echo "$HOME/.config/claude-secrets")
+SEC=$(py3 "$TARGET/lib/ccm_conf.py" CCM_SECRETS_DIR 2>/dev/null || echo "$HOME/.config/claude-secrets")
 # Scripts to run: the installed copies - on a dry run nothing is copied, so the repo's own copies stand in.
 if [[ $DRY_RUN -eq 1 ]]; then MB_DIR="$REPO_DIR/addons/mobile-bot"; AD_DIR="$REPO_DIR/addons"
 else MB_DIR="$TARGET/mobile-bot"; AD_DIR="$TARGET/addons"; fi
@@ -633,7 +726,7 @@ merge_checks() {  # merge_checks <name> — supervisor-checks.json of the add-on
   local src="$REPO_DIR/addons/$1/supervisor-checks.json"
   [[ -f "$src" ]] || return 0
   if [[ $DRY_RUN -eq 1 ]]; then echo "  DRY: would merge the supervisor checks of $1 into $REGISTRY"; return 0; fi
-  python3 - "$src" "$REGISTRY" "$1" <<'PYMERGE' || warn "could not merge the supervisor checks of $1 into $REGISTRY"
+  py3 - "$src" "$REGISTRY" "$1" <<'PYMERGE' || warn "could not merge the supervisor checks of $1 into $REGISTRY"
 import json, os, sys
 src, dst, name = sys.argv[1:]
 new = json.load(open(src, encoding="utf-8")).get("checks", [])
@@ -701,21 +794,22 @@ fi
 if [[ $WITH_DASHBOARD -eq 1 ]]; then
   echo; say "add-on dashboard…"
   copy_addon dashboard "$TARGET/addons/dashboard"
-  ok "dashboard copied — start it: python3 $TARGET/addons/dashboard/dashboard.py (read-only, 127.0.0.1:8765)"
+  ok "dashboard copied — start it: $PY_CMD $TARGET/addons/dashboard/dashboard.py (read-only, 127.0.0.1:8765)"
 fi
 if [[ $WITH_READER -eq 1 ]]; then
   echo; say "add-on reader…"
   copy_addon reader "$TARGET/addons/reader"
   merge_checks reader
-  RD=(python3 "$AD_DIR/reader/reader-server.py")
+  RD=("${PY[@]}" "$AD_DIR/reader/reader-server.py")
   if [[ $DRY_RUN -eq 1 ]]; then echo "  DRY: would start: ${RD[*]} >> $HOME/.claude/logs/reader.log 2>&1 &"
   elif [[ $NO_CRON -eq 1 ]]; then warn "reader not started (--no-cron or a temp install dir: nothing runs in the background). Start it: ${RD[*]} &"
-  elif python3 "$AD_DIR/reader/reader-check.py" >/dev/null 2>&1; then ok "reader already answers — left as it is"
+  elif py3 "$AD_DIR/reader/reader-check.py" >/dev/null 2>&1; then ok "reader already answers — left as it is"
   else
     mkdir -p "$HOME/.claude/logs"
-    nohup setsid "${RD[@]}" >> "$HOME/.claude/logs/reader.log" 2>&1 < /dev/null &
-    if python3 "$AD_DIR/reader/reader-check.py" --wait 5 >/dev/null; then
-      ok "reader started: $(python3 "$AD_DIR/reader/reader-check.py" | sed 's/^reader answers: //; s#/api/last$#/#')  (after a reboot: the crontab line)"
+    if command -v setsid >/dev/null 2>&1; then nohup setsid "${RD[@]}" >> "$HOME/.claude/logs/reader.log" 2>&1 < /dev/null &
+    else nohup "${RD[@]}" >> "$HOME/.claude/logs/reader.log" 2>&1 < /dev/null & disown; fi   # no setsid (macOS, Git Bash): it outlives this installer all the same
+    if py3 "$AD_DIR/reader/reader-check.py" --wait 5 >/dev/null; then
+      ok "reader started: $(py3 "$AD_DIR/reader/reader-check.py" | sed 's/^reader answers: //; s#/api/last$#/#')  (after a reboot: the crontab line)"
     else warn "reader did not start — see $HOME/.claude/logs/reader.log (port taken? set CCM_READER_PORT in methodology.conf)"; fi
   fi
   say "  reader: this machine only by default. CCM_READER_BIND=0.0.0.0 opens it to the network with NO password — use a proxy that asks for one"
@@ -725,7 +819,7 @@ if [[ $WITH_SESSION_HYGIENE -eq 1 ]]; then
   echo; say "add-on session-hygiene…"
   copy_addon session-hygiene "$TARGET/addons/session-hygiene"
   merge_checks session-hygiene
-  if [[ $NO_CRON -eq 1 ]]; then warn "session-hygiene: not scheduled (--no-cron or a temp install dir). By hand: python3 $TARGET/addons/session-hygiene/session-hygiene.py --dry-run"
+  if [[ $NO_CRON -eq 1 ]]; then warn "session-hygiene: not scheduled (--no-cron or a temp install dir). By hand: $PY_CMD $TARGET/addons/session-hygiene/session-hygiene.py --dry-run"
   else ok "session-hygiene: daily from 04:00 (crontab), log ~/.claude/cron-logs/session_hygiene.log; it waits for the nightly chat backup and never touches a session the backup does not hold as it is"; fi
 fi
 
@@ -750,13 +844,13 @@ if [[ $VERIFY -eq 1 && $DRY_RUN -eq 0 ]]; then
   if [[ "$SCOPE" == "user" ]]; then CHECK=(--user); else CHECK=(--project "$PROJECT_DIR"); fi
   echo
   say "Checking the installation item by item…"
-  if out=$(python3 "$REPO_DIR/check-install.py" "${CHECK[@]}" 2>&1); then ok "$(printf '%s\n' "$out" | grep -E 'ok, .* missing' | tail -1)"
+  if out=$(py3 "$REPO_DIR/check-install.py" "${CHECK[@]}" 2>&1); then ok "$(printf '%s\n' "$out" | grep -E 'ok, .* missing' | tail -1)"
     printf '%s\n' "$out" | sed -n '/^Accounts still/,/^$/p'   # only what is missing, each line -> docs/accounts.md
   else TESTS_FAILED=$((TESTS_FAILED + 1)); printf '%s\n' "$out" | grep -E '^MISS|missing or broken' | head -12 >&2; fi
   if [[ -f "$TARGET/scripts/supervisor.py" ]]; then
     say "One supervisor run on the fresh install…"
-    python3 "$TARGET/scripts/supervisor.py" >/dev/null 2>&1
-    sv=$(python3 -c 'import json,os,sys
+    py3 "$TARGET/scripts/supervisor.py" >/dev/null 2>&1
+    sv=$(py3 -c 'import json,os,sys
 p=os.path.join(os.path.expanduser("~"),".claude","supervisor","summary.json")
 try: d=json.load(open(p))
 except Exception as e: print("no summary:", type(e).__name__); sys.exit(1)
@@ -769,7 +863,7 @@ if [[ $VERIFY -eq 1 && $VERIFY_ALL -eq 1 && $DRY_RUN -eq 0 ]] && compgen -G "$TA
   echo
   say "Checking the installed mechanisms (each test runs in a temp sandbox)…"
   for t in "$TARGET"/tests/*-test.*; do
-    case "$t" in *.py) runner=python3 ;; *.sh) runner=bash ;; *) continue ;; esac
+    case "$t" in *.py) runner=py3 ;; *.sh) runner=bash ;; *) continue ;; esac
     if out=$(CCM_REPO_DIR="$REPO_DIR" "$runner" "$t" 2>&1); then   # a test that needs the repo's docs/ finds the clone here
       ok "$(printf '%s\n' "$out" | tail -1)"
     else
@@ -787,7 +881,7 @@ if [[ $VERIFY -eq 1 && $VERIFY_ALL -eq 1 && $DRY_RUN -eq 0 ]]; then
     echo
     say "Checking the installed add-ons…"
     for t in "${ADDON_TESTS[@]}"; do
-      case "$t" in *.py) runner=python3 ;; *.sh) runner=bash ;; *) continue ;; esac
+      case "$t" in *.py) runner=py3 ;; *.sh) runner=bash ;; *) continue ;; esac
       if out=$(cd "$(dirname "$t")/.." && "$runner" "$t" 2>&1); then
         ok "$(basename "$(dirname "$(dirname "$t")")"): $(printf '%s\n' "$out" | tail -1)"
       else
@@ -815,7 +909,7 @@ fi
 [[ -z "$DEPS_MISSING" ]] || warn "Missing system commands: $(printf '%s\n' "$DEPS_MISSING" | sed -n 's/^missing: \([^ ]*\) .*/\1/p' | paste -sd' ' -) — see \"missing:\" at the top"
 [[ $VERIFY_ALL -eq 1 ]] || echo "  (quick check done; every mechanism's own test: ./install.sh --verify-all … — about 5 min)"
 if [[ $DRY_RUN -eq 0 ]]; then
-  WS_END=$(python3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
+  WS_END=$(py3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
   echo; say "Workspace (agent folders, mistakes journal, shared documents): $WS_END"
   if [[ "$SCOPE" == "project" ]]; then
     case "$WS_END/" in "$PROJECT_DIR/"*) echo "  (inside your project: these files show up in its git status)" ;;

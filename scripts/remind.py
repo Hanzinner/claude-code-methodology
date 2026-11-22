@@ -18,11 +18,15 @@ otherwise the agent sees the letter when the human writes in it.
 Cron (user crontab):  * * * * * python3 <install dir>/scripts/remind.py --fire >/dev/null 2>&1
 The addressee is a folder name under the agents dir (config CCM_AGENTS_DIR); scripts/inbox_resolve.sh is used when
 it is installed next to this file, otherwise the same lookup is done here. Delivery goes through scripts/inbox_post.sh."""
-import fcntl, json, os, re, subprocess, sys, time
+import json, os, re, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+try:
+    import fcntl
+except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
+    import ccm_lock as fcntl
 
 D = os.environ.get("REMIND_DIR") or conf("CCM_REMINDERS_DIR", "") or os.path.join(os.path.expanduser("~"), ".claude", "reminders")
 POST = os.environ.get("REMIND_POST", f"{HERE}/inbox_post.sh")
@@ -118,7 +122,7 @@ def resolve(agent):
     """-> (ok, message). Uses inbox_resolve.sh next to this file when installed, else the same lookup inline:
     a folder <agent> or <agent>-agent under the agents dir (also one level down), case-insensitive, with an inbox.md."""
     if os.path.isfile(RESOLVE):
-        r = subprocess.run([RESOLVE, agent], capture_output=True, text=True)
+        r = subprocess.run((['bash'] if os.name == 'nt' else []) + [RESOLVE, agent], capture_output=True, text=True)   # Windows cannot start a .sh by itself
         return r.returncode == 0, (r.stderr or r.stdout).strip()[:300]
     root = conf("CCM_AGENTS_DIR", "")
     want = {agent.lower(), agent.lower() + "-agent"}
@@ -173,7 +177,7 @@ def fire():
         msg = (f"⏰ **Reminder** (set {fmt(r.get('set', r['due']))} for {fmt(r['due'])}"
                + (f"; late by {span(late)} — the machine was off or the mail refused" if late > 300 else "") + f"): {r['text']}")
         try:
-            p = subprocess.run([POST, r["agent"], msg], capture_output=True, text=True, timeout=60); rc = p.returncode
+            p = subprocess.run((['bash'] if os.name == 'nt' else []) + [POST, r["agent"], msg], capture_output=True, text=True, timeout=60); rc = p.returncode
             err = (p.stderr or p.stdout).strip()[:200]
         except (OSError, subprocess.TimeoutExpired) as e:
             rc, err = 99, str(e)[:200]

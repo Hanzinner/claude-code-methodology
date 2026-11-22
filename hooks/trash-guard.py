@@ -28,7 +28,11 @@ import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf  # noqa: E402
 
-import fcntl, json, re, subprocess, time
+import json, re, shutil, subprocess, time
+try:
+    import fcntl
+except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
+    import ccm_lock as fcntl
 
 HOME = os.path.expanduser("~")
 TRASH = conf("CCM_TRASH_DIR")
@@ -147,7 +151,9 @@ def measure():
     lk = open(f"{ST}/measure.lock", "a")
     try: fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError: return 0                              # the previous measure is still running
-    cmd = ["nice", "-n", "19", "ionice", "-c", "3", "du", "-k", "-d", "1", "--", TRASH]
+    cmd = ["du", "-k", "-d", "1", "--", TRASH]
+    if shutil.which("ionice"): cmd = ["ionice", "-c", "3"] + cmd   # no ionice on macOS / Git Bash: du runs without it
+    if shutil.which("nice"): cmd = ["nice", "-n", "19"] + cmd
     complete = True
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=DU_TIMEOUT).stdout
@@ -162,7 +168,7 @@ def measure():
     try:
         for e in os.scandir(TRASH):                      # du -d1 does not list top-level files separately
             if e.name not in sizes and not e.is_dir(follow_symlinks=False):
-                sizes[e.name] = e.stat(follow_symlinks=False).st_blocks * 512
+                st = e.stat(follow_symlinks=False); sizes[e.name] = st.st_blocks * 512 if hasattr(st, "st_blocks") else st.st_size   # Windows: no st_blocks
     except OSError: pass
     if total is None:
         total = sum(sizes.values())

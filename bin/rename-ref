@@ -258,7 +258,11 @@ for p, nt in plan.items():
     # changed since it was read -> rewrite the FRESH content (rewrite is idempotent), not the snapshot
     lk = None
     if os.path.basename(ap) == "inbox.md":
-        import fcntl; lk = open(ap + ".lock", "a"); fcntl.flock(lk, fcntl.LOCK_EX)
+        try:
+            import fcntl
+        except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
+            sys.path.insert(0, os.path.join(os.environ.get("CCM_CLAUDE_DIR", ""), "lib")); import ccm_lock as fcntl
+        lk = open(ap + ".lock", "a"); fcntl.flock(lk, fcntl.LOCK_EX)
     try:
         text0, d_old, d_out, mv_ = snap[p]
         cur = open(ap, encoding="utf-8", errors="surrogateescape").read()

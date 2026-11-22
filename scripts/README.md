@@ -50,7 +50,7 @@ Scripts of the swarm. Agent names are folder names under `CCM_AGENTS_DIR`; proje
 | Script | Action |
 |--------|--------|
 | `remind.py <agent> <when> <text>` | A reminder as a letter in the agent's inbox (`15m`, `2h`, `18:30`, a date). `--list`, `--cancel <id>`, `--fire` (cron, every minute; the installer adds the line). Survives reboots; late ones are marked. |
-| `claim.sh acquire\|check\|release <key>` | The one lock for the swarm, always with a TTL (default 30 min) and an owner, so a dead process cannot deadlock the rest. Needs `flock`. |
+| `claim.sh acquire\|check\|release <key>` | The one lock for the swarm, always with a TTL (default 30 min) and an owner, so a dead process cannot deadlock the rest. `flock`, or a mkdir lock without it (`lib/ccm_lock.sh`). |
 
 ### Blockers and stories
 

@@ -249,7 +249,7 @@ def tell_infra(agent, sid, mark):
     import subprocess
     post = os.environ.get("WORK_GUARD_POST") or os.path.join(scripts_dir(), "inbox_post.sh")
     try:
-        subprocess.run([post, who,
+        subprocess.run((['bash'] if os.name == 'nt' else []) + [post, who,   # Windows cannot start a .sh by itself
                         f"work-guard: in tab {agent} [{sid[:8]}] Claude Code stopped a background task because of LOW MEMORY "
                         f"({time.strftime('%F %H:%M')}; cause memory_pressure). The agent does not restart the alarm (the harness forbids it), "
                         "so new letters will not wake this tab until the human writes in it. Look at the machine's memory (who is eating it)."],

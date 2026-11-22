@@ -8,7 +8,7 @@
 # claim.sh check   <key>       -> exit 0 free / exit 1 taken (prints by whom)
 # claim.sh release <key> [--owner <who>]
 # Events (taking over an expired claim, releasing someone else's) go to ~/.claude/claims.log
-# State dir: config CCM_CLAIMS_DIR, default ~/.claude/claims.   Needs `flock` (util-linux).
+# State dir: config CCM_CLAIMS_DIR, default ~/.claude/claims.   Uses flock; without it a mkdir lock (lib/ccm_lock.sh).
 set -u
 eval "$(python3 "$(dirname "$(readlink -f "$0")")/../lib/ccm_conf.py" --shell 2>/dev/null)" || true
 DIR="${CCM_CLAIMS_DIR:-$HOME/.claude/claims}"
@@ -18,7 +18,7 @@ mkdir -p "$DIR" "$(dirname "$LOG")" 2>/dev/null
 cmd="${1:-}"; key="${2:-}"
 [ -n "$cmd" ] && [ -n "$key" ] || { echo "usage: claim.sh acquire|check|release <key> [--ttl <min>] [--owner <who>]" >&2; exit 2; }
 case "$key" in */*|*..*) echo "claim.sh: invalid key '$key'" >&2; exit 2 ;; esac
-command -v flock >/dev/null 2>&1 || { echo "claim.sh: 'flock' is not installed (util-linux)" >&2; exit 2; }
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_lock.sh"   # flock, or a mkdir lock where there is none (macOS, Git Bash)
 shift 2
 ttl=30; owner="$(whoami):$PPID"
 while [ $# -gt 0 ]; do
@@ -42,8 +42,7 @@ read_claim(){ # -> C_OWNER, C_EXPIRY (empty if missing/broken)
     return 0
 }
 
-exec 9>>"$f.lock"
-flock -w 10 9 || { echo "claim.sh: could not get the meta-lock for '$key'" >&2; exit 3; }
+ccm_lock 9 "$f.lock" 10 1 || { echo "claim.sh: could not get the meta-lock for '$key'" >&2; exit 3; }
 
 case "$cmd" in
     acquire)

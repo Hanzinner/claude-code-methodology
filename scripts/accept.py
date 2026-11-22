@@ -18,7 +18,6 @@ Config: CCM_WORKSPACE, CCM_PROJECTS_GLOB, CCM_HUMAN_NAME, CCM_LANG_EXTRA.
 Env overrides (tests): ACCEPT_REPO (workspace), CLAUDE_PROJECTS_DIR
 (transcripts, default ~/.claude/projects), ACCEPT_IDENTITY_DIR (default ~/.claude/agent-identity), CLAUDE_CODE_SESSION_ID."""
 import datetime
-import fcntl
 import json
 import os
 import re
@@ -27,6 +26,10 @@ import sys
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+try:
+    import fcntl
+except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
+    import ccm_lock as fcntl
 import human_quote  # noqa: E402
 
 REPO = os.environ.get("ACCEPT_REPO") or conf("CCM_WORKSPACE")

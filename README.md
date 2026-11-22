@@ -89,12 +89,19 @@ permissions, env, model and your own hooks in `settings.json` are kept (only the
 into the installed `hooks/` are replaced). If you edited `CLAUDE.md`, it is kept and the new version is
 written next to it as `CLAUDE.md.new`. Every replaced file is also backed up as `*.bak-<timestamp>`.
 
-**Platforms:** Linux and macOS (bash + python3). The mechanisms also call `flock`, `timeout`, `setsid` and
-`crontab`; a stock macOS lacks the first three (`brew install flock coreutils`, then put
-`$(brew --prefix)/opt/coreutils/libexec/gnubin` first in PATH: brew names it `gtimeout`). `install.sh` and
-`check-install.py` name each missing one and what stops without it. On **Windows, use WSL** (`wsl --install`, then install
-Claude Code and this repo inside it). Native Windows is not supported yet: the hooks are bash and python
-scripts, and Claude Code on Windows runs PowerShell unless Git Bash is installed.
+**Platforms:** Linux, macOS and Windows (bash + Python 3.9 or newer). The mechanisms also call `timeout` and
+`crontab`, and `flock` / `setsid` where they exist (without them: a mkdir lock, a reader started without setsid). A
+stock macOS lacks `timeout` (`brew install coreutils`, then put `$(brew --prefix)/opt/coreutils/libexec/gnubin` first
+in PATH: brew names it `gtimeout`). `install.sh` and `check-install.py` name each missing command and what stops
+without it.
+
+On **Windows**, run `./install.sh` in Git Bash (Git for Windows; Claude Code on Windows runs its hooks there too).
+There `python3` is often the Microsoft Store stub, so the installer takes the first working one of `python3`,
+`python`, `py -3`, writes it into the hook commands, and puts a `python3` that runs it into `<install dir>/lib/pyshim/`
+(the hooks and the agent's Bash commands find it first). Paths are written as `C:/...`, which both Git Bash and Python
+read. Windows has no cron: the installer prints the scheduled jobs and a `schtasks` line for the reminders; add the
+others the same way (Task Scheduler, through Git Bash's `bash.exe -lc '. <install dir>/lib/pyshim/env.sh; ...'`).
+WSL (`wsl --install`, then everything inside it) is the Linux route and needs none of this.
 
 **What it sets up today, and what not yet** (as of 2026-11; the goal is the whole private setup with one command, built layer by layer):
 
@@ -193,8 +200,8 @@ See `memory-template/README.md` and `memory-template/examples/`.
 
 ## Compatibility
 
-- Claude Code CLI on Linux and macOS.
-- Bash; Windows needs WSL.
+- Claude Code CLI on Linux, macOS and Windows.
+- Bash; on Windows, Git Bash (or WSL).
 
 ## Optional: Telegram bridge
 

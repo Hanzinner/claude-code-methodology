@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""System commands the mechanisms call that a stock macOS (or a minimal Linux) does not have.
+"""System commands the mechanisms call that a stock macOS, Git Bash on Windows (or a minimal Linux) does not have.
 
   python3 lib/deps_check.py     # all there: prints nothing; else one block: "missing: X — what stops" + "install: ..."
 
@@ -23,26 +23,26 @@ def _wrapped_hooks():
         return "almost every hook in settings.json"
 
 
-# (command, what stops working without it, apt package, brew package or None, note for macOS)
+# (command, what stops working without it, apt package, brew package or None, note for macOS, how on Windows/Git Bash)
+# flock and setsid are not here: every caller has a fallback (lib/ccm_lock.sh / ccm_lock.py, a reader started without
+# setsid), so nothing stops without them.
 DEPS = (
     ("timeout",
      f"hooks/hook-safe.sh runs {_wrapped_hooks()} (every gate, hint and Stop guard): without it each exits 127 and "
      "fails open, so they are all silently off; also stop-dispatch.sh, cross-review.sh, memory_consolidation.sh "
      "and the quota_status.py cron line",
-     "coreutils", "coreutils", "brew names it gtimeout: put \"$(brew --prefix)/opt/coreutils/libexec/gnubin\" first in PATH"),
-    ("flock",
-     "claim.sh (the swarm lock), episodic_append.sh (the episodic journal), wt_deliver.sh (worktree delivery), "
-     "memory_consolidation.sh and the quota_status.py cron line (the quota file stays empty); "
-     "inbox_post.sh / inbox_done.sh and catchup-run fall back to a slower mkdir lock",
-     "util-linux", "flock", ""),
-    ("setsid",
-     "install.sh --with-reader cannot start the reader right away (its crontab line starts it after a reboot)",
-     "util-linux", None, "macOS: start the reader by hand, python3 <dir>/addons/reader/reader-server.py &"),
+     "coreutils", "coreutils", "brew names it gtimeout: put \"$(brew --prefix)/opt/coreutils/libexec/gnubin\" first in PATH",
+     "it comes with Git for Windows: run install.sh and Claude Code from Git Bash"),
     ("crontab",
      "every scheduled job install.sh sets up (reminders, supervisor, quota, blockers, chat backup, journal checks): "
      "install.sh prints the lines to add to your scheduler by hand; library_check.py does not see cron scripts",
-     "cron", None, ""),
+     "cron", None, "",
+     "Windows has no cron: add the jobs to Task Scheduler (install.sh prints them and a schtasks line for the reminders)"),
 )
+
+
+def on_windows():
+    return sys.platform == "win32" or bool(os.environ.get("MSYSTEM"))   # MSYSTEM: set by Git Bash (MINGW64)
 
 
 def missing():
@@ -55,6 +55,9 @@ def block():
     if not miss:
         return []
     lines = [f"missing: {cmd} — {why}" for cmd, why, *_ in miss]
+    if on_windows():
+        lines += [f"install (Windows, {cmd}): {win}" for cmd, *_, win in miss]
+        return lines
     apt = " ".join(dict.fromkeys(d[2] for d in miss))
     brew = " ".join(dict.fromkeys(d[3] for d in miss if d[3]))
     notes = "; ".join(d[4] for d in miss if d[4])

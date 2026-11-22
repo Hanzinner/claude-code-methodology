@@ -16,6 +16,8 @@ Note: VS Code may need to refresh the sidebar to pick up the change
       (close/reopen the sessions panel, or reload window).
 """
 
+from __future__ import annotations  # "str | None" in annotations on Python 3.9
+
 import json
 import os
 import re

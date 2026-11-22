@@ -335,7 +335,10 @@ def main():
         os.makedirs(os.path.dirname(os.path.abspath(a.checks)), exist_ok=True)
         open(a.checks, "w", encoding="utf-8").write(render_registry(open(a.init, encoding="utf-8").read()))
         print(f"wrote {a.checks}"); return
-    import fcntl   # overlapping runs (a slow restart + the next cron tick) used to write state.json against each other
+    try:   # overlapping runs (a slow restart + the next cron tick) used to write state.json against each other
+        import fcntl
+    except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
+        import ccm_lock as fcntl
     lk = open(os.path.join(a.state, ".lock"), "a")
     try:
         fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)

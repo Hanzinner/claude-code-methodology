@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# install.sh on native Windows (Git Bash), imitated on Linux: python3 is the Microsoft Store stub (prints "Python was
+# not found", exits 9009), the real Python is `python` (or only `py -3`), and flock, setsid, crontab, jq are missing.
+# MSYSTEM=MINGW64 and an identity cygpath stand in for Git Bash. Checks: the installer picks the real Python and puts it
+# into the hook commands of settings.json; lib/pyshim/python3 runs it; every hook command runs with nothing in
+# hook-errors.log; claim.sh and episodic_append.sh lock without flock; the missing commands are named with the Windows
+# way; no working Python at all = a clear stop. And the control: on Linux with python3 nothing of this appears.
+# A temp HOME, --no-cron. INSTALL=<path to install.sh> tests another copy. Last line: install-windows-test: N pass, M fail.
+set -u
+HERE=$(cd "$(dirname "$0")" && pwd)
+if [[ -z "${INSTALL:-}" ]]; then
+  for c in "${CCM_REPO_DIR:-}" "$HERE/.."; do
+    [[ -n "$c" && -f "$c/install.sh" && -f "$c/check-install.py" ]] && { INSTALL="$c/install.sh"; break; }
+  done
+fi
+[[ -n "${INSTALL:-}" ]] || { echo "install-windows-test: SKIP (no clone with install.sh: set CCM_REPO_DIR=<clone> - nothing was tested)"; exit 0; }
+REAL_PY=$(command -v python3) || { echo "install-windows-test: SKIP (no python3 on this machine)"; exit 0; }
+T=$(mktemp -d) || exit 2; [[ -d "$T" ]] || exit 2; trap 'rm -rf "$T"' EXIT
+for v in $(compgen -e | grep '^CCM_\|^CLAUDE_METHODOLOGY_\|^PYTHON'); do unset "$v"; done   # a setting from this machine would beat the test's
+unset TAVILY_API_KEY EXA_API_KEY CLAUDE_ENV_FILE
+export CCM_TEST=1
+pass=0; fail=0
+ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; echo "${out:-}" | tail -25 | sed "s/^/   /"; fi; }
+
+fakebin() {  # fakebin <dir> <names to leave out...> - a symlink to every other command on PATH (first one wins, as in PATH)
+  local dir="$1" d f n dirs; shift; mkdir -p "$dir"
+  local skip=" $* "
+  IFS=: read -ra dirs <<<"$PATH"
+  for d in "${dirs[@]}"; do
+    [[ -d "$d" ]] || continue
+    for f in "$d"/*; do
+      n=${f##*/}
+      [[ -f "$f" && -x "$f" && ! -e "$dir/$n" ]] || continue
+      case "$skip" in *" $n "*) continue ;; esac
+      ln -s "$f" "$dir/$n"
+    done
+  done
+}
+# Git Bash: no flock/setsid/crontab/jq; python3 = the Store stub (first in PATH, as WindowsApps is); python = the real one
+fakebin "$T/bin" flock setsid crontab jq claude python python3 cygpath
+mkdir -p "$T/stub" "$T/win"
+printf '#!/bin/sh\necho "Python was not found; run without arguments to install from the Microsoft Store, or disable this shortcut from Settings > Manage App Execution Aliases." >&2\nexit 9009\n' > "$T/stub/python3"
+printf '#!/bin/sh\nshift; printf "%%s\\n" "$1"\n' > "$T/win/cygpath"        # cygpath -m|-u|-w <path> -> <path>
+ln -s "$REAL_PY" "$T/win/python"
+chmod +x "$T/stub/python3" "$T/win/cygpath"
+WINPATH="$T/stub:$T/bin:$T/win"
+
+inst() {  # inst <PATH> <home> [env...] - the install as a person runs it in Git Bash, no questions
+  local p="$1" h="$2"; shift 2
+  env "$@" MSYSTEM=MINGW64 HOME="$h" PATH="$p" "$BASH" "$INSTALL" --user --yes --no-cron --no-verify --name tester --workspace "$h/ws" --timezone UTC 2>&1
+}
+hook_cmds() { "$REAL_PY" -c 'import json,sys
+for ev, gs in json.load(open(sys.argv[1])).get("hooks", {}).items():
+    for g in gs:
+        for h in g.get("hooks", []): print(ev + "\t" + h["command"])' "$1"; }
+
+ok "0 the fake Git Bash: python3 is the stub (rc 9009), python works, no flock/setsid/crontab/jq" \
+   '! PATH="$WINPATH" python3 -c 1 2>/dev/null && PATH="$WINPATH" python -c 1 && ! PATH="$WINPATH" command -v flock >/dev/null && ! PATH="$WINPATH" command -v setsid >/dev/null && ! PATH="$WINPATH" command -v crontab >/dev/null && ! PATH="$WINPATH" command -v jq >/dev/null'
+
+H="$T/h1"; mkdir -p "$H"; out=$(inst "$WINPATH" "$H"); rc=$?
+S="$H/.claude/settings.json"
+ok "1 the install goes on with the stub as python3, exit 0 (rc=$rc)" '[ $rc = 0 ] && [ -f "$S" ] && [ -f "$H/.claude/methodology.conf" ]'
+ok "2 it says which Python it took: python" 'grep -q "Python: python (" <<<"$out"'
+cmds=$(hook_cmds "$S")
+ok "3 every hook command that runs a .py names python before it; none says python3" \
+   '[ -n "$cmds" ] && ! grep "\.py\"" <<<"$cmds" | grep -qv "hook-safe.sh\" python \"" && ! grep -q "python3" <<<"$cmds"'
+ok "4 settings.json env: PYTHONUTF8=1" '[ "$("$REAL_PY" -c "import json,sys; print(json.load(open(sys.argv[1]))[\"env\"].get(\"PYTHONUTF8\"))" "$S")" = 1 ]'
+ok "5 lib/pyshim/python3 runs the real Python, also with the stub first in PATH" \
+   '[ "$(PATH="$WINPATH" bash -c ". \"$H/.claude/lib/pyshim/env.sh\"; python3 -c \"print(6*7)\"")" = 42 ] && [ -f "$H/.claude/lib/pyshim/sitecustomize.py" ]'
+ok "6 the missing commands: crontab with the Windows way (Task Scheduler); flock, setsid, jq not named" \
+   'grep -q "missing: crontab — " <<<"$out" && grep -q "install (Windows, crontab): .*Task Scheduler" <<<"$out" && ! grep -q "missing: flock\|missing: setsid\|missing: jq\|install: apt" <<<"$out"'
+ok "7 the stub is not named as missing python3, and no line asks for apt" '! grep -qi "python3 is required\|apt install" <<<"$out"'
+
+# every hook command, as Claude Code runs it through Git Bash (the payloads wintest.sh uses)
+n=0; bad=""
+while IFS=$'\t' read -r ev cmd; do
+  n=$((n+1))
+  case $ev in
+    PreToolUse|PostToolUse|PostToolUseFailure|PermissionDenied) p='{"session_id":"t","hook_event_name":"'$ev'","tool_name":"Bash","tool_input":{"command":"echo hi"},"tool_response":{"stdout":"hi"},"cwd":"'$T'"}';;
+    UserPromptSubmit) p='{"session_id":"t","hook_event_name":"UserPromptSubmit","prompt":"hello","cwd":"'$T'"}';;
+    *) p='{"session_id":"t","hook_event_name":"'$ev'","cwd":"'$T'","transcript_path":"'$T'/none.jsonl"}';;
+  esac
+  printf '%s' "$p" | MSYSTEM=MINGW64 HOME="$H" PATH="$WINPATH" CLAUDE_ENV_FILE="$T/envfile" timeout 60 bash -c "$cmd" >/dev/null 2>&1 \
+    || bad="$bad $ev(rc $?)"
+done <<<"$cmds"
+out=$(cat "$H/.claude/hook-errors.log" 2>/dev/null)
+ok "8 all $n hook commands run, exit 0, and hook-errors.log is empty" '[ $n -gt 20 ] && [ -z "$bad" ] && [ -z "$out" ]'
+out=$(cat "$T/envfile" 2>/dev/null)
+ok "9 a hook hands the shim PATH to the agent's Bash (CLAUDE_ENV_FILE), once" \
+   '[ "$(grep -c "lib/pyshim:" <<<"$out")" = 1 ] && [ "$(PATH="$WINPATH" bash -c ". \"$T/envfile\"; python3 -c \"print(1)\"")" = 1 ]'
+
+# the locks without flock: claim.sh and episodic_append.sh from the install, the stub first in PATH
+SH="$H/.claude/scripts"; E="$T/ep"
+run() { MSYSTEM=MINGW64 HOME="$H" PATH="$H/.claude/lib/pyshim:$WINPATH" "$@" 2>&1; }
+out=$(run bash "$SH/claim.sh" acquire k1 --owner a; run bash "$SH/claim.sh" acquire k1 --owner b; echo "rc=$?")
+ok "10 claim.sh without flock: the first takes it, the second is refused" 'grep -q "^OK: .k1. for a" <<<"$out" && grep -q "TAKEN" <<<"$out" && grep -q "rc=1" <<<"$out"'
+out=$(for i in 1 2 3 4 5 6; do EPISODIC_DIR="$E" run bash "$SH/episodic_append.sh" 2026-11 "entry $i" & done; wait; cat "$E/2026-11.md")
+ok "11 episodic_append.sh without flock: 6 writers at once, all 6 entries, no lock folder left" \
+   '[ "$(grep -c "^entry [1-6]$" <<<"$out")" = 6 ] && [ -z "$(find "$E" "$H/.claude" -name "*.lock.d")" ]'
+
+# only `py -3` (no python, python3 still the stub) -> the launcher with its -3
+mkdir -p "$T/py" "$T/win2"; printf '#!/bin/sh\n[ "$1" = -3 ] && shift\nexec %q "$@"\n' "$REAL_PY" > "$T/py/py"; chmod +x "$T/py/py"
+ln -s "$T/win/cygpath" "$T/win2/cygpath"
+H="$T/h3"; mkdir -p "$H"; out=$(inst "$T/stub:$T/bin:$T/py:$T/win2" "$H"); rc=$?
+out2=$(hook_cmds "$H/.claude/settings.json" 2>&1)
+ok "12 python absent too: 'py -3' is chosen, in the hook commands and in the shim (rc=$rc)" \
+   '[ $rc = 0 ] && grep -q "Python: py -3" <<<"$out" && grep -q "hook-safe.sh\" py -3 \"" <<<"$out2" && [ "$(PATH="$T/stub:$T/bin:$T/py" bash -c ". \"$H/.claude/lib/pyshim/env.sh\"; python3 -c \"print(5)\"")" = 5 ]'
+
+# no working Python at all -> stops, names the stub and how to get Python on Windows
+H="$T/h4"; mkdir -p "$H"; out=$(inst "$T/stub:$T/bin:$T/win2" "$H"); rc=$?
+ok "13 only the stub: exit non-zero, names the Store stub and winget (rc=$rc)" \
+   '[ $rc != 0 ] && grep -q "Microsoft Store stub" <<<"$out" && grep -q "winget install Python" <<<"$out" && [ ! -f "$H/.claude/settings.json" ]'
+
+# control: Linux with a working python3 -> commands as in the template (no interpreter), no pyshim, no PYTHONUTF8
+fakebin "$T/lin" claude
+H="$T/h5"; mkdir -p "$H"; out=$(HOME="$H" PATH="$T/lin" "$BASH" "$INSTALL" --user --yes --no-cron --no-verify --name tester --workspace "$H/ws" --timezone UTC 2>&1); rc=$?
+out2=$(hook_cmds "$H/.claude/settings.json" 2>&1)
+ok "14 Linux control: exit 0, hook commands without an interpreter, no lib/pyshim, no PYTHONUTF8 (rc=$rc)" \
+   '[ $rc = 0 ] && grep -q "hook-safe.sh\" \"[^\"]*/hooks/[a-z-]*\.py\"" <<<"$out2" && ! grep -q "hook-safe.sh\" python" <<<"$out2" && [ ! -e "$H/.claude/lib/pyshim" ] && ! grep -q PYTHONUTF8 "$H/.claude/settings.json" && ! grep -q "Python: " <<<"$out"'
+
+echo "install-windows-test: $pass pass, $fail fail"; [ $fail = 0 ]
