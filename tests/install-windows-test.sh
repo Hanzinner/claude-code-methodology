@@ -142,6 +142,46 @@ out2=$(hook_cmds "$H/.claude/settings.json" 2>&1)
 ok "14 Linux control: exit 0, hook commands without an interpreter, no lib/pyshim, no PYTHONUTF8 (rc=$rc)" \
    '[ $rc = 0 ] && grep -q "hook-safe.sh\" \"[^\"]*/hooks/[a-z-]*\.py\"" <<<"$out2" && ! grep -q "hook-safe.sh\" python" <<<"$out2" && [ ! -e "$H/.claude/lib/pyshim" ] && ! grep -q PYTHONUTF8 "$H/.claude/settings.json" && ! grep -q "Python: " <<<"$out"'
 
+# (a) a command that is one quoted path ("C:/x/check.sh") came back broken from Python's Windows command line (no space
+#     = no outer quotes): on Windows every .sh hook command starts with `bash `, and a bash line from Python travels in
+#     the environment (ccm_proc.bash_c), not as an argument
+cmds=$(hook_cmds "$T/h1/.claude/settings.json")
+ok "18 Windows: every hook command runs its .sh through bash by name (bash \"...sh\")" \
+   '[ -n "$cmds" ] && ! cut -f2 <<<"$cmds" | grep -qv "^bash \""'
+out=$(cd "$REPO" && "$REAL_PY" - <<'PY' 2>&1
+import os, sys
+sys.path.insert(0, "lib"); import ccm_proc
+real = os.name; ccm_proc.os.name = "nt"
+try:
+    argv, env = ccm_proc.bash_c('"C:/x/check.sh"')
+finally:
+    ccm_proc.os.name = real
+print("ok" if '"C:/x/check.sh"' not in " ".join(argv) and env.get("CCM_BASH_C") == '"C:/x/check.sh"' else f"bad {argv}")
+PY
+)
+lint=$(grep -nE '\["bash", "-c"|\[bash_exe\(\), "-c"|shell=True' "$REPO"/scripts/supervisor.py "$REPO"/scripts/blockers.py "$REPO"/scripts/presence_check.py 2>/dev/null)
+ok "19 bash_c: on Windows the line is in CCM_BASH_C, not in argv; supervisor/blockers/presence use it" '[ "$out" = ok ] && [ -z "$lint" ]'
+
+# (b) autoMemoryDirectory: Windows Python joins C:/x/.claude\memory; a string compare with the shell's path took the
+#     default folder for "the person's own" and the setting was never written. Windows path rules (ntpath) here:
+out=$(cd "$REPO" && "$REAL_PY" - <<'PY' 2>&1
+import ntpath, os, sys
+sys.path.insert(0, "lib"); import ccm_conf
+os.path = ccm_conf.os.path = ntpath
+d, own = ccm_conf.memory_dir_set("C:/Users/x/.claude")
+print("ok" if own is False and d.lower().endswith("memory") else f"bad {d!r} own={own}")
+PY
+)
+ok "20 memory folder decided by Python's own path rules: the default C:/x/.claude\\memory is not 'the person's own'" '[ "$out" = ok ]'
+
+# (c) a script run straight from a terminal whose code page cannot print "→" (cp1251), without PYTHONUTF8
+cp() { env -u PYTHONUTF8 PYTHONIOENCODING=cp1251 MSYSTEM=MINGW64 HOME="$T/h1" PATH="$WINPATH" "$@" 2>&1; }
+out=$(cp python "$REPO/check-install.py" --user; echo "rc=$?")
+ok "21 check-install.py --user with a cp1251 console: no UnicodeEncodeError, exit 0, the arrows printed" \
+   '! grep -q UnicodeEncodeError <<<"$out" && grep -q "rc=0" <<<"$out" && grep -q "→" <<<"$out"'
+out=$(for f in lib/deps_check.py scripts/quota_status.py scripts/verify_prompt.py scripts/watchman_alive_check.py; do cp python "$REPO/$f" --help; done; echo x | cp python "$REPO/bin/secret-scan")
+ok "22 other scripts people run by hand: no UnicodeEncodeError with a cp1251 console" '! grep -q UnicodeEncodeError <<<"$out"'
+
 out=$(cut -f2 "$MISSLOG" | sort | uniq -c)
 ok "17 no command was missing anywhere above (installer, its check, every hook, the scripts): bash logged no 'command not found'" '[ ! -s "$MISSLOG" ]'
 

@@ -9,6 +9,11 @@ and fails open, a lock "times out" - so the person never learns why a mechanism 
 Each "what stops" names the callers a grep of the repo finds (comments and parsers of command lines left out).
 """
 import json, os, shutil, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "."))
+try:
+    import ccm_conf  # noqa: E402,F401  (on import: UTF-8 output where the console code page is cp1251/cp1252)
+except ImportError:   # a copy of this script without lib/ next to it
+    pass
 
 REPO = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 

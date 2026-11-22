@@ -8,6 +8,11 @@ Prints the prompt for Agent(model: sonnet): the session id (for the report), the
 The subagent runs every check through proof_report.py, so proof-guard sees the FACT of a run (commands and exit
 codes), not the word "test" in a task. Project: the nearest folder up from each path that holds a release.toml."""
 import os, re, shlex, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "../lib"))
+try:
+    import ccm_conf  # noqa: E402,F401  (on import: UTF-8 output where the console code page is cp1251/cp1252)
+except ImportError:   # a copy of this script without lib/ next to it
+    pass
 
 try:
     import tomllib

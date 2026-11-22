@@ -41,7 +41,7 @@ import datetime as dt, glob, hashlib, json, os, re, subprocess, sys, time
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
-from ccm_proc import bash_exe, sh_argv  # noqa: E402  (Windows: a .sh is started through Git Bash's bash)
+from ccm_proc import bash_c, sh_argv  # noqa: E402  (Windows: a .sh is started through Git Bash's bash)
 try:
     import fcntl
 except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
@@ -366,7 +366,8 @@ def run_project(path, dry):
                 tell_unapproved(pd, r, check_key(pd, r["check"]))
             continue
         try:
-            ok = subprocess.run([bash_exe(), "-c", r["check"]], cwd=REPO, capture_output=True,
+            argv, env = bash_c(r["check"])
+            ok = subprocess.run(argv, env=env, cwd=REPO, capture_output=True,
                                 timeout=CHECK_TIMEOUT).returncode == 0
         except subprocess.TimeoutExpired:
             ok = False

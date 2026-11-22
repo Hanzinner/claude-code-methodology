@@ -8,8 +8,26 @@ The file is parsed, never sourced: a value can't run code.
 
 Python:  from ccm_conf import conf;  conf("CCM_HUMAN_NAME")
 Shell:   eval "$(python3 <install dir>/lib/ccm_conf.py --shell)"   → exports every CCM_* key
+
+Importing this module also makes stdout/stderr UTF-8 when they are not (utf8_stdio below).
 """
 import os, shlex, sys
+
+
+def utf8_stdio():
+    """stdout/stderr in UTF-8 when they are in something else. A Windows pipe or file gets the console code page
+    (cp1251, cp1252), and print("→") there died with UnicodeEncodeError: check-install.py run straight from Git Bash.
+    Every script that imports this module gets it; a script that does not calls it (or does the same two lines).
+    Already UTF-8 (Linux, macOS, PYTHONUTF8=1) = nothing changes."""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            if (s.encoding or "").lower().replace("-", "").replace("_", "") != "utf8":
+                s.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):   # no stream, or not a text stream
+            pass
+
+
+utf8_stdio()
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 INSTALL_DIR = os.path.dirname(HERE)
@@ -90,6 +108,16 @@ def memory_dir(claude_dir):
             v = v.strip()
             return os.path.join(HOME, v[2:]) if v.startswith("~/") else v
     return os.path.join(claude_dir, "memory")
+
+
+def memory_dir_set(claude_dir):
+    """(memory folder, True when the person set autoMemoryDirectory to somewhere else than <claude dir>/memory).
+    Compared by Python itself (normcase + normpath): on Windows memory_dir() gives C:/x/.claude\\memory, and a string
+    compare with the shell's C:/x/.claude/memory said "set by the person", so install.sh never wrote the setting.
+    On Windows the folder comes back with / (Git Bash and Python both read it)."""
+    d = memory_dir(claude_dir)
+    norm = lambda p: os.path.normcase(os.path.normpath(p))
+    return (d.replace("\\", "/") if os.name == "nt" else d), norm(d) != norm(os.path.join(claude_dir, "memory"))
 
 
 def _parse(path):

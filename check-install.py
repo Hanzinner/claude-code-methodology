@@ -10,9 +10,12 @@ registers exists and runs to exit 0 on a sample event. Prints one line per item 
 Exit 0 only if nothing is missing or broken. Optional extras (Telegram bot, system packages) are
 reported, not required.
 """
-import json, os, shlex, shutil, subprocess, sys
+import json, os, shlex, subprocess, sys
 
 REPO = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(REPO, "lib"))
+from ccm_proc import bash_c  # noqa: E402  (a hook command as Claude Code runs it: bash; Windows-safe)
+import ccm_conf  # noqa: E402,F401  (on import: UTF-8 output even where the console code page is cp1251/cp1252)
 
 
 def usage():
@@ -100,10 +103,9 @@ if s is not None:
         if not cmd:
             check(False, f"settings.json: {ev} → {name} registered", "run ./install.sh")
             continue
-        # the hook command is bash, as Claude Code runs it; shell=True would be cmd.exe on Windows, and a bare "bash"
-        # there is System32's WSL launcher: Git Bash's own, from PATH
-        r = subprocess.run([shutil.which("bash") or "bash", "-c", cmd] if os.name == "nt" else cmd, shell=os.name != "nt",
-                           input=json.dumps({**sample, "hook_event_name": ev}),
+        # Windows: shell=True would be cmd.exe - the command goes to Git Bash, as Claude Code runs it there
+        argv, env = (cmd, None) if os.name != "nt" else bash_c(cmd)
+        r = subprocess.run(argv, shell=os.name != "nt", env=env, input=json.dumps({**sample, "hook_event_name": ev}),
                            capture_output=True, text=True, timeout=60)
         check(r.returncode == 0, f"settings.json: {ev} → {name} runs",
               f"exit {r.returncode}: {(r.stderr or r.stdout).strip()[:160]}")
@@ -124,7 +126,7 @@ def _conf(key):
 
 
 def _has(cmd):
-    return any(os.access(os.path.join(p, cmd), os.X_OK) for p in os.environ.get("PATH", "").split(":"))
+    return any(os.access(os.path.join(p, cmd), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep))
 
 
 def _keys(path, names):

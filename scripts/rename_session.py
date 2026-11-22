@@ -22,6 +22,11 @@ import json
 import os
 import re
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "../lib"))
+try:
+    import ccm_conf  # noqa: E402,F401  (on import: UTF-8 output where the console code page is cp1251/cp1252)
+except ImportError:   # a copy of this script without lib/ next to it
+    pass
 from datetime import datetime, timezone
 from pathlib import Path
 

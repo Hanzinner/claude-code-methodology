@@ -7,6 +7,11 @@ false "silent": the watchman writes markers only on change). rc 0 green · 1 red
 the installed watchman does not write one yet - the registry entry skips the check until the file exists).
 Env: WATCHMAN_DIR, TRANSCRIPTS (the projects dir), ACTIVE_MIN (20), MAX_MIN (90)."""
 import glob, os, sys, time
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "../lib"))
+try:
+    import ccm_conf  # noqa: E402,F401  (on import: UTF-8 output where the console code page is cp1251/cp1252)
+except ImportError:   # a copy of this script without lib/ next to it
+    pass
 
 HOME = os.path.expanduser("~")
 W = os.environ.get("WATCHMAN_DIR", os.path.join(HOME, ".claude", "briefing-watchman"))

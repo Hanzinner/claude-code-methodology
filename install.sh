@@ -515,8 +515,10 @@ fi
 # settings it uses ~/.claude/projects/<cwd>/memory/, and our memory-template, memory-write-gate and curation would sit on
 # a folder Claude never reads. So: a folder the person already set wins; otherwise <install dir>/memory, written into
 # settings.json below. Every mechanism finds it through lib/ccm_conf.py (CCM_MEMORY_DIR).
-MEMDIR=$(py3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import ccm_conf; print(ccm_conf.memory_dir(sys.argv[2]))' "$REPO_DIR/lib" "$TARGET")
-MEM_SET=0; [[ "$MEMDIR" != "$TARGET/memory" ]] && MEM_SET=1
+# Python compares (memory_dir_set): on Windows its path is C:/x/.claude\memory, which a string compare here took for
+# "the person's own folder" - and autoMemoryDirectory was never written
+read -r MEM_SET MEMDIR < <(py3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import ccm_conf
+d, own = ccm_conf.memory_dir_set(sys.argv[2]); print(int(own), d)' "$REPO_DIR/lib" "$TARGET")
 say "Copying memory template into $MEMDIR…"
 do_or_show mkdir -p "$MEMDIR"
 if [[ ! -f "$MEMDIR/MEMORY.md" ]]; then
@@ -571,6 +573,12 @@ if py_cmd != "python3":
                     h["command"] = m.group(1) + py_cmd + " " + m.group(2)
 if on_windows == "1":   # print() of "—" or "→" into a pipe: the Windows code page cannot encode it
     ours.setdefault("env", {})["PYTHONUTF8"] = "1"
+    # a command that starts with a .sh runs through bash by name: whoever runs it (Claude Code, check-install, a test)
+    # does not depend on how Windows starts a script by its #! line, and the command always has a space in it
+    for groups in ours["hooks"].values():
+        for g in groups:
+            for h in g.get("hooks", []):
+                h["command"] = re.sub(r'^(\s*)("[^"]*\.sh")', r"\1bash \2", h.get("command", ""))
 try:
     have = json.load(open(dst))
     if not isinstance(have, dict):

@@ -11,7 +11,7 @@ instead and raises ProcessLookupError when the process is gone; nothing is ever 
 A pid written by Git Bash ($$) is an MSYS pid, not a Windows one: on Windows the answer for such a pid is about the
 Windows process with that number, so treat it as a hint, never as a reason to act on a process.
 """
-import os
+import os, shutil
 
 
 def kill0(pid):
@@ -42,7 +42,6 @@ def sh_argv():
     the WSL launcher. shutil.which follows PATH, where Git Bash puts its own /usr/bin first."""
     if os.name != "nt":
         return []
-    import shutil
     return [shutil.which("bash") or "bash"]
 
 
@@ -50,3 +49,14 @@ def bash_exe():
     """"bash" for subprocess.run(["bash", "-c", ...]): the same word on Linux and macOS; on Windows the full path of
     Git Bash's bash.exe (a bare "bash" is System32's WSL launcher - the command would run inside WSL, if at all)."""
     return (sh_argv() or ["bash"])[0]
+
+
+def bash_c(cmd):
+    """(argv, env) to run a bash command line from Python: subprocess.run(argv, env=env, ...).
+    Linux and macOS: (["bash", "-c", cmd], None) - as before. Windows: the line travels in the environment, not on the
+    command line. Python builds a Windows command line and leaves an argument with no space unwrapped, quotes escaped
+    as \\" ("C:/x/check.sh" -> \\"C:/x/check.sh\\"); Git Bash read that back differently, so exactly the commands that
+    are one quoted path failed (a check-install hook test, a supervisor check), while every command with a space passed."""
+    if os.name != "nt":
+        return ["bash", "-c", cmd], None
+    return [bash_exe(), "-c", 'eval "$CCM_BASH_C"'], {**os.environ, "CCM_BASH_C": cmd}

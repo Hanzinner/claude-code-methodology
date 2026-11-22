@@ -9,7 +9,12 @@ Checked = one of: `|| <anything but true or :>` right after it on the line (exit
 `set -e` (any -e… form) earlier in the file. `local T=$(mktemp -d)` hides the failure even under set -e, so for a `local`
 only the first two count.
 """
-import re, sys
+import os, re, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "../lib"))
+try:
+    import ccm_conf  # noqa: E402,F401  (on import: UTF-8 output where the console code page is cp1251/cp1252)
+except ImportError:   # a copy of this script without lib/ next to it
+    pass
 
 ASSIGN = re.compile(r"(?:^|[\s;&(])(local\s+|declare\s+(?:-\w+\s+)*)?(\w+)=\$\(\s*mktemp\s+-d\b[^)]*\)(.*)$")
 SET_E = re.compile(r"^\s*set\s+-[a-zA-Z]*e[a-zA-Z]*\b|^\s*set\s+-o\s+errexit\b")

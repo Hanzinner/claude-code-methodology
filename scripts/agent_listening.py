@@ -15,6 +15,10 @@ import calendar, glob, os, re, subprocess, sys, time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_proc import kill0  # noqa: E402  (a liveness probe that does not kill on Windows)
+try:
+    import ccm_conf  # noqa: E402,F401  (on import: UTF-8 output where the console code page is cp1251/cp1252)
+except ImportError:   # a copy of this script without lib/ next to it
+    pass
 
 HOME = os.path.expanduser("~")
 IDENT = os.environ.get("LISTEN_IDENT", os.path.join(HOME, ".claude", "agent-identity")).split(":")
