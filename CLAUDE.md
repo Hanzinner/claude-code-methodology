@@ -72,6 +72,7 @@ To save: write the memory to its own file with frontmatter (`name`, `description
 - Prefer `Read`/`Edit`/`Write` over `Bash` when one fits.
 - Multiple independent tool calls → parallel in one message.
 - Use the todo list for any task with 3+ distinct steps. Mark items complete as soon as done.
+- Before writing your own tool, use what Claude Code already has: the Word, Excel, PowerPoint and PDF skills for those files; `/deep-research` for research across many sources; `skill-creator` to write and test a new skill; `/code-review`, `/simplify`, `/security-review` to review a change. Keep this system's own where it adds something: `/verify` (proof the "done" gate counts), `scripts/remind.py` (a reminder that survives a closed chat).
 
 ## Output
 
