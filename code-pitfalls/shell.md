@@ -228,3 +228,9 @@
 - **Why:** the test ran with a trimmed PATH, `mktemp` was not found, `T=""`. `set -u` does not catch an empty variable, so `"$T/bin/rsync"` = `/bin/rsync`, and the builtin `printf … >` writes without any external command. As root, nothing stops it.
 - **Right way:** `T=$(mktemp -d) && [[ -d "$T" && "$T" != / ]] || { echo "no temp dir" >&2; exit 2; }` in every test that writes into `$T/…`; run tests as a normal user when possible. Check: run the test with a PATH without `mktemp`: it must refuse, not write.
 - **Seen:** once.
+
+### `tr '\t' '\0' < list.tsv | xargs -0 -n2`: pairs run together across lines
+- **Symptom:** a parallel download from an "id<TAB>path" list saves some files under broken names, the rest FAIL, and bare ids appear as separate lines in the log.
+- **Why:** `tr '\t' '\0'` replaces only the tab; the newline between records stays inside a field, so xargs sees "path\nnext_id" as ONE argument and the pairs shift.
+- **Right way:** `tr '\t\n' '\0\0'` (both separators to NUL) or `while IFS=$'\t' read -r id path`. Check: `printf 'a\tb\nc\td\n' | tr '\t\n' '\0\0' | xargs -0 -n2 echo` prints `a b` and `c d`.
+- **Seen:** once.

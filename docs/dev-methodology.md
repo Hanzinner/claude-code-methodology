@@ -18,6 +18,7 @@ Do not ask how many agents; you propose positions in step 3.
 - Code: `scripts/new_project.sh --own-repo --profile web|game|tool <Name>` — a project with code always gets
   its own repo (and the release queue, if it was installed with `./install.sh --with-releaser`).
 - No code: `scripts/new_project.sh --no-code <Name>` — a folder in the shared workspace.
+- A contribution to someone else's open-source project: `--no-code` plus a clone of the upstream for the code; the release is a pull request the author accepts (project-work 4.7).
 
 It creates the project folder, `release.toml`, `ROADMAP.md`, `BLOCKERS.md`, the first commit (own repo) and the
 agents `<Name>-HQ` (the lead) and `<Name>-Dev` with briefing, inbox and to-do. Extra agent names after `<Name>`

@@ -106,3 +106,34 @@ Setup these come from: a Linux VM on a Windows Hyper-V host, driven over SSH (Po
 - **Why:** by default `DisallowStartIfOnBatteries=True`: on battery Windows queues the task.
 - **Right way:** `New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`, and check the result by the process or the program's log, not by the task's code.
 - **Seen:** once.
+
+### Rust on Windows without Visual Studio: `rust-toolchain.toml` installs the MSVC toolchain although rustup was set up with `--default-host x86_64-pc-windows-gnullvm`
+- **Symptom:** `cargo build` fails on build scripts: "linker `link.exe` not found … msvc targets depend on the msvc linker".
+- **Why:** rustup resolves the channel from `rust-toolchain.toml` (e.g. `1.91.1`) for the MSVC host unless the toolchain for the wanted host is named explicitly.
+- **Right way:** `rustup toolchain install 1.91.1-x86_64-pc-windows-gnullvm --profile minimal` and `rustup override set 1.91.1-x86_64-pc-windows-gnullvm` in the project folder; llvm-mingw (ucrt) on PATH.
+- **Long jobs over SSH on Windows:** OpenSSH kills the session's processes on disconnect; start detached: `Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=[string]$cl}` with `> log 2>&1`.
+- **Seen:** once.
+
+### Rust on `*-pc-windows-gnullvm`: the exe needs `libunwind.dll`, and on someone else's machine "libunwind.dll was not found"
+- **Symptom:** the exe runs on the build machine and not on the user's.
+- **Why:** this toolchain links stack unwinding dynamically; on the build machine the DLL is in the llvm-mingw folder, so the gap is invisible there. `llvm-objdump -p app.exe | findstr "DLL Name"` shows it.
+- **Right way:** build like the project's author: `--target x86_64-pc-windows-gnullvm` plus `CARGO_TARGET_X86_64_PC_WINDOWS_GNULLVM_RUSTFLAGS="-C target-feature=+crt-static"`, so libunwind is linked in (the explicit `--target` keeps the flag off build scripts and proc-macros); or ship `libunwind.dll` next to the exe. Before handing an exe to a person: `objdump -p` for the DLL list and a trial run on a machine without the toolchain.
+- **Seen:** once.
+
+### `tar | ssh | tar` to a Windows target: non-Latin file names arrive garbled, files go missing silently
+- **Symptom:** a Cyrillic file name arrives as box-drawing mojibake; the program does not see its files, no error; one file did not arrive at all.
+- **Why:** Windows bsdtar unpacks UTF-8 names from the archive through the OEM code page.
+- **Right way:** for Windows use `scp -r` or a zip with UTF-8 names; after any transfer compare the file count and a sha256 list on both sides.
+- **Seen:** once.
+
+### A "done" marker for a detached cmd job: `echo 0> file`, and `exit`
+- **Symptom:** waiting for a marker file forever, or the marker is empty.
+- **Why:** `cmd /c (job) > log & echo %errorlevel%> done` with code 0 becomes `echo 0> done`, which cmd reads as a redirect of stream 0. And if the job in a .cmd file calls `exit N`, the marker line never runs.
+- **Right way:** put the job in a .cmd file, run it as a child `cmd /c "(job)" > log 2>&1`, and write the marker with the redirect in front: `>done echo %ERRORLEVEL%`. Python writing to a file on Windows prints in the ANSI code page and dies on a non-ASCII character (`UnicodeEncodeError`): set `PYTHONIOENCODING=utf-8`.
+- **Seen:** once.
+
+### PowerShell: `$R` and `$r` are the SAME variable
+- **Symptom:** `foreach ($r in 'a/b', …) { git -C $R … }` → "cannot change to 'a/b'": the clone path "disappeared" after the first iteration.
+- **Why:** PowerShell variable names are case-insensitive; the loop overwrote `$R` with `$r`.
+- **Right way:** different words, not different case: `$Clone`, `$Br`. Check: `$R='a'; $r='b'; $R` prints `b`.
+- **Seen:** once.

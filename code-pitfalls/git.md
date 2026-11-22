@@ -178,3 +178,26 @@
 - **Why:** `reset --soft <branch>` puts HEAD on the branch's CURRENT tip but keeps your files from the old base. If something landed on main meanwhile, your next commit contains the reverse diff.
 - **Right way:** squash with `git reset --soft $(git merge-base HEAD main)`. Before handing a branch over, `git diff --stat main...HEAD`: a file you did not touch = a revert. The receiver checks the same with `git show --stat` before merging.
 - **Seen:** once.
+
+### A clone on Windows gets CRLF: text embedded into the binary (shaders, templates) silently differs from the author's build
+- **Symptom:** a Windows build from a fresh clone behaves differently from the official one (built on Linux): tests that look for a string with `\n` in an embedded file (`include_str!`, `"#version 100\n"`) fail only on Windows; a shader runs without its substitutions.
+- **Why:** Git for Windows sets `core.autocrlf=true`, so every text file in the working tree has `\r\n`; the build embeds it as is, while the code searches for `\n`.
+- **Right way:** clone for building with `git clone -c core.autocrlf=false …`, or in an existing clone `git config core.autocrlf false` then `git rm -r --cached . && git reset --hard` (a plain checkout does not rewrite unchanged files). Check: `git ls-files --eol | findstr "w/crlf"` shows only files that have CRLF in the index too (`i/crlf`).
+- **Seen:** twice, two agents on the same project.
+
+### `git -c user.name=… -c user.email=… commit` in a clone without an author: then `rebase` / `am --abort` fail with "unable to auto-detect email"
+- **Symptom:** the commit is made, but `git rebase origin/main` stops with "fatal: unable to auto-detect email address": the branch is left as "HEAD (no branch)", changes staged, the pick not committed; `git am --abort` fails the same way. A script that then runs `format-patch -1` exports someone else's top commit.
+- **Why:** rebase and am write new commits (committer) and the reflog; every such command needs an identity, and `-c` applies to one command only.
+- **Right way:** `-c user.name -c user.email` on every writing command (`commit`, `rebase`, `rebase --continue`, `am`, `am --abort`), or `GIT_AUTHOR_*` / `GIT_COMMITTER_*` in the environment once; not `git config user.name` in a worktree (it writes the shared `.git/config`). After a rebase, `git log -1` before exporting anything. A stuck pick: `git commit -C <old sha>` then `rebase --continue`.
+- **Seen:** once.
+
+### A build script that takes the commit from `git rev-parse` silently says "unknown commit" when root builds a repo owned by another user
+- **Why:** git refuses with "detected dubious ownership" and the build script swallows the error.
+- **Right way:** without touching the global config, in the build environment: `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=*`. An environment variable with the same name as the one the build script sets does not help (Rust: `cargo:rustc-env` overrides it).
+- **Seen:** once.
+
+### A push to your fork is rejected: "refusing to allow a Personal Access Token to create or update workflow … without `workflow` scope"
+- **Symptom:** `git push` to your fork (and even the API "Sync fork") is rejected, although your commits do not touch `.github/workflows/`.
+- **Why:** the branch, rebased onto a fresh upstream, carries the AUTHOR's commits that changed `.github/workflows/*.yml` and are not in your fork yet. GitHub checks every commit new to the fork; a classic token with only `public_repo` does not let them through.
+- **Right way:** add the `workflow` scope to the classic token (Settings → Tokens → Edit; the token value does not change), once; or the owner presses "Sync fork" on the web. Check the scopes: `curl -sI -H "Authorization: token …" https://api.github.com/user | grep -i x-oauth-scopes`. Check before rebasing onto an upstream that changed its CI.
+- **Seen:** once.

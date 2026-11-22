@@ -170,3 +170,9 @@
 - **Why:** the test depends on the real "now" and the day boundary, while the data it creates is relative ("+30 min").
 - **Right way:** build state that doesn't depend on the hour (here: a discount via retail instead of "tonight"; take "the second window" from the list of all days); when the condition truly needs a time of day — skip with a reason; run a new date-based test "in the evening" too (patch the time or run at 23:xx). Found one such defect → grep the neighbouring tests for the same.
 - **Seen:** once.
+
+### `cargo test --lib --bins -- <filter>`: a known failure in lib, and the binary's tests silently never ran
+- **Symptom:** the run shows `test result: FAILED. 5 passed; 1 failed` from a known red test in lib, and your own module's tests are not in the output at all; easy to read as "only the known one failed, the rest is fine". Twice in a day the new tests never ran.
+- **Why:** without `--no-fail-fast` cargo stops at the first target that fails; `--lib` runs first, so `--bins` never starts.
+- **Right way:** the known red test in a separate call (or `--no-fail-fast`), your modules in their own (`--bins -- module::…`). Green only when the output has `test result: ok. N passed` for YOUR target with N > 0.
+- **Seen:** twice.

@@ -205,3 +205,9 @@
 - **Why:** photos are often rotated, so columns look like rows; labels that read "backwards" are vertical text in the original, not a photo defect; a "1 2 3 ..." row in form-style documents is a real row.
 - **Right way:** read orientation and structure from the photo before writing code; carry vertical labels and the numbering row over as they are; tell the human exactly which small or handwritten text you read with doubt, do not fill it in.
 - **Seen:** once.
+
+### `open(p, 'w').write(open(p).read())`: the file becomes empty
+- **Symptom:** a one-liner to "re-encode the file in place", `open(p,'w',encoding='utf-8-sig').write(open(p,encoding='utf-8').read())`, leaves a 3-byte file (just the BOM). A script shipped to another machine that way "ran" in a second with exit code 0 and logged nothing.
+- **Why:** arguments are evaluated left to right: `open(p,'w')` truncates the file before `open(p).read()` reads it.
+- **Right way:** read into a variable first, then write; or write to another file and rename. After copying a file to another machine, compare sizes.
+- **Seen:** once.
