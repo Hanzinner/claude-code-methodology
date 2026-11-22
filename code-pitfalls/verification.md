@@ -176,3 +176,14 @@
 - **Why:** without `--no-fail-fast` cargo stops at the first target that fails; `--lib` runs first, so `--bins` never starts.
 - **Right way:** the known red test in a separate call (or `--no-fail-fast`), your modules in their own (`--bins -- module::…`). Green only when the output has `test result: ok. N passed` for YOUR target with N > 0.
 - **Seen:** twice.
+
+### A `cargo test` filter in a crate with a lib and a bin: "0 passed" is not green
+- **Symptom:** `cargo test --bin app rules::journal` prints `0 passed; 0 failed`, while the module's tests live in the library (`src/rules/` is in lib, `src/ui/` in the bin). Reporting "journal is green" would have been false.
+- **Right way:** a library module: `--lib <path>`; a binary module: `--bin <name> <path>`. Always put the number of passed tests in the report; `0 passed` on a filter is a wrong filter, not success.
+- **Seen:** once.
+
+### A shared `CARGO_TARGET_DIR` for worktrees on different bases: a false red build
+- **Symptom:** clippy fails on a "missing field" in code your change does not touch.
+- **Why:** the shared target dir held a workspace crate built from a worktree on a newer main; the worktree on the older base has older file mtimes, so cargo took the foreign artifact as fresh.
+- **Right way:** before building in a worktree that shares a target dir with another base, `git ls-files -z -- '*.rs' '*.toml' | xargs -0 touch` (rebuilds only the workspace crates, not dependencies; git status unchanged); or a separate target dir per base. Compile errors in files or crates your diff does not touch: suspect the build cache first, not the code.
+- **Seen:** once.
