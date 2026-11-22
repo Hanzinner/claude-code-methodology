@@ -157,7 +157,7 @@ check(bool(ours) and os.path.realpath(ours) == os.path.realpath(memdir), f"memor
 ws = _conf("CCM_WORKSPACE")
 if ws:
     stamp = f"{target}/.methodology-installed"
-    for n in ("CODING-STANDARD.md", "PROJECT-WORK.md", "DEV-METHODOLOGY.md", "PO-INTERFACE.md", "WEB-PLAYBOOK.md"):
+    for n in ("CODING-STANDARD.md", "PROJECT-WORK.md", "DEV-METHODOLOGY.md", "PO-INTERFACE.md", "WEB-PLAYBOOK.md", "DOC-SLOP.md"):
         check(os.path.isfile(os.path.join(ws, n)), f"workspace/{n}", "run ./install.sh")
         check(not os.path.isfile(os.path.join(ws, n + ".new")), f"workspace/{n}: our text merged into yours",
               f"merge pending: keep yours, add what it lacks from {n}.changes, then: mv {ws}/{n}.new {stamp}/ws-{n}.base")

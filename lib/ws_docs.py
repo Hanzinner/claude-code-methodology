@@ -8,7 +8,8 @@ and WEB-PLAYBOOK.md, the journal agents building sites read first and append the
 
 docs/coding-standard.md -> CODING-STANDARD.md, project-work.md -> PROJECT-WORK.md, dev-methodology.md ->
 DEV-METHODOLOGY.md, po-interface.md -> PO-INTERFACE.md (the names hooks/proof-guard.py and the briefing template expect),
-web-playbook.md -> WEB-PLAYBOOK.md (code-pitfalls/web.md points there).
+web-playbook.md -> WEB-PLAYBOOK.md (code-pitfalls/web.md points there), hall-of-shame-docs.md -> DOC-SLOP.md (CLAUDE.md
+points there: the test "what does the person do with this line?").
 Links are rewritten on the way: between these documents -> the new names; to any other file of the repo -> its absolute path
 in this clone, so nothing in the workspace points to a file that is not there.
 
@@ -24,7 +25,7 @@ import difflib, hashlib, os, re, sys
 
 DOCS = {"coding-standard.md": "CODING-STANDARD.md", "project-work.md": "PROJECT-WORK.md",
         "dev-methodology.md": "DEV-METHODOLOGY.md", "po-interface.md": "PO-INTERFACE.md",
-        "web-playbook.md": "WEB-PLAYBOOK.md"}
+        "web-playbook.md": "WEB-PLAYBOOK.md", "hall-of-shame-docs.md": "DOC-SLOP.md"}
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 TEXT = re.compile(r"(?<![\w/.-])docs/(" + "|".join(re.escape(k[:-3]) for k in DOCS) + r")\.md")
 

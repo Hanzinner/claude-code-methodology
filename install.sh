@@ -389,7 +389,7 @@ done
 say "Swarm files in the workspace…"
 if [[ $DRY_RUN -eq 1 ]]; then
   echo "  DRY: would copy missing files of swarm-template/ into the workspace and <agents dir>/_example-agent/"
-  echo "  DRY: would put CODING-STANDARD.md, PROJECT-WORK.md, DEV-METHODOLOGY.md, PO-INTERFACE.md, WEB-PLAYBOOK.md into the workspace (yours kept, ours as .new)"
+  echo "  DRY: would put CODING-STANDARD.md, PROJECT-WORK.md, DEV-METHODOLOGY.md, PO-INTERFACE.md, WEB-PLAYBOOK.md, DOC-SLOP.md into the workspace (yours kept, ours as .new)"
 else
   WS=$(python3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE); AG=$(python3 "$TARGET/lib/ccm_conf.py" CCM_AGENTS_DIR)
   added=0
@@ -401,7 +401,7 @@ else
     mkdir -p "$(dirname "$dst")" && cp "$f" "$dst" && added=$((added + 1))
   done < <(find "$REPO_DIR/swarm-template" -type f -print0)
   ok "workspace $WS: $added file(s) added from swarm-template (existing ones kept)"
-  # the documents every agent follows (CODING-STANDARD, PROJECT-WORK, DEV-METHODOLOGY, PO-INTERFACE, WEB-PLAYBOOK): links rewritten
+  # the documents every agent follows (CODING-STANDARD, PROJECT-WORK, DEV-METHODOLOGY, PO-INTERFACE, WEB-PLAYBOOK, DOC-SLOP): links rewritten
   # to the workspace; an edited one is kept and the new version goes next to it as .new (+ .changes), like CLAUDE.md
   while IFS= read -r l; do
     case "$l" in "  "*"is yours"*) warn "${l#  }" ;; "  "*) say "${l#  }" ;; *) ok "$l" ;; esac

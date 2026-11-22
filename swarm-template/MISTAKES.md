@@ -29,7 +29,7 @@ agents; the right-hand column is what guards each one in this repo.
 | 11 | An alert arrived, nobody acted | none |
 | 12 | A test wrote into live state | `CCM_TEST=1` convention, `docs/coding-standard.md` §2.4 |
 | 13 | A mechanism keyed on the text of a command, not on the action or identity | none |
-| 14 | Slop in a text for a human | `docs/hall-of-shame-docs.md` |
+| 14 | Slop in a text for a human | `DOC-SLOP.md` |
 | 15 | A mechanism didn't move to a new project (only the text "how we did it" did) | none shipped |
 | 16 | Edited what is running right now (a script mid-run reads the changed file) | lesson in `code-pitfalls/shell.md` |
 
