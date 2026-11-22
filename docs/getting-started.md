@@ -71,8 +71,8 @@ keep a note, or leave the line and empty its list in `methodology.conf` where it
 
 ## 4. More than one agent
 
-An agent is a named helper for one area: its own chat, folder, notes and to-do list. Open a new chat whose first
-message is its name, and it is that agent again, with everything it knew.
+An agent is a helper for one narrow area: its own chat (one long chat is the normal way to work with it), folder,
+briefing, notes and to-do list.
 
 What it gives you in practice:
 
@@ -81,12 +81,13 @@ What it gives you in practice:
    first agent checks the result and tells you it is done. You said one sentence: you never opened the second
    chat and never copied anything from one to the other. An agent with an alarm wakes up on a letter by itself,
    so this goes on while you are away.
-2. **You correct an agent once, and it stays corrected, in that area only.** The correction goes into the agent's
-   own briefing. Next month, in a brand-new chat, it still works that way, and a rule for your accounting agent
-   never turns up in your travel planning.
-3. **What it knows outlives any chat.** Your clients, how you like a report, what was decided last month: it
-   lives in the agent's folder and memory, not in a chat. A long chat gets compressed, a tab crashes, you open a
-   new one with the agent's name and carry on where you left off.
+2. **Each agent is a specialist in its area and only its area.** Its briefing says what it owns and how you want
+   that work done, and every correction you make goes there. So it gets better at its job week by week: you
+   correct it once, and it stays corrected. A rule for your accounting agent never turns up in your travel
+   planning, and the shared memory stays short instead of filling with narrow lessons from every topic.
+3. **What it knows lives in files, not in the chat.** Your clients, how you like a report, what was decided last
+   month: when the long chat gets compressed, the agent still knows its role and its rules, because they are in
+   its briefing and memory.
 4. **It tells you what is still open.** Come back after a week, and the agent says what it hasn't finished.
 5. **Only decisions reach you.** Each agent keeps one file of what only you can decide (taste, priority,
    anything that can't be undone), one line each; everything technical it decides and does itself.
