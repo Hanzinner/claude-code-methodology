@@ -31,8 +31,17 @@ MEMORY_DIR = pathlib.Path(_mem or os.environ.get("CLAUDE_MEMORY_DIR") or os.path
 
 STALE_DAYS = int(os.environ.get("MEMORY_STALE_DAYS") or 60)
 VALID_TYPES = {"user", "feedback", "project", "reference"}
-SKIP = ("MEMORY.md", "feedback-index.md")
+# Not memory: the index and the folder's own "how to write memory here" (README.md, installed from memory-template/).
+# Top level only (the checks below glob the top level): a README.md in a subfolder is not exempt.
+NOT_MEMORY = ("MEMORY.md", "README.md")
+SKIP = NOT_MEMORY + ("feedback-index.md",)
 findings = []
+
+
+def strip_comments(text):
+    """Drop <!-- ... --> (also multi-line, also an unclosed one to the end) before reading links: the template's
+    MEMORY.md shows example entries inside comments, and a commented-out line is not in the index."""
+    return re.sub(r"<!--.*?(?:-->|\Z)", "", text, flags=re.S)
 
 
 def check_index_exists():
@@ -40,7 +49,7 @@ def check_index_exists():
     if not idx.exists():
         findings.append(f"MEMORY.md missing at {idx}")
         return None
-    return idx.read_text(encoding="utf-8")
+    return strip_comments(idx.read_text(encoding="utf-8"))
 
 
 def check_orphans(index_text):
@@ -48,7 +57,7 @@ def check_orphans(index_text):
     referenced = set(re.findall(r"\[[^\]]+\]\(([^)]+\.md)\)", index_text))
     referenced |= set(re.findall(r"\[\[([^\]]+)\]\]", index_text))
     for f in MEMORY_DIR.glob("*.md"):
-        if f.name == "MEMORY.md":
+        if f.name in NOT_MEMORY:
             continue
         if f.name not in referenced and f.stem not in referenced:
             findings.append(f"orphan: {f.name} (not linked from MEMORY.md)")
@@ -72,7 +81,9 @@ def check_wikilinks():
         if m:
             valid_names.add(m.group(1).strip("\"'"))
     for f in MEMORY_DIR.glob("*.md"):
-        text = f.read_text(encoding="utf-8")
+        if f.name == "README.md":   # documentation: its [[name]] is the syntax being explained
+            continue
+        text = strip_comments(f.read_text(encoding="utf-8"))
         for ref in re.findall(r"\[\[([^\]]+)\]\]", text):
             ref_name = ref.split("#")[0].split("|")[0].strip()
             if ref_name and ref_name not in valid_names:

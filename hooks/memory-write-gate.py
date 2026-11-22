@@ -9,7 +9,8 @@ fields — metadata.source (where the fact came from) and metadata.verified
 hook-safe.sh). Better to refuse a write than to poison memory with an
 unattributed guess that later hardens into a "fact".
 
-Exempt: episodic/ (a dated log), the MEMORY.md index, feedback-index.md, archive/.
+Exempt: episodic/ (a dated log), the MEMORY.md index, feedback-index.md, archive/, and the top-level README.md
+(the folder's "how to write memory here", installed from memory-template/; a README.md in a subfolder is gated).
 A file that ALREADY has the fields on disk (editing an old one) passes — the
 friction is one-time, at creation.
 
@@ -26,7 +27,7 @@ except Exception:   # fail-closed gate: no conf module -> the old lookup, never 
     _mem = ""
 MEM = os.path.realpath(_mem or os.environ.get("CLAUDE_MEMORY_DIR") or os.path.expanduser("~/.claude/memory")) + "/"
 SKIP_DIRS = ("episodic/", "archive/")            # top-level folders, by prefix
-SKIP_FILES = ("MEMORY.md", "feedback-index.md")  # top-level files, exact name
+SKIP_FILES = ("MEMORY.md", "feedback-index.md", "README.md")  # top-level files, exact name
 
 
 def deny(reason):
