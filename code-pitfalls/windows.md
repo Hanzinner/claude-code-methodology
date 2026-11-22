@@ -143,3 +143,20 @@ Setup these come from: a Linux VM on a Windows Hyper-V host, driven over SSH (Po
 - **Why:** Windows puts app-execution aliases `python.exe` / `python3.exe` in `...\WindowsApps`; the python.org installer gives `python` and the `py` launcher, never `python3`. `command -v python3` finds the stub.
 - **Right way:** test a candidate by running it (`X -c 'import sys; sys.exit(sys.version_info < (3, 9))'`), not by `command -v`; try `python3`, `python`, `py -3` in that order. A `#!/usr/bin/env python3` script needs a `python3` earlier in PATH that runs the real one (`lib/pyshim/` here).
 - **Seen:** once (a test install in Git Bash, 2026-11).
+
+### `powershell -Command -` (a script through stdin over SSH) silently drops multi-line blocks
+- **Symptom:** a script sent as `ssh win "powershell -NoProfile -Command -" < script.ps1` prints nothing and does nothing (exit 0), while one-liners the same way work.
+- **Why:** with `-Command -` PowerShell reads stdin line by line; a here-string (`@" … "@`) or a multi-line `for`/`if { … }` never assembles into one statement, and the block vanishes without an error.
+- **Right way:** a script with here-strings or multi-line blocks: `scp` it over and run `powershell -NoProfile -ExecutionPolicy Bypass -File <path>`; through stdin only one-liners. Afterwards check for the EXPECTED output line, not just exit 0.
+- **Seen:** once.
+
+### Python on Windows takes the home folder from USERPROFILE, not HOME
+- **Symptom:** a test isolates the home with `HOME=$T`, yet writes into the person's real `~/.claude` (test reminders were left behind on a real machine).
+- **Why:** `os.path.expanduser("~")` on Windows Python reads `USERPROFILE`.
+- **Right way:** in tests set `USERPROFILE` together with `HOME` (here: `lib/ccm_conf.py` `home_follows_HOME` plus `pyshim/sitecustomize.py`); `tests/home-isolation-test.sh` catches a regression (the USERPROFILE trap must stay empty).
+- **Seen:** once, 20 tests.
+
+### Git Bash (MSYS): no `/proc/<pid>/comm`, `ps` without `-o`, no `/usr/bin/git`
+- **Symptom:** the process name from `/proc/<pid>/comm` is empty (two agent tabs merged into one); `ps -o comm=` errors; a test calling `/usr/bin/git` failed 18 of 20.
+- **Right way:** take the name from field 2 of `/proc/<pid>/stat` (strip `.exe`); find git on PATH (`command -v git`, it is in `/mingw64/bin` or `/ucrt64/bin`); `ps -o` only as a fallback.
+- **Seen:** once.
