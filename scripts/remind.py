@@ -23,6 +23,7 @@ import json, os, re, subprocess, sys, time
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+from ccm_proc import sh_argv  # noqa: E402  (Windows: a .sh is started through Git Bash's bash)
 try:
     import fcntl
 except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
@@ -122,7 +123,7 @@ def resolve(agent):
     """-> (ok, message). Uses inbox_resolve.sh next to this file when installed, else the same lookup inline:
     a folder <agent> or <agent>-agent under the agents dir (also one level down), case-insensitive, with an inbox.md."""
     if os.path.isfile(RESOLVE):
-        r = subprocess.run((['bash'] if os.name == 'nt' else []) + [RESOLVE, agent], capture_output=True, text=True)   # Windows cannot start a .sh by itself
+        r = subprocess.run(sh_argv() + [RESOLVE, agent], capture_output=True, text=True)
         return r.returncode == 0, (r.stderr or r.stdout).strip()[:300]
     root = conf("CCM_AGENTS_DIR", "")
     want = {agent.lower(), agent.lower() + "-agent"}
@@ -177,7 +178,7 @@ def fire():
         msg = (f"⏰ **Reminder** (set {fmt(r.get('set', r['due']))} for {fmt(r['due'])}"
                + (f"; late by {span(late)} — the machine was off or the mail refused" if late > 300 else "") + f"): {r['text']}")
         try:
-            p = subprocess.run((['bash'] if os.name == 'nt' else []) + [POST, r["agent"], msg], capture_output=True, text=True, timeout=60); rc = p.returncode
+            p = subprocess.run(sh_argv() + [POST, r["agent"], msg], capture_output=True, text=True, timeout=60); rc = p.returncode
             err = (p.stderr or p.stdout).strip()[:200]
         except (OSError, subprocess.TimeoutExpired) as e:
             rc, err = 99, str(e)[:200]

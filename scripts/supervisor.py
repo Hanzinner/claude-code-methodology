@@ -42,6 +42,7 @@ import argparse, glob, json, os, re, socket, subprocess, sys, time, urllib.reque
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+from ccm_proc import bash_exe, kill0  # noqa: E402  (a liveness probe that does not kill on Windows)
 
 HOME = os.path.expanduser("~")
 STATE_DIR = conf("CCM_SUPERVISOR_DIR", "") or os.path.join(HOME, ".claude", "supervisor")
@@ -53,7 +54,7 @@ LOG = None                  # set in main() once the state dir is known
 
 def sh(cmd, timeout=20):
     try:
-        r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run([bash_exe(), "-c", cmd], capture_output=True, text=True, timeout=timeout)
         return r.returncode, (r.stdout + r.stderr).strip()
     except subprocess.TimeoutExpired:
         return 124, "timeout"
@@ -288,7 +289,7 @@ def live_sessions():
     for p in glob.glob(f"{d}/*.json"):
         try:
             j = json.load(open(p))
-            os.kill(int(j["pid"]), 0)
+            kill0(j["pid"])
             out.append(j["sessionId"])
         except (OSError, ValueError, KeyError, TypeError):
             continue

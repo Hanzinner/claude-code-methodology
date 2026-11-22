@@ -12,6 +12,7 @@ import glob, json, os, subprocess, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+from ccm_proc import kill0  # noqa: E402  (a liveness probe that does not kill on Windows)
 
 HOME = os.path.expanduser("~")
 IDENT = os.environ.get("AGENT_TAB_IDENT", os.path.join(HOME, ".claude", "agent-identity"))
@@ -43,7 +44,9 @@ def alive(d):
     if os.path.isdir("/proc"):
         return False                      # Linux, and the process is gone
     try:                                  # no /proc (macOS): the pid exists - the best that can be checked
-        os.kill(pid, 0)
+        kill0(pid)
+        if os.name == "nt":
+            return True                   # Windows: OpenProcess says it runs (that pid is Windows' own); ps has no -o
         return bool(subprocess.run(["ps", "-p", str(pid), "-o", "pid="], capture_output=True, text=True, timeout=3).stdout.strip())
     except (OSError, subprocess.SubprocessError):
         return False

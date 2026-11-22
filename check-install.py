@@ -10,7 +10,7 @@ registers exists and runs to exit 0 on a sample event. Prints one line per item 
 Exit 0 only if nothing is missing or broken. Optional extras (Telegram bot, system packages) are
 reported, not required.
 """
-import json, os, shlex, subprocess, sys
+import json, os, shlex, shutil, subprocess, sys
 
 REPO = os.path.dirname(os.path.realpath(__file__))
 
@@ -100,7 +100,10 @@ if s is not None:
         if not cmd:
             check(False, f"settings.json: {ev} → {name} registered", "run ./install.sh")
             continue
-        r = subprocess.run(cmd, shell=True, input=json.dumps({**sample, "hook_event_name": ev}),
+        # the hook command is bash, as Claude Code runs it; shell=True would be cmd.exe on Windows, and a bare "bash"
+        # there is System32's WSL launcher: Git Bash's own, from PATH
+        r = subprocess.run([shutil.which("bash") or "bash", "-c", cmd] if os.name == "nt" else cmd, shell=os.name != "nt",
+                           input=json.dumps({**sample, "hook_event_name": ev}),
                            capture_output=True, text=True, timeout=60)
         check(r.returncode == 0, f"settings.json: {ev} → {name} runs",
               f"exit {r.returncode}: {(r.stderr or r.stdout).strip()[:160]}")
@@ -108,7 +111,7 @@ if s is not None:
 print("\nOptional (not required):")
 print(f"  Telegram bot: {'installed' if os.path.exists(target + '/mobile-bot/bot.py') else 'not installed'}")
 for tool, why in (("pdftotext", "PDF extraction"), ("pandoc", "HTML to markdown"), ("lynx", "HTML to text")):
-    found = any(os.access(os.path.join(p, tool), os.X_OK) for p in os.environ.get("PATH", "").split(":"))
+    found = any(os.access(os.path.join(p, tool), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep))
     print(f"  {tool} ({why}): {'found' if found else 'not found'}")
 
 # Accounts: print ONLY what is missing — one line per section of docs/accounts.md, with the same anchor.

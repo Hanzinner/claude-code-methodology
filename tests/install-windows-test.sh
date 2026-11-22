@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # install.sh on native Windows (Git Bash), imitated on Linux: python3 is the Microsoft Store stub (prints "Python was
-# not found", exits 9009), the real Python is `python` (or only `py -3`), and flock, setsid, crontab, jq are missing.
-# MSYSTEM=MINGW64 and an identity cygpath stand in for Git Bash. Checks: the installer picks the real Python and puts it
+# not found", exits 9009), the real Python is `python` (or only `py -3`), and the commands Git for Windows does not
+# ship are missing (getent, flock, setsid, crontab, jq, systemctl, sudo, pgrep, ionice, rsync, ...); `ps` refuses -o and
+# `ln -s` copies, as MSYS does. MSYSTEM=MINGW64 and an identity cygpath stand in for Git Bash. Every "command not found"
+# under bash, anywhere (installer, its checks, hooks), is logged and must not happen. Checks: the installer picks the real Python and puts it
 # into the hook commands of settings.json; lib/pyshim/python3 runs it; every hook command runs with nothing in
 # hook-errors.log; claim.sh and episodic_append.sh lock without flock; the missing commands are named with the Windows
 # way; no working Python at all = a clear stop. And the control: on Linux with python3 nothing of this appears.
@@ -36,30 +38,41 @@ fakebin() {  # fakebin <dir> <names to leave out...> - a symlink to every other 
     done
   done
 }
-# Git Bash: no flock/setsid/crontab/jq; python3 = the Store stub (first in PATH, as WindowsApps is); python = the real one
-fakebin "$T/bin" flock setsid crontab jq claude python python3 cygpath
+# Git Bash: what Git for Windows does not ship is absent; python3 = the Store stub (first in PATH, as WindowsApps is);
+# python = the real one. ps and ln behave as in MSYS (see below).
+ABSENT="getent flock setsid crontab jq systemctl sudo useradd usermod groupadd pgrep pkill ionice timedatectl apt-get rsync logger uuidgen column lsof free ss ip inotifywait notify-send xdg-open"
+fakebin "$T/bin" $ABSENT claude python python3 cygpath ps ln
 mkdir -p "$T/stub" "$T/win"
+printf '#!/bin/sh\nfor a; do case "$a" in -*o*) echo "ps: unknown option -- o" >&2; exit 1;; esac; done\nexec %q "$@"\n' "$(command -v ps)" > "$T/win/ps"
+# MSYS without developer mode: ln -s COPIES the target
+printf '#!/bin/sh\nsym=0; for a; do case "$a" in -*s*) [ "${a#--}" = "$a" ] && sym=1;; esac; done\nif [ $sym = 1 ]; then set -- $(printf "%%s\\n" "$@" | grep -v "^-"); d=$2; [ -d "$d" ] && d="$d/$(basename "$1")"; rm -rf "$d"; exec cp -r "$1" "$d"; fi\nexec %q "$@"\n' "$(command -v ln)" > "$T/win/ln"
+chmod +x "$T/win/ps" "$T/win/ln"
+export MISSLOG="$T/missing.log"; : > "$MISSLOG"
+command_not_found_handle() { printf '%s\t%s\n' "$1" "$*" >> "$MISSLOG"; echo "bash: $1: command not found" >&2; return 127; }
+export -f command_not_found_handle
 printf '#!/bin/sh\necho "Python was not found; run without arguments to install from the Microsoft Store, or disable this shortcut from Settings > Manage App Execution Aliases." >&2\nexit 9009\n' > "$T/stub/python3"
 printf '#!/bin/sh\nshift; printf "%%s\\n" "$1"\n' > "$T/win/cygpath"        # cygpath -m|-u|-w <path> -> <path>
 ln -s "$REAL_PY" "$T/win/python"
 chmod +x "$T/stub/python3" "$T/win/cygpath"
 WINPATH="$T/stub:$T/bin:$T/win"
 
-inst() {  # inst <PATH> <home> [env...] - the install as a person runs it in Git Bash, no questions
-  local p="$1" h="$2"; shift 2
-  env "$@" MSYSTEM=MINGW64 HOME="$h" PATH="$p" "$BASH" "$INSTALL" --user --yes --no-cron --no-verify --name tester --workspace "$h/ws" --timezone UTC 2>&1
+inst() {  # inst <PATH> <home> [env...] - the install as a person runs it in Git Bash, no questions; VERIFY=1: with the check
+  local p="$1" h="$2" v=--no-verify; shift 2; [[ "${VERIFY:-}" == 1 ]] && v=--no-cron
+  env "$@" MSYSTEM=MINGW64 HOME="$h" PATH="$p" "$BASH" "$INSTALL" --user --yes --no-cron $v --name tester --workspace "$h/ws" --timezone UTC 2>&1
 }
 hook_cmds() { "$REAL_PY" -c 'import json,sys
 for ev, gs in json.load(open(sys.argv[1])).get("hooks", {}).items():
     for g in gs:
         for h in g.get("hooks", []): print(ev + "\t" + h["command"])' "$1"; }
 
-ok "0 the fake Git Bash: python3 is the stub (rc 9009), python works, no flock/setsid/crontab/jq" \
-   '! PATH="$WINPATH" python3 -c 1 2>/dev/null && PATH="$WINPATH" python -c 1 && ! PATH="$WINPATH" command -v flock >/dev/null && ! PATH="$WINPATH" command -v setsid >/dev/null && ! PATH="$WINPATH" command -v crontab >/dev/null && ! PATH="$WINPATH" command -v jq >/dev/null'
+absent_ok() { local c; for c in $ABSENT; do PATH="$WINPATH" command -v "$c" >/dev/null && return 1; done; return 0; }
+ok "0 the fake Git Bash: python3 is the stub (rc 9009), python works, none of the absent commands is there" \
+   '! PATH="$WINPATH" python3 -c 1 2>/dev/null && PATH="$WINPATH" python -c 1 && absent_ok && ! PATH="$WINPATH" ps -o pid= -p $$ >/dev/null 2>&1'
 
-H="$T/h1"; mkdir -p "$H"; out=$(inst "$WINPATH" "$H"); rc=$?
+H="$T/h1"; mkdir -p "$H"; out=$(VERIFY=1 inst "$WINPATH" "$H"); rc=$?
 S="$H/.claude/settings.json"
-ok "1 the install goes on with the stub as python3, exit 0 (rc=$rc)" '[ $rc = 0 ] && [ -f "$S" ] && [ -f "$H/.claude/methodology.conf" ]'
+ok "1 the install with its check goes on with the stub as python3, exit 0, check and supervisor green (rc=$rc)" \
+   '[ $rc = 0 ] && [ -f "$S" ] && [ -f "$H/.claude/methodology.conf" ] && grep -q "0 missing or broken" <<<"$out" && grep -q "supervisor: 0 problems, 0 broken" <<<"$out"'
 ok "2 it says which Python it took: python" 'grep -q "Python: python (" <<<"$out"'
 cmds=$(hook_cmds "$S")
 ok "3 every hook command that runs a .py names python before it; none says python3" \
@@ -98,9 +111,20 @@ out=$(for i in 1 2 3 4 5 6; do EPISODIC_DIR="$E" run bash "$SH/episodic_append.s
 ok "11 episodic_append.sh without flock: 6 writers at once, all 6 entries, no lock folder left" \
    '[ "$(grep -c "^entry [1-6]$" <<<"$out")" = 6 ] && [ -z "$(find "$E" "$H/.claude" -name "*.lock.d")" ]'
 
+# ln -s copies here: ~/.local/bin gets small scripts that run the installed tools; a re-run updates them as its own
+out=$(inst "$WINPATH" "$H"); rc=$?
+ok "15 re-run: exit 0, ~/.local/bin entries are ours (no 'not ours'), creds and secret-scan run from there (rc=$rc)" \
+   '[ $rc = 0 ] && ! grep -q "is not ours" <<<"$out" && grep -q "^# claude-code-methodology: runs" "$H/.local/bin/creds" && echo hi > "$T/clean.txt" && run "$H/.local/bin/secret-scan" "$T/clean.txt" >/dev/null && run "$H/.local/bin/creds" list >/dev/null'
+
+# os.kill(pid, 0) is a liveness probe on Linux and macOS but KILLS the process on Windows (TerminateProcess)
+REPO=$(cd "$(dirname "$INSTALL")" && pwd)
+out=$(grep -rnE 'os\.kill\([^)]*,\s*0\s*\)' "$REPO"/hooks "$REPO"/scripts "$REPO"/lib "$REPO"/bin "$REPO"/mcp "$REPO"/addons --include='*.py' 2>/dev/null | grep -v '/lib/ccm_proc.py:'; \
+      grep -lE '^#!.*python' "$REPO"/bin/* 2>/dev/null | xargs -r grep -nE 'os\.kill\([^)]*,\s*0\s*\)')
+ok "16 no os.kill(pid, 0) outside lib/ccm_proc.py (kill0: a probe that does not kill on Windows)" '[ -z "$out" ]'
+
 # only `py -3` (no python, python3 still the stub) -> the launcher with its -3
 mkdir -p "$T/py" "$T/win2"; printf '#!/bin/sh\n[ "$1" = -3 ] && shift\nexec %q "$@"\n' "$REAL_PY" > "$T/py/py"; chmod +x "$T/py/py"
-ln -s "$T/win/cygpath" "$T/win2/cygpath"
+ln -s "$T/win/cygpath" "$T/win2/cygpath"; ln -s "$T/win/ps" "$T/win2/ps"; ln -s "$T/win/ln" "$T/win2/ln"
 H="$T/h3"; mkdir -p "$H"; out=$(inst "$T/stub:$T/bin:$T/py:$T/win2" "$H"); rc=$?
 out2=$(hook_cmds "$H/.claude/settings.json" 2>&1)
 ok "12 python absent too: 'py -3' is chosen, in the hook commands and in the shim (rc=$rc)" \
@@ -117,5 +141,8 @@ H="$T/h5"; mkdir -p "$H"; out=$(HOME="$H" PATH="$T/lin" "$BASH" "$INSTALL" --use
 out2=$(hook_cmds "$H/.claude/settings.json" 2>&1)
 ok "14 Linux control: exit 0, hook commands without an interpreter, no lib/pyshim, no PYTHONUTF8 (rc=$rc)" \
    '[ $rc = 0 ] && grep -q "hook-safe.sh\" \"[^\"]*/hooks/[a-z-]*\.py\"" <<<"$out2" && ! grep -q "hook-safe.sh\" python" <<<"$out2" && [ ! -e "$H/.claude/lib/pyshim" ] && ! grep -q PYTHONUTF8 "$H/.claude/settings.json" && ! grep -q "Python: " <<<"$out"'
+
+out=$(cut -f2 "$MISSLOG" | sort | uniq -c)
+ok "17 no command was missing anywhere above (installer, its check, every hook, the scripts): bash logged no 'command not found'" '[ ! -s "$MISSLOG" ]'
 
 echo "install-windows-test: $pass pass, $fail fail"; [ $fail = 0 ]

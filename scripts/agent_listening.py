@@ -13,6 +13,9 @@ rc is always 0: this is a hint to the sender, not a delivery check.
 Env (tests): LISTEN_IDENT, LISTEN_ROOTS, LISTEN_WAIT (colon-separated dirs), LISTEN_QUIET_MIN, AGENT_TAB (the tab finder)."""
 import calendar, glob, os, re, subprocess, sys, time
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+from ccm_proc import kill0  # noqa: E402  (a liveness probe that does not kill on Windows)
+
 HOME = os.path.expanduser("~")
 IDENT = os.environ.get("LISTEN_IDENT", os.path.join(HOME, ".claude", "agent-identity")).split(":")
 ROOTS = os.environ.get("LISTEN_ROOTS", os.path.join(HOME, ".claude", "projects")).split(":")
@@ -34,7 +37,7 @@ def last_ts(tp):
 
 def pid_alive(p):
     try:
-        os.kill(int(p), 0)
+        kill0(p)
         return True
     except PermissionError:
         return True

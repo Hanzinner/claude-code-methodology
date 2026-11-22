@@ -16,6 +16,7 @@ import os, re, subprocess, sys, time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+from ccm_proc import bash_exe  # noqa: E402  (Windows: Git Bash's bash, not System32's WSL launcher)
 
 FRESH_S = int(os.environ.get("PRESENCE_FRESH_S", "900"))
 IDLE_MIN = int(os.environ.get("DESKTOP_IDLE_MIN", "15"))
@@ -58,7 +59,7 @@ def main():
         print(f"away:no prompt for {gap // 60} min; no desktop source configured (CCM_PRESENCE_CMD) - judged by prompts only")
         return 1
     try:
-        r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=20)
+        r = subprocess.run([bash_exe(), "-c", cmd], capture_output=True, text=True, timeout=20)
         out = r.stdout.strip().splitlines()
     except (subprocess.SubprocessError, OSError):
         out = []

@@ -39,6 +39,7 @@ import glob, json, os, re, sys, time
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+from ccm_proc import kill0, sh_argv  # noqa: E402  (a liveness probe that does not kill on Windows)
 
 HOME = os.path.expanduser("~")
 UK = "uk" in conf("CCM_LANG_EXTRA", "")
@@ -249,7 +250,7 @@ def tell_infra(agent, sid, mark):
     import subprocess
     post = os.environ.get("WORK_GUARD_POST") or os.path.join(scripts_dir(), "inbox_post.sh")
     try:
-        subprocess.run((['bash'] if os.name == 'nt' else []) + [post, who,   # Windows cannot start a .sh by itself
+        subprocess.run(sh_argv() + [post, who,   # Windows: through Git Bash's bash (lib/ccm_proc.py)
                         f"work-guard: in tab {agent} [{sid[:8]}] Claude Code stopped a background task because of LOW MEMORY "
                         f"({time.strftime('%F %H:%M')}; cause memory_pressure). The agent does not restart the alarm (the harness forbids it), "
                         "so new letters will not wake this tab until the human writes in it. Look at the machine's memory (who is eating it)."],
@@ -387,7 +388,7 @@ def waiter_alive(agent):
     """A live alarm: the pid from the marker OR any process `inbox_wait.sh <agent>`. There is one marker per agent and
     in the race "the old alarm exits - the new one starts" it could vanish (a block 8 s after the start)."""
     try:
-        os.kill(int(open(f"{HOME}/.claude/inbox-wait/{agent}").read().strip()), 0)
+        kill0(open(f"{HOME}/.claude/inbox-wait/{agent}").read().strip())
         return True
     except (OSError, ValueError):
         pass

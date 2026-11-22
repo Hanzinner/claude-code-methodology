@@ -237,8 +237,9 @@ if [[ -f "$CONF" ]]; then
   ok "keeping your $CONF (delete it to be asked again)"
 else
   say "A few settings for this machine (Enter = default):"
-  def_name=$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f5 | cut -d, -f1)
-  [[ -n "$def_name" ]] || def_name=$(id -un)
+  def_name=""   # the full name from the user database; none in Git Bash (no getent) or macOS - then the login name
+  command -v getent >/dev/null 2>&1 && def_name=$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f5 | cut -d, -f1) || true
+  [[ -n "$def_name" ]] || def_name=${USERNAME:-$(id -un)}
   # --project: the workspace (AGENTS.md, MISTAKES.md, LIBRARY.md, Agents/, the shared documents) must not land in the
   # person's own repo, where it would show in their git status and get committed. Default: ~/claude-workspace/<name of
   # the project folder>; when that folder already serves another project (its .ccm-project names a different path, or
@@ -249,7 +250,7 @@ else
       def_ws="$def_ws-$(py3 -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:8])' "$PROJECT_DIR")"
     fi
   else def_ws="$HOME/claude-projects"; fi
-  def_tz=$(cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || true)
+  def_tz=$(cat /etc/timezone 2>/dev/null || { command -v timedatectl >/dev/null 2>&1 && timedatectl show -p Timezone --value 2>/dev/null; } || true)
   C_NAME="${OPT_NAME:-$(ask "Your name — agents address their hints to it" "$def_name")}"
   C_WS="${OPT_WORKSPACE:-$(ask "Workspace folder (agent folders, mistakes journal)" "$def_ws")}"
   C_TZ="${OPT_TZ:-$(ask "Time zone (IANA, empty = system)" "$def_tz")}"
@@ -399,9 +400,18 @@ for f in "$REPO_DIR"/tests/*; do
 done
 if [[ "$SCOPE" == "user" ]] && compgen -G "$TARGET/bin/*" >/dev/null; then
   do_or_show mkdir -p "$HOME/.local/bin"
+  BIN_MARK="# claude-code-methodology: runs"
   for f in "$TARGET"/bin/*; do
-    [[ -e "$HOME/.local/bin/$(basename "$f")" && ! -L "$HOME/.local/bin/$(basename "$f")" ]] && { warn "~/.local/bin/$(basename "$f") exists and is not ours — left alone"; continue; }
-    do_or_show ln -sfn "$f" "$HOME/.local/bin/$(basename "$f")"
+    l="$HOME/.local/bin/$(basename "$f")"
+    [[ -e "$l" && ! -L "$l" ]] && ! grep -qs "^$BIN_MARK" "$l" && { warn "~/.local/bin/$(basename "$f") exists and is not ours — left alone"; continue; }
+    do_or_show ln -sfn "$f" "$l"
+    # Git Bash without developer mode: ln -s makes a COPY. A copy is never updated and finds no ../lib, so a small script
+    # that runs the installed tool goes there instead (marked, so a re-run knows it is ours)
+    if [[ $DRY_RUN -eq 0 && ! -L "$l" ]]; then
+      { echo '#!/usr/bin/env bash'; echo "$BIN_MARK $f (ln -s copies on this system)"
+        [[ -f "$SHIM/env.sh" ]] && printf '. %q\n' "$SHIM/env.sh"
+        printf 'exec %q "$@"\n' "$f"; } > "$l" && chmod +x "$l"
+    fi
   done
   case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) warn "add ~/.local/bin to PATH for the tools (secret-scan, swap-live, creds, rename-ref)" ;; esac
 fi
