@@ -26,6 +26,12 @@ line: "the system (rules, hooks, commands) or Claude Code itself?". Claude Code 
    use it; a tool's name only after that. Skip internal fixes, tests and refactoring, or sum them up in one line
    ("plus N fixes inside"). A new optional add-on: say what they would get from it and the flag, and ask whether
    they want it.
+   **No `source` file in step 1** (installed before this command existed): the person most likely never heard what
+   the system does. After the install (step 4), give them the full tour instead of "what is new": read
+   `docs/getting-started.md` sections 2, 4 and 5 and tell them what the system now does for them, each thing as what
+   it gives in practice, with an example from what they actually do; for agents (section 4) start with agents getting
+   work done between themselves, then each agent being a specialist in its own area. Then offer to create their
+   first agent.
 4. **Install the same way.** `./install.sh --user` (or `--project <dir>` from step 1), plus any add-on flag the
    person just asked for. It keeps their memory, settings, own hooks and CLAUDE.md edits.
 5. **Check.** `./check-install.py --user` (or `--project <dir>`). Not done until it ends with
