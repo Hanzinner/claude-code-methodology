@@ -71,25 +71,28 @@ keep a note, or leave the line and empty its list in `methodology.conf` where it
 
 ## 4. More than one agent
 
-When one chat holds your work, a renovation and a course at once, it mixes them up. An agent is a separate
-helper for one area: its own chat, folder, notes and to-do list; it knows only its area.
+An agent is a named helper for one area: its own chat, folder, notes and to-do list. Open a new chat whose first
+message is its name, and it is that agent again, with everything it knew.
 
-**Why not just a separate chat per topic?** That is where most people start, and it breaks in these places. The
-first one matters most: every correction you make in a plain chat lands in the one memory all chats share, so over
-months that memory fills with narrow, outdated lessons. An agent keeps its lessons in its own briefing.
+What it gives you in practice:
 
-| With plain separate chats | With agents |
-|---|---|
-| You correct a chat ("don't do X here"), and the lesson goes into the one shared memory every chat reads. It piles up, goes stale, and a lesson from one topic gets in the way of another. | The lesson goes into that agent's own `briefing.md`: it applies exactly where it belongs, the agent is shown it again whenever it changes, and the shared memory stays short. |
-| A long chat gets compressed and forgets what it was for; a new chat knows nothing. You explain the role again. | The role, what it owns and its rules live in its `briefing.md`. Open any new chat with the agent's name and it is that agent again; when the briefing changes, it is shown the new one. |
-| You are the messenger: you copy what one chat found into another. | Agents write letters to each other's inboxes and act on them without you. |
-| What each chat still has to do lives in your head. | Each agent keeps its own to-do list and goes through it; open items don't vanish when the chat is compressed. |
-| Questions for you are scattered over a dozen chats. | Each agent keeps one file of what only you can decide (`human-TODO.md`); everything else it decides itself. |
-| Two chats edit the same file and overwrite each other. | Each file has one owner agent, written in the registry; others send the owner a letter. |
-| A chat does nothing until you type in it. | An agent with an alarm wakes up on a new letter or a reminder by itself. |
+1. **Agents get work done between themselves while you do something else.** You tell one agent "pass this to
+   the developer". It writes a letter to that agent's inbox; the developer does the work and writes back; the
+   first agent checks the result and tells you it is done. You said one sentence: you never opened the second
+   chat and never copied anything from one to the other. An agent with an alarm wakes up on a letter by itself,
+   so this goes on while you are away.
+2. **You correct an agent once, and it stays corrected, in that area only.** The correction goes into the agent's
+   own briefing. Next month, in a brand-new chat, it still works that way, and a rule for your accounting agent
+   never turns up in your travel planning.
+3. **What it knows outlives any chat.** Your clients, how you like a report, what was decided last month: it
+   lives in the agent's folder and memory, not in a chat. A long chat gets compressed, a tab crashes, you open a
+   new one with the agent's name and carry on where you left off.
+4. **It tells you what is still open.** Come back after a week, and the agent says what it hasn't finished.
+5. **Only decisions reach you.** Each agent keeps one file of what only you can decide (taste, priority,
+   anything that can't be undone), one line each; everything technical it decides and does itself.
 
-So one chat is fine for one thing at a time. Agents pay off once you have several areas running in parallel,
-or one big area (a project with a lead, developers and testing) that is too much for one chat.
+One chat is enough for one question or one small thing. Agents pay off once several areas run at once, or one
+area is big enough for a team (a lead, a developer, testing).
 
 The installer has
 already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS.md` (the registry),
@@ -113,20 +116,18 @@ already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS
    A briefing holds what stays true (role, ownership, rules). Anything that changes on its own (who is busy, what
    version, what is next) goes to git, a log or a queue, and the briefing only says where to look: written state
    goes stale within hours, and the watchman keeps delivering it.
-4. **Agents pass work to each other, not through you.** Without this you are the messenger: you copy what one
-   agent said into another agent's chat. Now each agent has an inbox. Any agent (or you) drops a letter there:
+4. **Agents pass work to each other, not through you.** Each agent has an inbox. Any agent (or you) drops a letter there:
    `scripts/inbox_post.sh <Name> "<text>"`. The receiver sees open letters on every message it gets, and one that
    arrives while it is mid-task right after its current step; it does the thing, or moves it to its to-do list,
    and closes the letter (`scripts/inbox_done.sh`). Writing into someone else's inbox by hand is refused, so a
    letter can't get garbled or lost. You can give an agent a task the same way without opening its chat.
-5. **What needs you is in one place.** Without this, questions for you are scattered over a dozen chats. Each
-   agent keeps a `human-TODO.md` in its folder: only what only you can decide (taste, product, priority,
+5. **What needs you is in one place.** Each agent keeps a `human-TODO.md` in its folder: only what only you can decide (taste, product, priority,
    anything that can't be undone), one line each. The rest it decides and does itself. How agents filter what
    reaches you: [`po-interface.md`](po-interface.md).
 6. **Reminders.** "Remind me at 18:30 to …" — the agent runs `scripts/remind.py`, and at that time a letter lands
    in its inbox. An agent that promises "I'll get back to it" without setting one is flagged.
 7. **Agents that work without you prodding** (off until you name them at the end of `methodology.conf`, section
-   "several agents"). Without this an agent with a full inbox just sits until you write to it.
+   "several agents"): they pick up letters and their to-do list without you writing to them.
    `CCM_WORK_GUARD_AGENTS` (a file, one agent name per line): these agents can't end a reply while letters are
    unprocessed or their to-do has open items (unless the reply says `STATE: waiting for …`), and they leave an
    alarm running (`scripts/inbox_wait.sh`), so a new letter wakes the chat by itself.
