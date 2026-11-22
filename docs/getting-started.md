@@ -88,9 +88,11 @@ What it gives you in practice:
 3. **What it knows lives in files, not in the chat.** Your clients, how you like a report, what was decided last
    month: when the long chat gets compressed, the agent still knows its role and its rules, because they are in
    its briefing and memory.
-4. **It tells you what is still open.** Come back after a week, and the agent says what it hasn't finished.
-5. **Only decisions reach you.** Each agent keeps one file of what only you can decide (taste, priority,
-   anything that can't be undone), one line each; everything technical it decides and does itself.
+4. **You don't keep anything in your head.** Each agent keeps its own to-do list and works through it; come
+   back after a week and it tells you what is still open. With ten agents you track nothing yourself.
+5. **You don't make technical decisions.** Which library, how to structure it, how to test it: the agent decides
+   and does it. What reaches you is only what is yours to decide (taste, priority, anything that can't be undone),
+   one line each, in one file per agent.
 
 One chat is enough for one question or one small thing. Agents pay off once several areas run at once, or one
 area is big enough for a team (a lead, a developer, testing).
@@ -112,6 +114,8 @@ already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS
    all work). From then on that chat is that agent: on every message it is shown its briefing again when the
    briefing has changed, and the letters in its inbox that are still open. You never paste a briefing by hand.
    Want to call it by another word? Put it on a line in `Agents/<Name>/.aliases`.
+   To rename an agent: `scripts/rename_agent.sh <old> <new>` shows the plan, the same with `--apply` does it (folder,
+   registry, the team's briefings; history is not rewritten, the old name keeps working). Then restart its chat.
    One agent = one chat. Don't start a second session of the same agent in the background to "listen": it acts
    where you can't see it, and the chat you talk to stays silent.
    A briefing holds what stays true (role, ownership, rules). Anything that changes on its own (who is busy, what
