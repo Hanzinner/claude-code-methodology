@@ -117,6 +117,12 @@ others_waiting() {
     [[ -n "$out" ]] && echo "👥 also waiting: ${out%, }"
     return 0
 }
+# My urgent letters that lie unread with a live addressee (a coordinator once waited 6 hours and never woke the
+# addressee): checked on a link that ends with no letters.
+stale() {
+    local s="${STALE_LETTERS:-$HERE/stale_letters.py}"
+    if command -v timeout >/dev/null 2>&1; then timeout 15 "$s" "$agent" 2>/dev/null || true; else "$s" "$agent" 2>/dev/null || true; fi
+}
 while true; do
     now=$(date +%s)
     n=$(count_new)
@@ -133,11 +139,13 @@ while true; do
         echo "⏰ $(date +%H:%M) the time you were waiting for, $until_hm, has come. Do what you postponed."; exit 0
     fi
     if [[ $((now - start)) -ge "$CEIL" && ( -n "$until_epoch" || "$max" -gt "$CEIL" ) ]]; then      # ceiling of a background task's life: leave on our own before we are killed
+        stale
         left=""; [[ -n "$until_epoch" ]] && left=" $(( (until_epoch - now) / 60 )) min left until $until_hm."
         echo "⏳ $(date +%H:%M) the alarm served its link ($((CEIL/60)) min - a background task does not live longer), no letters.$left If you are still waiting, start it again with the same command, without a long report."; exit 0
     fi
     if [[ $((now - start)) -ge "$max" ]]; then
         others_waiting
+        stale
         if [[ "$mode" == auto && $(file_age) -ge "$AUTO_IDLE" ]]; then
             echo "🌙 $(date +%H:%M) auto mode: $((AUTO_IDLE/60)) min without letters - the alarm went out by itself. Do not restart it; you will see a new letter when you are woken."; exit 0
         fi

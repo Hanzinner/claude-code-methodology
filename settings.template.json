@@ -60,6 +60,15 @@
         ]
       },
       {
+        "matcher": "Bash|SendMessage",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"__CLAUDE_DIR__/hooks/hook-safe.sh\" \"__CLAUDE_DIR__/hooks/letter-proof-hint.py\""
+          }
+        ]
+      },
+      {
         "matcher": "WebSearch",
         "hooks": [
           {

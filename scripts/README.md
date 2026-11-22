@@ -41,6 +41,7 @@ Scripts of the swarm. Agent names are folder names under `CCM_AGENTS_DIR`; proje
 | `inbox_resolve.sh <agent\|path>` | Prints the addressee's `inbox.md`: path, folder `<name>`, `<name>-agent`, or an alias from `.aliases`. Ambiguous -> exit 2 with candidates. |
 | `inbox_lib.sh` | Shared helpers (section names, lock). Sourced by the three above, never run. |
 | `inbox_wait.sh <agent> [--until HH:MM] [--max S]` | The agent's alarm clock: started in the background, exits when a new item lands in "## New", at `--until`, or after 55 min (the ceiling). The exit wakes the same tab. Mode per agent in `CCM_ALARM_MODE_DIR`: `off`/`once`/`auto`/`always`. |
+| `stale_letters.py <agent>` | Called by `inbox_wait.sh` on a link that ends with no letters: your urgent letters (🖐, `URGENT`, priority `·90`-`·100`) from the send log `~/.claude/inbox-sent.log` (written by `inbox_post.sh`) that still lie in the addressee's "## New" over 10 min while its tab is alive -> one line "wake it: SendMessage to=<tab>". Sends nothing itself. |
 | `agent_listening.py <agent>` | After a delivery: one warning line if the addressee has no live alarm and has been idle for more than 5 min. Always exit 0. |
 | `agent_tab.py <agent> [--json]` | The live tab of an agent for `SendMessage`: name and `idle`/`busy`; exit 1 when none. |
 

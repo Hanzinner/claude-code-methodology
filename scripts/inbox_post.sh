@@ -127,6 +127,15 @@ if [ "$ok" -ne 1 ]; then
     echo "inbox_post: 🟡 the item did not stay in \"$new_hdr\" under a parallel rewrite - queued in $pf. Count it as DEFERRED, not lost: move it into the inbox by hand if nothing delivers the queue." >&2
     exit 0
 fi
+# Send log: stale_letters.py, on the sender's alarm link, sees the sender's URGENT letters that lie unread with a live
+# addressee. Line: epoch<TAB>sender agent<TAB>addressee<TAB>first line. Tests (CCM_TEST=1) write only to an explicit
+# INBOX_SENT_LOG.
+sent_log=${INBOX_SENT_LOG:-}; [[ -z "$sent_log" && "${CCM_TEST:-${HANZ_TEST:-}}" != 1 ]] && sent_log="$HOME/.claude/inbox-sent.log"
+if [[ -n "$sent_log" ]]; then
+    me=$(basename "$(cat "$HOME/.claude/agent-identity/${CLAUDE_CODE_SESSION_ID:-none}" 2>/dev/null)" 2>/dev/null)
+    printf '%s\t%s\t%s\t%s\n' "$(date +%s)" "${me:-?}" "$(basename "$(dirname "$inbox")")" \
+        "$(printf '%s' "$first_line" | python3 -c 'import sys;print(sys.stdin.read().replace("\t"," ")[:300])' 2>/dev/null)" >> "$sent_log" 2>/dev/null || true
+fi
 # The addressee is not listening (no alarm, session silent) -> one line to the sender. Delivery and rc do not change.
 # Off in tests unless asked for (INBOX_LISTEN=1). A test run is marked CCM_TEST=1 (HANZ_TEST=1 is the older name, still honoured).
 TESTING=${CCM_TEST:-${HANZ_TEST:-}}

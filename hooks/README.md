@@ -53,6 +53,7 @@ Hooks of the swarm (named agents, one folder each, talking through `inbox.md` fi
 |------|-------|--------|
 | `foreign-inbox-gate.py` | PreToolUse on `Bash`/`Write`/`Edit` | Denies any write to an `<agents dir>/**/inbox.md` (foreign or your own) that bypasses `inbox_post.sh` / `inbox_done.sh`: `Edit`/`Write`, `>`/`>>`, `tee`, `sed -i`, interpreter writes. Also denies those two scripts called with the text in single quotes (an apostrophe breaks the letter). Code that takes the inbox lock is allowed. |
 | `inbox-delta-hint.py` | PostToolUse on any tool | A new `- [ ]` item arrived in the agent's own "## New" mid-turn -> a hint (first line only, max 3) on the next tool call. Throttled (`INBOX_DELTA_THROTTLE`, default 60 s). Hint only. |
+| `letter-proof-hint.py` | PreToolUse on `Bash`/`SendMessage` | A letter (`inbox_post.sh` or `SendMessage`) claims a result number ("tests 21/21", "74 pass", "2 fail") that is in no tool output of the last stretch of the transcript -> a hint to check it before sending; a line in `~/.claude/letter-proof-hits.log`. Hint only; `--calibrate [days]` replays your past letters. |
 | `inbox-wait-timeout.py` | PreToolUse on `Bash` | A bare background call of `inbox_wait.sh <agent> [--until/--max ...]` gets `timeout` 55 min added (`INBOX_WAIT_TIMEOUT_MS`) via an "allow" with updated input. Glued or foreground calls are left alone. |
 
 **Watchman and identity**
