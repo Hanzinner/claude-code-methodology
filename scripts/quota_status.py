@@ -37,6 +37,10 @@ try:
     import ccm_conf  # noqa: E402,F401  (on import: UTF-8 output where the console code page is cp1251/cp1252)
 except ImportError:   # a copy of this script without lib/ next to it
     pass
+try:
+    from ccm_fs import replace as _replace   # os.replace that waits out a file held open on Windows
+except ImportError:   # run on its own, without the methodology's lib/: plain os.replace
+    _replace = os.replace
 
 HOME = os.path.expanduser("~")
 CD = os.path.join(HOME, ".claude")
@@ -136,7 +140,7 @@ def files():
     try:
         os.makedirs(os.path.dirname(CACHE), exist_ok=True)
         tmp = f"{CACHE}.{os.getpid()}"
-        json.dump(new_cache, open(tmp, "w")); os.replace(tmp, CACHE)
+        json.dump(new_cache, open(tmp, "w")); _replace(tmp, CACHE)
     except OSError:
         pass
     _FILES = new_cache
@@ -283,7 +287,7 @@ def real(fetch=fetch_real):
         try:
             os.makedirs(os.path.dirname(REAL_STATE), exist_ok=True)
             tmp = f"{REAL_STATE}.{os.getpid()}"
-            json.dump(st, open(tmp, "w"), ensure_ascii=False); os.replace(tmp, REAL_STATE)
+            json.dump(st, open(tmp, "w"), ensure_ascii=False); _replace(tmp, REAL_STATE)
         except OSError:
             pass
     return st
@@ -413,7 +417,7 @@ def compute(hours=WINDOW_H):
         ms = (lim.get("measures") or [])[-11:] + [wcost / out["pct"]]
         lim = {"measures": ms, "at": time.strftime("%F %T")}
         try:
-            json.dump(lim, open(lim_f + ".tmp", "w")); os.replace(lim_f + ".tmp", lim_f)
+            json.dump(lim, open(lim_f + ".tmp", "w")); _replace(lim_f + ".tmp", lim_f)
         except OSError:
             pass
     ms = sorted(lim.get("measures") or [])
@@ -433,7 +437,7 @@ def main():
             dest = argv[argv.index("--out") + 1]
             os.makedirs(os.path.dirname(os.path.abspath(dest)), exist_ok=True)
             tmp = f"{dest}.{os.getpid()}"
-            open(tmp, "w").write(text); os.replace(tmp, dest)
+            open(tmp, "w").write(text); _replace(tmp, dest)
         else:
             print(text)
         return 0

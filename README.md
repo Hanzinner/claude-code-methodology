@@ -99,8 +99,10 @@ On **Windows**, run `./install.sh` in Git Bash (Git for Windows; Claude Code on 
 There `python3` is often the Microsoft Store stub, so the installer takes the first working one of `python3`,
 `python`, `py -3`, writes it into the hook commands, and puts a `python3` that runs it into `<install dir>/lib/pyshim/`
 (the hooks and the agent's Bash commands find it first). Paths are written as `C:/...`, which both Git Bash and Python
-read. Windows has no cron: the installer prints the scheduled jobs and a `schtasks` line for the reminders; add the
-others the same way (Task Scheduler, through Git Bash's `bash.exe -lc '. <install dir>/lib/pyshim/env.sh; ...'`).
+read. Windows has no cron: the installer prints the scheduled jobs as `schtasks` commands; `./install.sh --user
+--schedule-windows` registers them in Task Scheduler as `ccm-<job>` tasks (each runs a small script in
+`<install dir>/schedule/` through Git Bash, without a window), and `./install.sh --schedule-windows --uninstall`
+removes every `ccm-*` task.
 WSL (`wsl --install`, then everything inside it) is the Linux route and needs none of this.
 
 **What it sets up today, and what not yet** (as of 2026-11; the goal is the whole private setup with one command, built layer by layer):

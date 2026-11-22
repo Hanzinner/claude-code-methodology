@@ -31,6 +31,13 @@ import tempfile
 import time
 from datetime import date
 
+# <install dir>/addons/session-hygiene -> <install dir>/lib (the repo has the same layout)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "lib"))
+try:
+    from ccm_fs import replace as _replace   # os.replace that waits out a file held open on Windows
+except ImportError:   # run on its own, without the methodology's lib/: plain os.replace
+    _replace = os.replace
+
 SESSION_ROOT = os.path.realpath(os.path.expanduser(os.environ.get("CLAUDE_SESSION_ROOT", "~/.claude/projects")))
 BACKUP_TAG = "home"   # backup-chats.sh copies ~/.claude/projects to <day>/home/
 BACKUP_ROOT = os.path.expanduser(os.environ.get("CLAUDE_CHAT_BACKUP_ROOT", "~/.claude-backups"))
@@ -167,7 +174,7 @@ def process_file(path: str, dry_run: bool = False):
             f.flush()
             os.fsync(f.fileno())
         os.chmod(tmp, st.st_mode & 0o777)
-        os.replace(tmp, path)
+        _replace(tmp, path)
     except BaseException:
         os.unlink(tmp)
         raise

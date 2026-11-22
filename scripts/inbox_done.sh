@@ -6,7 +6,7 @@
 # Usage: inbox_done.sh <agent|path-to-inbox.md> <unique substring of the item> [entry for the Processed section]
 # rc: 2 addressee · 3 lock · 4 item/section not found · 7 the substring matches several DIFFERENT items (closing
 #     "the first" could close an unread one - give a longer substring) · 8 python failed / built an empty file (the
-#     inbox is NOT touched: a broken UTF-8 byte once produced an empty inbox written over a live one) · 5 post-check.
+#     inbox is NOT touched: a broken UTF-8 byte once produced an empty inbox written over a live one) · 5 post-check · 9 the rename into place stayed refused (Windows: the file held open) - inbox NOT touched.
 # The item (first line + continuation lines) leaves "## New"; on top of "## Processed" (or "## Done") goes your entry,
 # or an auto-made `- [x] [date] <first line> - done.` Post-validation FROM DISK: the item is gone from New.
 
@@ -89,7 +89,7 @@ esac
 
 chown --reference="$inbox" "$tmp" 2>/dev/null || true
 chmod --reference="$inbox" "$tmp" 2>/dev/null || true
-mv "$tmp" "$inbox"
+ib_mv_retry "$tmp" "$inbox" || { rm -f "$tmp"; echo "inbox_done: could not put the file in place (refused rename, see above) - inbox NOT touched ($inbox)" >&2; exit 9; }
 
 # post-validation FROM DISK: the needle occurs in New fewer times than before (duplicates are not an error)
 after=$(count_needle)

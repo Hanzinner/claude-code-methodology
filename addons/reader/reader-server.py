@@ -32,6 +32,10 @@ try:
 except ImportError:                                         # run on its own: environment only
     def _conf(key):
         return os.environ.get(key, "")
+try:
+    from ccm_fs import replace as _replace   # os.replace that waits out a file held open on Windows
+except ImportError:   # run on its own, without the methodology's lib/: plain os.replace
+    _replace = os.replace
 
 EXT = (".md", ".markdown", ".txt", ".fb2")
 ALWAYS_HIDE = {"node_modules", "__pycache__"}
@@ -150,7 +154,7 @@ class Cfg:
         tmp = self.state_file(name) + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             fh.write(text)
-        os.replace(tmp, self.state_file(name))
+        _replace(tmp, self.state_file(name))
 
 
 def make_handler(cfg):

@@ -14,6 +14,8 @@ import json, os, sys, time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
+sys.path.insert(0, os.path.join(HERE, "..", "lib"))
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 HOME = os.path.expanduser("~")
 OUT = os.environ.get("CCM_AGENT_STATUS_DIR", f"{HOME}/.claude/agent-status")
 
@@ -59,7 +61,7 @@ def main():
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump({"agent": agent, "state": state, "ask": ask, "session": sid, "updated": int(time.time()),
                        "updated_iso": time.strftime("%Y-%m-%dT%H:%M:%S%z")}, fh, ensure_ascii=False)
-        os.replace(tmp, f)
+        ccm_fs.replace(tmp, f)
     except OSError:
         pass
 

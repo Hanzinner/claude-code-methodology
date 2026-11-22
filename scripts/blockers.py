@@ -16,7 +16,8 @@ Safety: the watcher runs commands, and anyone who can edit BLOCKERS.md can write
 executed: `add` approves the command it writes itself, a row edited by hand (or a command changed after approval) is
 NOT run until `blockers.py approve <project> B<n>` (read the command first). Not approved -> the watcher only tells the
 project lead (one message per command) and the blocker is never cleared by itself. The approvals file must be owned by
-the current user with mode 0600, otherwise nothing is executed.
+the current user with mode 0600 (Windows: really inside the user's profile folder - see approvals_unsafe),
+otherwise nothing is executed.
 A `manual` check is cleared only by the person who holds the blocker: `blockers.py clear <project> B3 "<who, how>"`.
 A story in <project>/ROADMAP.md refers to a blocker by number: "blockers: B3, B7". When the LAST blocker of a story is
 cleared the watcher: turns the story line "- ⏳" into "- 🔄" + a trace; posts a message to every agent named in the line
@@ -41,6 +42,7 @@ import datetime as dt, glob, hashlib, json, os, re, subprocess, sys, time
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 from ccm_proc import bash_c, sh_argv  # noqa: E402  (Windows: a .sh is started through Git Bash's bash)
 try:
     import fcntl
@@ -165,10 +167,12 @@ def write(path, lines, seen):
     tmp = f"{path}.tmp{os.getpid()}"
     open(tmp, "w", encoding="utf-8").write("\n".join(lines))
     st = os.stat(path)
-    os.chown(tmp, st.st_uid, st.st_gid); os.chmod(tmp, st.st_mode & 0o777)
+    if hasattr(os, "chown"):   # Windows Python has none (AttributeError): there the file is simply ours
+        os.chown(tmp, st.st_uid, st.st_gid)   # refused (another user's file, not root) -> the write stops, as it always did
+    os.chmod(tmp, st.st_mode & 0o777)
     if st.st_mtime_ns != seen:
         os.remove(tmp); return False
-    os.replace(tmp, path)
+    ccm_fs.replace(tmp, path)
     return True
 
 
@@ -249,15 +253,37 @@ def check_key(pd, cmd):
     return hashlib.sha256(f"{os.path.basename(pd)}\0{cmd}".encode()).hexdigest()
 
 
+def approvals_unsafe(st):
+    """Why the approvals file can't be trusted, or None. Whoever can write it decides which commands the watcher runs.
+    Linux/macOS: owned by the current user and closed to everyone else (0600).
+    Windows has no Unix owner or mode, and Python without pywin32 can't read an ACL. What it can see: where the file
+    really is. It must resolve (symlinks and junctions followed) to a place inside the user's profile folder
+    (~ = %USERPROFILE%; by default only that user, SYSTEM and Administrators may open anything there - the same people a
+    0600 file trusts on Linux), and have no second hard link (another name for it could sit in a folder others write).
+    Not caught: a profile whose ACL was opened up by hand, or a program running as this same user (Linux does not catch
+    that either). icacls is not parsed: its account names are translated with the Windows language, so a misread there
+    would fail open."""
+    if hasattr(os, "geteuid"):
+        if st.st_uid != os.geteuid() or st.st_mode & 0o077:
+            return "not owner-only 0600"
+        return None
+    home = os.path.normcase(os.path.realpath(os.path.expanduser("~")))
+    real = os.path.normcase(os.path.realpath(APPROVED))   # resolved: a link can't lead out, 8.3 short names compare equal
+    if not real.startswith(home.rstrip(os.sep) + os.sep):
+        return f"outside the user's profile folder {home} (resolved: {real})"
+    if st.st_nlink > 1:
+        return "has another hard link"
+    return None
+
+
 def load_approved():
-    """-> {"checks": {key: {...}}, "told": {key: time}}; file not owned by the current user or open to others -> empty"""
+    """-> {"checks": {key: {...}}, "told": {key: time}}; a file others could have written (approvals_unsafe) -> empty"""
     empty = {"checks": {}, "told": {}}
     try:
         st = os.stat(APPROVED)
-        if not hasattr(os, "geteuid"):   # Windows: no owner/mode to check - closed, as for a file open to others
-            log(f"{APPROVED}: owner and mode cannot be checked on this system - treating every command as unapproved"); return empty
-        if st.st_uid != os.geteuid() or st.st_mode & 0o077:
-            log(f"{APPROVED}: not owner-only 0600 - treating every command as unapproved"); return empty
+        why = approvals_unsafe(st)
+        if why:
+            log(f"{APPROVED}: {why} - treating every command as unapproved"); return empty
         d = json.load(open(APPROVED, encoding="utf-8"))
         return {"checks": d.get("checks") or {}, "told": d.get("told") or {}}
     except FileNotFoundError:
@@ -275,7 +301,7 @@ def update_approved(fn):
         tmp = f"{APPROVED}.tmp{os.getpid()}"
         with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             json.dump(d, f, ensure_ascii=False, indent=0)
-        os.replace(tmp, APPROVED)
+        ccm_fs.replace(tmp, APPROVED)
 
 
 def approve(pd, bid, cmd):
@@ -464,7 +490,7 @@ def snapshot():
         os.makedirs(os.path.dirname(SNAP), exist_ok=True)
         tmp = SNAP + ".tmp"
         json.dump({"at": now(), "open": open_list()}, open(tmp, "w", encoding="utf-8"), ensure_ascii=False)
-        os.chmod(tmp, 0o644); os.replace(tmp, SNAP)
+        os.chmod(tmp, 0o644); ccm_fs.replace(tmp, SNAP)
     except OSError as e:
         log(f"dashboard snapshot not written: {e}")
 

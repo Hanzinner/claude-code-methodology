@@ -42,7 +42,8 @@ import argparse, glob, json, os, re, socket, subprocess, sys, time, urllib.reque
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
-from ccm_proc import bash_c, kill0  # noqa: E402  (a liveness probe that does not kill on Windows)
+from ccm_proc import bash_c, kill0, sh_argv  # noqa: E402  (a liveness probe that does not kill on Windows)
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 
 HOME = os.path.expanduser("~")
 STATE_DIR = conf("CCM_SUPERVISOR_DIR", "") or os.path.join(HOME, ".claude", "supervisor")
@@ -133,17 +134,33 @@ def missing_imports(py):
     return out
 
 
+INTERPRETERS = ("python3", "python", "py", "bash", "sh")
+WIN_ABS = re.compile(r"[A-Za-z]:[\\/]")     # C:/... or C:\... - what a Windows install writes into hook commands
+
+
 def hook_paths(cmd):
-    """-> [(path, called DIRECTLY)] for the scripts named in a hook command. After python3/bash +x is not needed."""
+    """-> [(path, called DIRECTLY)] for the scripts named in a hook command. After python3/bash/py -3 +x is not needed.
+    Windows: install.sh writes C:/... paths; a C:\\... path is read too (as C:/...). Only paths starting with "/" were
+    looked at before, so on Windows nothing was checked and the check reported green."""
     import shlex
+    lex = shlex.shlex(cmd, posix=True)
+    lex.whitespace_split, lex.commenters = True, ""   # = shlex.split
+    if WIN_ABS.search(cmd):
+        lex.escape = ""   # a backslash is a path separator here, not an escape (shlex would eat it: C:Usersx...)
     try:
-        toks = shlex.split(cmd)
+        toks = list(lex)
     except ValueError:
         toks = cmd.split()
     out = []
     for i, tok in enumerate(toks):
-        if tok.startswith("/") and ("/scripts/" in tok or "/hooks/" in tok):
-            out.append((tok, not (i and os.path.basename(toks[i - 1]) in ("python3", "python", "bash", "sh"))))
+        win = WIN_ABS.match(tok)
+        path = tok.replace("\\", "/") if win else tok
+        if (win or tok.startswith("/")) and ("/scripts/" in path or "/hooks/" in path):
+            j = i - 1
+            while j > 0 and toks[j].startswith("-"):   # py -3 x.py, python -u x.py
+                j -= 1
+            prev = re.sub(r"\.exe$", "", toks[j].replace("\\", "/").rsplit("/", 1)[-1].lower()) if i else ""
+            out.append((path, prev not in INTERPRETERS))
     return out
 
 
@@ -233,8 +250,9 @@ def load_state(d):
 
 def save_state(d, st):
     tmp = f"{d}/state.json.tmp"
-    json.dump(st, open(tmp, "w"), ensure_ascii=False, indent=1)
-    os.replace(tmp, f"{d}/state.json")
+    with open(tmp, "w") as f:   # closed before the rename: Windows will not rename an open file
+        json.dump(st, f, ensure_ascii=False, indent=1)
+    ccm_fs.replace(tmp, f"{d}/state.json")
 
 
 def log(line):
@@ -272,8 +290,11 @@ def pending(agent_or_path, name):
 
 def post_inbox(agent_or_path, text):
     post = os.environ.get("SUPERVISOR_POST") or os.path.join(HERE, "inbox_post.sh")
+    # Windows cannot start a script by its path (no #! there): a .sh goes through Git Bash's bash, a .py through this
+    # Python. Linux and macOS: sh_argv() is [] and the .sh starts by its #! line, as before.
+    lead = [sys.executable] if post.endswith(".py") else sh_argv()
     try:
-        r = subprocess.run([post, agent_or_path, text], capture_output=True, text=True, timeout=30)
+        r = subprocess.run(lead + [post, agent_or_path, text], capture_output=True, text=True, timeout=30)
         if r.returncode != 0:   # an rc != 0 used to vanish: the log said ALERT, the letter never went out
             log(f"INBOX not sent ({agent_or_path}): rc {r.returncode} {(r.stderr or r.stdout).strip()[:100]}")
             return False
@@ -491,7 +512,9 @@ def main():
     summary = {"ts": time.strftime("%F %T"), "checks": len(report), "problems": problems, "broken_checks": broken_l,
                "after_downtime": after_l, "details": details}
     tmp = f"{a.state}/summary.json.tmp"
-    json.dump(summary, open(tmp, "w"), ensure_ascii=False); os.replace(tmp, f"{a.state}/summary.json")
+    with open(tmp, "w") as f:
+        json.dump(summary, f, ensure_ascii=False)
+    ccm_fs.replace(tmp, f"{a.state}/summary.json")
     open(f"{a.state}/heartbeat", "w").write(str(int(now)))
     hb = conf("CCM_SUPERVISOR_HEARTBEAT", "")
     if hb:

@@ -21,6 +21,8 @@ The state is written BEFORE the print: a crash in between = "seen" without a hin
 Section names: "## New" (and "## New candidates"); Ukrainian "## Нові" is accepted too.
 Env: INBOX_DELTA_THROTTLE (seconds, default 60). Fail-open under hook-safe.sh."""
 import hashlib, json, os, sys, time
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 
 STATE_DIR = os.path.expanduser("~/.claude/inbox-delta")
 IDENTITY_DIR = os.path.expanduser("~/.claude/agent-identity")
@@ -104,7 +106,7 @@ def main():
     with open(tmp, "w") as f:
         json.dump({"mtime": mtime, "keys": sorted(keys),
                    "hinted_at": now if fresh else (st or {}).get("hinted_at", 0)}, f)
-    os.replace(tmp, sf)
+    ccm_fs.replace(tmp, sf)
 
     if not fresh:
         return

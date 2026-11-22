@@ -30,6 +30,8 @@
 #   --with-reader                # document reader for the workspace (.md/.fb2 in the browser, 127.0.0.1:8001): copy to <dir>/addons/reader/, start it now and after a reboot (crontab, no root)
 #   --no-cron                    # do not touch the crontab (also automatic for an install under a temp dir)
 #   --prune-cron                 # remove OUR crontab blocks whose install dir no longer exists, then exit
+#   --schedule-windows           # Windows (Git Bash, no crontab): register the scheduled jobs in Task Scheduler as ccm-<job> tasks
+#                                # (without it the schtasks commands are only printed); with --uninstall: remove every ccm-* task, then exit
 #
 # Machine-specific settings go to <install dir>/methodology.conf (kept on re-run).
 #
@@ -58,6 +60,8 @@ WITH_READER=0
 WITH_SESSION_HYGIENE=0
 NO_CRON=0
 PRUNE_CRON=0
+SCHEDULE_WIN=0
+UNINSTALL=0
 OPT_NAME=""
 OPT_WORKSPACE=""
 OPT_TZ=""
@@ -86,6 +90,8 @@ while [[ $# -gt 0 ]]; do
     --with-session-hygiene) WITH_SESSION_HYGIENE=1 ;;
     --no-cron)     NO_CRON=1 ;;
     --prune-cron)  PRUNE_CRON=1 ;;
+    --schedule-windows) SCHEDULE_WIN=1 ;;
+    --uninstall)   UNINSTALL=1 ;;
     --name|--workspace|--timezone)
                    [[ $# -ge 2 ]] || { echo "install.sh: $1 requires a value" >&2; exit 2; }
                    case "$1" in --name) OPT_NAME="$2" ;; --workspace) OPT_WORKSPACE="$2" ;; --timezone) OPT_TZ="$2" ;; esac
@@ -157,6 +163,15 @@ if [[ $ON_WINDOWS -eq 1 ]]; then
   # Python on Windows ends printed lines with \r\n; lib/pyshim/sitecustomize.py makes it \n, so $(python ...) gives
   # "x", not "x\r" (the \r would end up inside every path read from methodology.conf)
   export PYTHONPATH="$(cygpath -m "$REPO_DIR/lib/pyshim")${PYTHONPATH:+;$PYTHONPATH}"
+fi
+
+# ---- --schedule-windows --uninstall: every ccm-* task of this Windows user out of Task Scheduler, then exit ----
+if [[ $UNINSTALL -eq 1 ]]; then
+  [[ $SCHEDULE_WIN -eq 1 ]] || die "--uninstall goes with --schedule-windows (it removes the ccm-* Task Scheduler tasks); the rest of an install is removed by hand (see the end of an install)"
+  [[ $ON_WINDOWS -eq 1 ]] || die "--schedule-windows --uninstall: this is not Windows (Git Bash) - nothing to remove from Task Scheduler"
+  UN=(); [[ $DRY_RUN -eq 1 ]] && UN=(--dry-run)
+  py3 "$REPO_DIR/lib/win_schedule.py" uninstall ${UN[@]+"${UN[@]}"} && ok "Task Scheduler: ccm-* tasks removed" || die "Task Scheduler: some ccm-* tasks were not removed (above)"
+  exit 0
 fi
 
 # ---- --prune-cron: our marked blocks whose install dir is gone (test installs in /tmp leave them behind) ----
@@ -705,6 +720,12 @@ else say "Scheduled jobs: supervisor, quota, reports, stats, journal checks, rem
 case "$TARGET" in
   /tmp/*|/var/tmp/*|"${TMPDIR:-/nonexistent}"/*) [[ $NO_CRON -eq 1 ]] || warn "install dir is under a temp dir — crontab left alone (a test install must not schedule jobs)"; NO_CRON=1 ;;
 esac
+# --schedule-windows: the same block as Task Scheduler tasks (Windows has no crontab). A temp install dir or --no-cron
+# registers nothing (a test install must not schedule jobs) - except under tests with a stand-in schtasks (CCM_SCHTASKS).
+win_sched() {   # win_sched plan|apply
+  printf '%s\n' "$CRON_LINES" | py3 "$REPO_DIR/lib/win_schedule.py" "$1" --target "$TARGET" \
+    --bash "$(cygpath -w "$(command -v bash)" 2>/dev/null || command -v bash)" --env "$SHIM/env.sh" --home "$HOME"
+}
 if [[ $NO_CRON -eq 1 ]]; then
   say "crontab not touched (--no-cron or a temp install dir)"
 elif [[ $DRY_RUN -eq 1 ]]; then
@@ -715,12 +736,18 @@ elif command -v crontab >/dev/null 2>&1; then
 else
   warn "no crontab on this machine — these scheduled jobs will not run until you add them to your scheduler by hand:"
   printf '%s\n' "$CRON_LINES" >&2
-  if [[ $ON_WINDOWS -eq 1 ]]; then
-    # Task Scheduler runs a job through Git Bash's bash.exe; the most needed one is the reminders (every minute)
-    warn "Windows: Task Scheduler takes the same commands through Git Bash. The reminders, every minute (in cmd or PowerShell):"
-    warn "  schtasks /Create /SC MINUTE /MO 1 /TN ccm-remind /TR \"\\\"$(cygpath -w "$(command -v bash)")\\\" -lc '. $(q "$SHIM/env.sh"); python3 $(q "$TARGET/scripts/remind.py") --fire'\""
-    warn "  the rest the same way (. env.sh first: the jobs call python3), /SC MINUTE /MO 10 for */10, /SC HOURLY for an hourly line, /SC DAILY /ST 03:10 for a daily one (README.md, Platforms)"
+  if [[ $ON_WINDOWS -eq 1 && $SCHEDULE_WIN -eq 0 ]]; then
+    warn "Windows: Task Scheduler can run them - re-run with --schedule-windows and they are registered as ccm-* tasks:"
+    win_sched plan >&2 || true
   fi
+fi
+if [[ $SCHEDULE_WIN -eq 1 ]]; then
+  if [[ $ON_WINDOWS -eq 0 ]]; then warn "--schedule-windows: this is not Windows (Git Bash) - the crontab above runs the jobs"
+  elif [[ $DRY_RUN -eq 1 ]]; then win_sched plan || true
+  elif [[ $NO_CRON -eq 1 && ! ( "${CCM_TEST:-}" == 1 && -n "${CCM_SCHTASKS:-}" ) ]]; then
+    warn "--schedule-windows: nothing registered (--no-cron or a temp install dir); the commands would be:"; win_sched plan >&2 || true
+  elif win_sched apply; then ok "Task Scheduler: scheduled jobs registered as ccm-* tasks (schtasks /Query /TN ccm-remind to look; remove: ./install.sh --schedule-windows --uninstall)"
+  else warn "Task Scheduler: some jobs were not registered (above) - the rest stand"; fi
 fi
 
 # ---- add-ons (each only with its own flag) -----------------------------------

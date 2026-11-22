@@ -23,6 +23,8 @@ Stamps: <stamp dir>/ws-<NAME>.sha256 (what we wrote) and ws-<NAME>.base (our tex
 """
 import difflib, hashlib, os, re, sys
 
+import ccm_fs  # os.replace that waits out a file held open on Windows (lib/ is this file's own folder)
+
 DOCS = {"coding-standard.md": "CODING-STANDARD.md", "project-work.md": "PROJECT-WORK.md",
         "dev-methodology.md": "DEV-METHODOLOGY.md", "po-interface.md": "PO-INTERFACE.md",
         "web-playbook.md": "WEB-PLAYBOOK.md", "hall-of-shame-docs.md": "DOC-SLOP.md"}
@@ -68,7 +70,7 @@ def write(p, s):
     tmp = p + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(s)
-    os.replace(tmp, p)
+    ccm_fs.replace(tmp, p)
 
 
 def install(repo, ws, stamp, dry):

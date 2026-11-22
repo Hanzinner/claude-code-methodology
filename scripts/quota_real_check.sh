@@ -7,7 +7,10 @@
 # expired, and only a live CLI renews it (quota_status.py never refreshes - the refresh token is single-use). While no
 # agent works, no quota is spent, so that is not an incident. Agents ARE working (a transcript changed within
 # IDLE_MIN minutes) and the token is still expired -> red: the CLI is not renewing the login.
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# The standard folders first (a predictable date/stat/find, also from cron), then the caller's PATH: on Windows (Git
+# Bash) python3 is not in /usr/bin but in it (<install>/lib/pyshim or python.exe), and a bare reset lost it -> rc 3 on
+# every run. On Linux python3 sits in /usr/bin and is found first, as before.
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}
 F=${F:-$HOME/.claude/quota-status.json}; MAX_REAL_MIN=${MAX_REAL_MIN:-60}
 [[ -s $F ]] || { echo "no $F"; exit 3; }
 age=$(( ($(date +%s) - $(stat -c %Y "$F")) / 60 ))

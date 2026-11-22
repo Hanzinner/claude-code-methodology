@@ -59,7 +59,7 @@ ok "6b \"## Нові\" gets the item, no \"## New\" created, placeholder gone" '
 ok "7 no repair inserts" '[ ! -s "$LOG" ]'
 # 8. the repair path: the log is valid UTF-8 even when a non-ASCII line is cut
 f="$T/e/x.md"; mkdir -p "$T/e"; printf '# E\n\n## New\n\n## Processed\n' > "$f"
-( source <(sed -n '/^in_new()/p;/^deliver()/,/^}/p;/^insert_into()/,/^}/p;/^heal_new()/,/^}/p' "$P"); inbox="$f"; text="- [ ] [2026-09-22] $(printf 'ж%.0s' $(seq 80))"; first_line="$text"; new_hdr='## New'; source "$(dirname "$P")/inbox_lib.sh"; deliver ) >/dev/null 2>&1
+( source <(sed -n '/^in_new()/p;/^mv_in()/,/^}/p;/^deliver()/,/^}/p;/^insert_into()/,/^}/p;/^heal_new()/,/^}/p' "$P"); inbox="$f"; text="- [ ] [2026-09-22] $(printf 'ж%.0s' $(seq 80))"; first_line="$text"; new_hdr='## New'; source "$(dirname "$P")/inbox_lib.sh"; deliver ) >/dev/null 2>&1
 ok "8 repair log is valid UTF-8" '[ -s "$LOG" ] && python3 -c "open(\"$LOG\",encoding=\"utf-8\").read()"'
 
 # 9. who is the addressee: <name>-agent, group folders, .aliases, ambiguity
@@ -125,6 +125,11 @@ ok "16d neither name set -> the listening check runs (\"not listening\")" 'echo 
 
 # 17. concurrency: 12 parallel writers, nothing lost, nothing doubled
 f="$A/Baz/inbox.md"; printf '# t\n\n## New\n\n## Processed\n' > "$f"
-for i in $(seq 1 12); do "$P" Baz "par-$i-$$" >/dev/null 2>&1 & done; wait
-ok "17 12 parallel posts -> 12 distinct items, structure intact" '[ "$(grep -c "par-[0-9]*-$$" "$f")" = 12 ] && [ "$(grep -c "^## " "$f")" = 2 ]'
+# Each writer's rc and stderr are kept: on Windows this case failed in the test while hand runs were clean, and the
+# output went to /dev/null - say WHY a letter is missing (lock timeout rc 3, a refused rename, a pending queue).
+mkdir -p "$T/par"
+for i in $(seq 1 12); do ( "$P" Baz "par-$i-$$" >/dev/null 2>"$T/par/$i.err"; echo $? > "$T/par/$i.rc" ) & done; wait
+par_why() { for i in $(seq 1 12); do r=$(cat "$T/par/$i.rc" 2>/dev/null); [[ "$r" == 0 && ! -s "$T/par/$i.err" ]] || echo "   writer $i: rc=${r:-?} $(head -c 300 "$T/par/$i.err" 2>/dev/null)"; done
+          ls "$A/Baz" | grep -v '^inbox.md$\|^.aliases$' | sed 's/^/   left in the folder: /'; }
+ok "17 12 parallel posts -> 12 distinct items, structure intact, every writer rc 0, nothing left beside the inbox" '[ "$(grep -c "par-[0-9]*-$$" "$f")" = 12 ] && [ "$(grep -c "^## " "$f")" = 2 ] && [ -z "$(par_why | grep -v "inbox.md.lock$")" ] || { par_why; false; }'
 echo "inbox-post: $pass pass, $fail fail"; [ $fail = 0 ]

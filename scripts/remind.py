@@ -23,6 +23,7 @@ import json, os, re, subprocess, sys, time
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 from ccm_proc import sh_argv  # noqa: E402  (Windows: a .sh is started through Git Bash's bash)
 try:
     import fcntl
@@ -90,7 +91,7 @@ def pending():
         if not (isinstance(r, dict) and {"id", "agent", "due", "text"} <= r.keys() and isinstance(r["due"], (int, float))):
             # a broken file (hand-edited) must not stop the rest: aside and into the log
             try:
-                os.makedirs(f"{D}/failed", exist_ok=True); os.replace(f"{D}/{n}", f"{D}/failed/{n}")
+                os.makedirs(f"{D}/failed", exist_ok=True); ccm_fs.replace(f"{D}/{n}", f"{D}/failed/{n}")
                 log(f"BROKEN {n}: not a reminder (no id/agent/due/text) -> failed/")
             except OSError:
                 pass
@@ -157,7 +158,7 @@ def add(agent, when, text):
     path = f"{D}/{due}-{rid}.json"
     with open(path + ".tmp", "w", encoding="utf-8") as f:
         json.dump({"id": rid, "agent": agent, "due": due, "set": t0, "text": text.strip()}, f, ensure_ascii=False)
-    os.replace(path + ".tmp", path)
+    ccm_fs.replace(path + ".tmp", path)
     print(f"⏰ reminder {rid} for {agent}: {fmt(due)} (in {span(due - t0)}) — \"{text.strip()[:80]}\". "
           f"A letter will land in the inbox; for the tab to wake by itself keep the alarm inbox_wait.sh {agent} running. Cancel: remind.py --cancel {rid}")
     return 0
@@ -193,7 +194,7 @@ def fire():
                 try:
                     with open(r["_file"] + ".tmp", "w", encoding="utf-8") as f:
                         json.dump(body, f, ensure_ascii=False)
-                    os.replace(r["_file"] + ".tmp", r["_file"])
+                    ccm_fs.replace(r["_file"] + ".tmp", r["_file"])
                 except OSError:
                     pass
     return 1 if bad else 0

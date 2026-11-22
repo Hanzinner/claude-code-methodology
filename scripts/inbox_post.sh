@@ -76,9 +76,24 @@ if [[ $(grep -c '^## ' "$tmp") -lt $(grep -c '^## ' "$inbox") ]]; then
     rm -f "$tmp"; echo "inbox_post: validation FAILED (a section vanished) - file NOT changed" >&2; exit 4
 fi
 
+# The letter never dies on a failed rename (ib_mv_retry in inbox_lib.sh: Windows refuses a rename onto a file held
+# open for a moment): still refused after the tries -> the pending queue below, like any delivery that did not hold.
+mv_in() { ib_mv_retry "$1" "$inbox" || { rm -f "$1"; return 1; }; }   # mv_in <assembled file>: 1 = could not
+to_pending() {
+    # Delivery guarantee: it did not hold under contention -> the letter goes to a fallback queue next to the inbox
+    # for the owner (or whatever delivers pending items) to pick up when the live session lets go of the file.
+    # Never lose a letter silently.
+    pend_dir="$(dirname "$inbox")/inbox-pending"
+    mkdir -p "$pend_dir"
+    pf="$pend_dir/$(date +%s)-$$.md"
+    printf '%s\n' "$text" > "$pf"
+    chown --reference="$inbox" "$pf" 2>/dev/null || true
+    echo "inbox_post: 🟡 the item did not stay in \"$new_hdr\" under a parallel rewrite - queued in $pf. Count it as DEFERRED, not lost: move it into the inbox by hand if nothing delivers the queue." >&2
+    exit 0
+}
 chown --reference="$inbox" "$tmp" 2>/dev/null || true
 chmod --reference="$inbox" "$tmp" 2>/dev/null || true
-mv "$tmp" "$inbox"
+mv_in "$tmp" || to_pending
 
 # ── post-validation AFTER mv, reading FROM DISK ──────────────────────────────────────────────────────────────────
 # Checking $tmp before mv only proved "we assembled the right file", not "it survived" (a real case: the script said
@@ -104,7 +119,7 @@ deliver() {
     insert_into "$tmp2"
     chown --reference="$inbox" "$tmp2" 2>/dev/null || true
     chmod --reference="$inbox" "$tmp2" 2>/dev/null || true
-    mv "$tmp2" "$inbox"
+    mv_in "$tmp2" || return 1
     in_new
 }
 # Limit: 1 initial + 1 repair insert. More means a duplicate storm (5 copies once: the live session that owns the inbox
@@ -115,18 +130,7 @@ for pause in 0 2; do
     sleep "$pause"
     if deliver; then ok=1; break; fi
 done
-if [ "$ok" -ne 1 ]; then
-    # Delivery guarantee: it did not hold under contention -> the letter goes to a fallback queue next to the inbox
-    # for the owner (or whatever delivers pending items) to pick up when the live session lets go of the file.
-    # Never lose a letter silently.
-    pend_dir="$(dirname "$inbox")/inbox-pending"
-    mkdir -p "$pend_dir"
-    pf="$pend_dir/$(date +%s)-$$.md"
-    printf '%s\n' "$text" > "$pf"
-    chown --reference="$inbox" "$pf" 2>/dev/null || true
-    echo "inbox_post: 🟡 the item did not stay in \"$new_hdr\" under a parallel rewrite - queued in $pf. Count it as DEFERRED, not lost: move it into the inbox by hand if nothing delivers the queue." >&2
-    exit 0
-fi
+[ "$ok" -eq 1 ] || to_pending
 # Send log: stale_letters.py, on the sender's alarm link, sees the sender's URGENT letters that lie unread with a live
 # addressee. Line: epoch<TAB>sender agent<TAB>addressee<TAB>first line. Tests (CCM_TEST=1) write only to an explicit
 # INBOX_SENT_LOG.

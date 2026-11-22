@@ -29,6 +29,7 @@ import glob, json, os, re, statistics, sys, time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 
 HOME = os.path.expanduser("~")
 STATE = os.environ.get("COST_GUARD_STATE", f"{HOME}/.claude/cost-guard")
@@ -243,7 +244,7 @@ def main():
         except OSError:
             pass
     json.dump(st, open(sf + ".tmp", "w"))
-    os.replace(sf + ".tmp", sf)
+    ccm_fs.replace(sf + ".tmp", sf)
 
 
 def calibrate(days):

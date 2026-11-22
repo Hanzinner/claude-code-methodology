@@ -57,9 +57,12 @@ base=$(count_new); base_file=$(mktemp); new_items | sort > "$base_file"; start=$
 # One alarm per agent (agents once started it on every reply: 18 links, every letter woke them all). A live alarm of
 # this agent exists -> do not start another link.
 mkdir -p "$HOME/.claude/inbox-wait"
-# Process facts from /proc (Linux; a minimal Debian has no `ps`), `ps` where there is no /proc (macOS).
+# Process facts from /proc (Linux; a minimal Debian has no `ps`), `ps` where there is no /proc (macOS). The name
+# comes from field 2 of /proc/<pid>/stat, not /proc/<pid>/comm: Git Bash (MSYS/Cygwin) has stat but no comm, and its
+# `ps` has no -o - so on Windows every process had no name, two tabs looked like one session and the second tab
+# was told "already armed" and got no alarm. ".exe" is dropped (claude.exe is claude).
 p_cmd()  { if [[ -r /proc/$1/cmdline ]]; then tr '\0' ' ' < "/proc/$1/cmdline"; else ps -o command= -p "$1" 2>/dev/null; fi; }
-p_comm() { if [[ -r /proc/$1/comm ]]; then cat "/proc/$1/comm"; else ps -o comm= -p "$1" 2>/dev/null; fi; }
+p_comm() { local c; if [[ -r /proc/$1/stat ]]; then c=$(sed -n '1s/^[0-9]* (\(.*\)) [A-Za-z] .*/\1/p' "/proc/$1/stat"); else c=$(ps -o comm= -p "$1" 2>/dev/null); fi; printf '%s\n' "${c%.exe}"; }
 p_ppid() { if [[ -r /proc/$1/stat ]]; then awk '{sub(/.*\) /, ""); print $2}' "/proc/$1/stat"; else ps -o ppid= -p "$1" 2>/dev/null | tr -d ' '; fi; }
 alive_waiter() {   # -> pid of a live inbox_wait.sh of this agent, other than me
     local p c; p=$(cat "$HOME/.claude/inbox-wait/$agent" 2>/dev/null)
@@ -97,13 +100,12 @@ trap 'rm -f "$base_file"; [[ "$(cat "$HOME/.claude/inbox-wait/$agent" 2>/dev/nul
 # "Also waiting": on an exit without a letter the coordinator sees who else stands waiting and for how long - a chain
 # "Dev waited for Design 22 min, the coordinator waited for a letter". Agents from $WORK_GUARD_AGENTS (a list file,
 # one name per line); with no such file, every agent that has a live alarm.
-etime_min() {   # elapsed minutes of a pid: /proc start time, else ps ([[dd-]hh:]mm:ss)
-    if [[ -r /proc/$1/stat && -r /proc/uptime ]]; then
-        local st up hz; st=$(awk '{sub(/.*\) /, ""); print $20}' "/proc/$1/stat"); read -r up _ < /proc/uptime
-        hz=$(getconf CLK_TCK 2>/dev/null || echo 100)
-        awk -v u="$up" -v s="$st" -v h="$hz" 'BEGIN{print int((u - s / h) / 60)}'; return
-    fi
-    ps -o etime= -p "$1" 2>/dev/null | awk '{n=split($1,a,/[-:]/); s=0; if(n==2)s=a[1]*60+a[2]; else if(n==3)s=a[1]*3600+a[2]*60+a[3]; else if(n==4)s=a[1]*86400+a[2]*3600+a[3]*60+a[4]; print int(s/60)}'
+waited_min() {   # waited_min <agent>: minutes since that agent's alarm wrote its pid file (it does so once, at start).
+    # The file's age, not the process's: /proc start ticks and `ps -o etime` do not exist alike on Linux, macOS and
+    # Git Bash (no `ps -o` there), and a wrong unit gave a negative "waiting -3 min".
+    local f="$HOME/.claude/inbox-wait/$1" m
+    m=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null) || return 0
+    echo $(( ( $(date +%s) - m ) / 60 ))
 }
 others_waiting() {
     local a p e out="" list="${WORK_GUARD_AGENTS:-$HOME/.claude/work_guard_agents.txt}" names=""
@@ -112,7 +114,7 @@ others_waiting() {
         [[ -z "$a" || "$a" == \#* || "$a" == "$agent" ]] && continue
         p=$(cat "$HOME/.claude/inbox-wait/$a" 2>/dev/null) || continue
         [[ -n "$p" ]] && kill -0 "$p" 2>/dev/null || continue
-        e=$(etime_min "$p"); [[ -n "$e" ]] && out+="$a $e min, "
+        e=$(waited_min "$a"); [[ -n "$e" ]] && out+="$a $e min, "
     done <<< "$names"
     [[ -n "$out" ]] && echo "👥 also waiting: ${out%, }"
     return 0

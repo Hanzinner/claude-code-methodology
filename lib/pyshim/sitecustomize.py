@@ -11,6 +11,14 @@ On Linux and macOS this file is never on the path; if it were, it would do nothi
 """
 import os
 
+# One home for bash and Python (the same rule as home_follows_HOME in lib/ccm_conf.py, kept here for the scripts that
+# do not import it): Windows Python takes "~" from USERPROFILE and ignores HOME, so a test that isolated itself with
+# HOME=<temp dir> had its Python write into the person's real ~/.claude. USERPROFILE follows an absolute HOME.
+_h, _up = os.environ.get("HOME"), os.environ.get("USERPROFILE")
+if _h and _up is not None and os.path.isabs(_h) and (os.name != "nt" or os.path.splitdrive(_h)[0]) \
+        and os.path.normcase(os.path.normpath(_h)) != os.path.normcase(os.path.normpath(_up)):
+    os.environ["USERPROFILE"] = _h
+
 if os.name == "nt":
     import builtins, io, sys
 

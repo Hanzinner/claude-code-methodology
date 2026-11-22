@@ -96,11 +96,13 @@ else
 fi
 step="steps 1-5 (python)"
 export MODE=$( (( apply )) && echo apply || echo plan ) OLD="$old" NEW="$new" OLD_DIR="$old_dir" NEW_DIR="$new_dir" \
-       REPO AG GLOB IDENT SESS MODE_DIR WGA POST UK
+       REPO AG GLOB IDENT SESS MODE_DIR WGA POST UK CCM_LIB="$HERE/../lib"
 rc=0
 python3 -u - <<'PY' || rc=$?
 import glob, json, os, re, subprocess, sys, tempfile, time
 E = os.environ
+sys.path.insert(0, E["CCM_LIB"])
+import ccm_fs  # noqa: E402  (chown: Windows Python has none; replace: waits out a file held open on Windows)
 apply = E["MODE"] == "apply"
 old, new, REPO, AG, GLOB = E["OLD"], E["NEW"], E["REPO"], E["AG"], E["GLOB"]
 UK = E["UK"] == "1"
@@ -116,10 +118,7 @@ def rel(p):
 
 
 def keep_owner(path, st):
-    try:
-        os.chown(path, st.st_uid, st.st_gid)
-    except PermissionError:          # not root and the file is someone else's: it keeps our ownership
-        pass
+    ccm_fs.chown(path, st.st_uid, st.st_gid)   # not root and the file is someone else's (or Windows): it keeps our ownership
 
 
 def write(path, text):
@@ -131,7 +130,7 @@ def write(path, text):
             f.write(text)
         os.chmod(tmp, st.st_mode & 0o7777)
         keep_owner(tmp, st)
-        os.replace(tmp, path)
+        ccm_fs.replace(tmp, path)
     except BaseException:
         os.unlink(tmp)
         raise

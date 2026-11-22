@@ -19,7 +19,8 @@ from datetime import datetime, date, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf  # noqa: E402
-from zoneinfo import ZoneInfo
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
+import ccm_time  # noqa: E402  (CCM_TIMEZONE also without a zone database: Windows Python without tzdata)
 
 # $ per 1M tokens: input, output, cache read; a 5-minute cache write costs 1.25x input, a 1-hour write 2x input.
 # Prices as of 2026-06-24 (the provider's price page); a change is made HERE. Unknown model -> DEFAULT (opus-4-8).
@@ -129,7 +130,7 @@ def render(target, label, plan, agg, cost, reqs, by_model):
 def main():
     args = sys.argv[1:]
     tzname = conf("CCM_TIMEZONE", "")
-    tz = ZoneInfo(tzname) if tzname else datetime.now().astimezone().tzinfo
+    tz = ccm_time.zone(tzname) or datetime.now().astimezone().tzinfo
     now = datetime.now(tz)
     if "--after" in args and now.hour < int(args[args.index("--after") + 1]):
         return 0
@@ -151,7 +152,7 @@ def main():
             "by_model": by_model, "plan": plan, "pricing_as_of": PRICING_AS_OF}
     for name, text in ((f"{day}.json", json.dumps(data, indent=1)), (f"{day}.md", body)):
         tmp = os.path.join(outdir, f".{name}.{os.getpid()}")
-        open(tmp, "w").write(text); os.replace(tmp, os.path.join(outdir, name))
+        open(tmp, "w").write(text); ccm_fs.replace(tmp, os.path.join(outdir, name))
     open(os.path.join(outdir, "latest.md"), "w").write(body)
     print(f"token report written: {os.path.join(outdir, day + '.md')}")
     return 0

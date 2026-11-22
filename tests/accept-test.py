@@ -52,7 +52,7 @@ try:
     os.makedirs(os.path.join(projects, "-home-x"))
     os.makedirs(ident)
     os.makedirs(home)
-    root = os.geteuid() == 0
+    root = getattr(os, "geteuid", lambda: -1)() == 0   # Windows Python has no geteuid
     if root:
         os.chown(pd, 65534, 65534)  # a folder of another user: the new ACCEPTED.jsonl must take its owner
     with open(os.path.join(pd, "ROADMAP.md"), "w", encoding="utf-8") as f:
@@ -121,6 +121,8 @@ try:
     if root:
         check(st.st_uid == 65534 and st.st_mode & 0o777 == 0o664, "ACCEPTED.jsonl: the folder's owner, 664",
               f"uid={st.st_uid} mode={oct(st.st_mode)}")
+    elif os.name == "nt":
+        print("SKIP on Windows: ACCEPTED.jsonl 664 - a file mode there is only the read-only flag (chmod does not set group bits)")
     else:
         check(st.st_mode & 0o777 == 0o664, "ACCEPTED.jsonl: 664 (not root: owner not changed)", oct(st.st_mode))
     # 2. the same message again - no duplicate

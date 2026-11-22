@@ -22,6 +22,7 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 INSTALL = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(INSTALL, "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 
 STATE = os.path.join(os.path.expanduser("~"), ".claude", "waiting-line")
 MAX_LINE = 400
@@ -77,7 +78,7 @@ def save(p, d):
     tmp = p + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(d, f)
-    os.replace(tmp, p)
+    ccm_fs.replace(tmp, p)
 
 
 def main():

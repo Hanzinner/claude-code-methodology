@@ -19,7 +19,8 @@
 #       · 7 ff failed in 3 tries · 8 the build in the main tree failed (master has ALREADY moved - the letter is loud) · 9 busy
 # Paths: workspace = CCM_WORKSPACE; worktrees = CCM_WORKTREES_DIR (default <workspace>-wt, one folder per agent name);
 # letters through CCM_INBOX_POST (default: inbox_post.sh next to this script); log CCM_WT_DELIVER_LOG
-# (default ~/.claude/wt-deliver.log). Test: tests/wt-deliver-test.sh
+# (default ~/.claude/wt-deliver.log); lock folder CCM_WT_DELIVER_LOCK_DIR (default /var/lock, else $TMPDIR or /tmp).
+# Test: tests/wt-deliver-test.sh
 set -uo pipefail
 HERE=$(dirname "$(readlink -f "$0")")
 eval "$(python3 "$HERE/../lib/ccm_conf.py" --shell)"
@@ -54,7 +55,10 @@ branch=$(git -C "$WT" rev-parse --abbrev-ref HEAD)
 
 # ── one delivery per project at a time. Redirect in braces: a bare `exec 8>... 2>/dev/null` silenced the whole script's stderr
 . "$(dirname "$(readlink -f "$0")")/../lib/ccm_lock.sh"   # flock, or a mkdir lock where there is none (macOS, Git Bash)
-lk="/var/lock/wt_deliver-$PROJ.lock"; { : >>"$lk"; } 2>/dev/null || lk="${TMPDIR:-/tmp}/wt_deliver-$PROJ.lock"
+# CCM_WT_DELIVER_LOCK_DIR: where the lock lives (tests put it in their temp dir - a test once left its lock files in
+# /var/lock and /tmp for good, and on Windows a run killed mid-way left a lock folder there for the next one)
+lkd=${CCM_WT_DELIVER_LOCK_DIR:-/var/lock}; lk="$lkd/wt_deliver-$PROJ.lock"
+{ : >>"$lk"; } 2>/dev/null || lk="${TMPDIR:-/tmp}/wt_deliver-$PROJ.lock"
 ccm_lock 8 "$lk" 120 60 || { echo "another delivery of $DIR has been running for over 2 min - try later"; exit 9; }
 
 # the main tree must stand on master - otherwise the ff would move somebody else's branch and we would say "delivered to master"

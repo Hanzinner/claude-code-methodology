@@ -31,6 +31,7 @@ try:
 except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
     import ccm_lock as fcntl
 import human_quote  # noqa: E402
+import ccm_fs  # noqa: E402  (chown: Windows Python has no os.chown)
 
 REPO = os.environ.get("ACCEPT_REPO") or conf("CCM_WORKSPACE")
 PREFIX = conf("CCM_PROJECTS_GLOB", "Project-*").split("*")[0]
@@ -64,9 +65,9 @@ def append_jsonl(path, rec, key):
             os.chmod(path, 0o664)
             try:
                 st = os.stat(os.path.dirname(path))
-                os.chown(path, st.st_uid, st.st_gid)
+                ccm_fs.chown(path, st.st_uid, st.st_gid)  # not root (or Windows): the file stays ours
             except OSError:
-                pass  # not root: the file stays ours
+                pass
         fh.seek(0)
         for line in fh.read().split("\n"):
             try:

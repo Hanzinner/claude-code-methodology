@@ -33,7 +33,9 @@ ok "6b the letter says FAILED with the rc" 'grep -q "^Keeper|.*FAILED.*rc=7" "$T
 printf '#!/bin/sh\necho "$@" > %s/args\necho report\n' "$T" > "$T/runner"; : > "$T/letters"
 out=$(CCM_CONSOLIDATION_KEEPER=Keeper CONSOLIDATION_RUNNER="$T/runner" bash "$MC" --force 2>&1); rc=$?
 ok "7 runner ok -> rc 0, stamp = today, report written" '[ $rc = 0 ] && [ "$(cat "$T/last-run")" = "$(date +%F)" ] && grep -q "^report" "$T/out/$(date +%F).md"'
-ok "7b the runner got read-only tools and the memory dir" 'grep -q -- "--tools Read,Grep,Glob" "$T/args" && grep -q "$T/mem" "$T/args"'
+# the memory dir comes back through Python (lib/ccm_conf.py): on Windows in its own form, C:/.../mem, not /tmp/.../mem
+MEMW=$(cygpath -m "$T/mem" 2>/dev/null || echo "$T/mem")
+ok "7b the runner got read-only tools and the memory dir" 'grep -q -- "--tools Read,Grep,Glob" "$T/args" && grep -qF -e "$T/mem" -e "$MEMW" "$T/args"'
 ok "7c one letter, md5 unchanged" '[ "$(grep -c "^Keeper|" "$T/letters")" = 1 ] && grep -q "unchanged" "$T/letters"'
 # a runner that WRITES into memory -> loud
 printf '#!/bin/sh\necho x >> %s/mem/MEMORY.md\necho report\n' "$T" > "$T/runner"; : > "$T/letters"

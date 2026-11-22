@@ -16,6 +16,7 @@ import glob, json, os, re, sys, time
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 
 
 def _clean(text):
@@ -70,7 +71,7 @@ def build_vocab(days=120, min_uses=3):
     known = sorted(k for k, v in cnt.items() if v >= min_uses)
     os.makedirs(os.path.dirname(VOCAB), exist_ok=True)
     tmp = VOCAB + ".tmp"
-    json.dump(known, open(tmp, "w")); os.replace(tmp, VOCAB)
+    json.dump(known, open(tmp, "w")); ccm_fs.replace(tmp, VOCAB)
     print(f"abbr vocab: {len(known)} abbreviations → {VOCAB}")
 
 

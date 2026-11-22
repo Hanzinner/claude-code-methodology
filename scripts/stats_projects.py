@@ -14,16 +14,17 @@ could not be parsed (a project without data must be visible, not silently absent
 """
 import glob, json, os, re, subprocess, sys
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
+import ccm_time  # noqa: E402  (CCM_TIMEZONE also without a zone database: Windows Python without tzdata)
 
 ROOT = conf("CCM_WORKSPACE", os.path.expanduser("~/claude-projects"))
 STATS = os.path.expanduser(os.environ.get("STATS_DIR", "~/.claude/stats"))
 OUT = os.path.join(STATS, "projects.json")
 _tz = conf("CCM_TIMEZONE", "")
-TZ = ZoneInfo(_tz) if _tz else datetime.now().astimezone().tzinfo
+TZ = ccm_time.zone(_tz) or datetime.now().astimezone().tzinfo
 MARKS = "✅🔄⏸⛔⏳🔮🛑"
 EPIC = re.compile(r"^##\s+(?:EPIC|ЕПІК)\s+(\d+)\s*[—–-]\s*(.+?)\s*$", re.I)
 STORY = re.compile(r"^\s*[-*]\s*(?P<pre>.*?)\*\*\[(?P<id>E(?P<ep>\d+)\.[A-Z]\d+[a-z]?)\]\s*(?P<title>.+?)\*\*(?P<rest>.*)$")
@@ -120,7 +121,7 @@ def main():
     tmp = OUT + f".{os.getpid()}.tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
-    os.replace(tmp, OUT)
+    ccm_fs.replace(tmp, OUT)
     for p in data["projects"]:
         st = [s for e in p["epics"] for s in e["stories"]]
         print(f"{p['name']}: epics {len(p['epics'])}, stories {len(st)} (done {sum(s['mark'] == '✅' for s in st)}, in progress {sum(s['mark'] == '🔄' for s in st)})")

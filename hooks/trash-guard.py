@@ -27,6 +27,7 @@ import os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 
 import json, re, shutil, subprocess, time
 try:
@@ -60,7 +61,7 @@ def jread(p, default):
 def jwrite(p, obj):
     with open(p + ".tmp", "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False)
-    os.replace(p + ".tmp", p)
+    ccm_fs.replace(p + ".tmp", p)
 
 
 def ledger():
@@ -224,8 +225,12 @@ def clean(dry):
     import shutil
     real = os.path.realpath(TRASH)
     # safety: clean only a folder whose name says it is a trash (.Trash, .claude-trash) that lies no closer than
-    # /x/y/<it>; not a symlink — a misconfigured CCM_TRASH_DIR=$HOME must not get emptied
-    if "trash" not in os.path.basename(real).lower() or real.count("/") < 3 or os.path.islink(TRASH) or not os.path.isdir(real):
+    # /x/y/<it> (C:\x\y\<it> on Windows); not a symlink — a misconfigured CCM_TRASH_DIR=$HOME must not get emptied.
+    # Depth = path parts after the drive, split on this system's separators (Windows: \ and /; Linux: / only, as
+    # before). Counting "/" alone refused every Windows trash (C:\Users\x\.Trash has none).
+    seps = re.escape(os.path.sep + (os.path.altsep or ""))
+    depth = len([p for p in re.split(f"[{seps}]+", os.path.splitdrive(real)[1]) if p])
+    if "trash" not in os.path.basename(real).lower() or depth < 3 or os.path.islink(TRASH) or not os.path.isdir(real):
         print(f"trash-guard --clean: \"{TRASH}\" does not look like a trash folder - touching nothing", file=sys.stderr); return 2
     cut = time.time() - KEEP_DAYS * 86400
     sizes = jread(f"{ST}/state.json", {}).get("sizes") or {}

@@ -7,7 +7,10 @@ HERE=$(dirname "$(readlink -f "$0")")
 WD=${WD:-$HERE/../scripts/wt_deliver.sh}
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 R="$T/repo"; W="$T/wt"; mkdir -p "$R" "$W" "$T/h"
-g() { /usr/bin/git -c user.email=t@t -c user.name=t "$@"; }
+# /usr/bin/git: past a git wrapper on PATH, where there is one. Git for Windows has no /usr/bin/git (its git.exe is in
+# /mingw64/bin or /ucrt64/bin) - there every call failed and 18 of 20 checks went red - so any git on PATH then.
+GIT=/usr/bin/git; [[ -x "$GIT" ]] || GIT=$(type -P git) || { echo "wt-deliver: SKIP (no git)"; exit 0; }
+g() { "$GIT" -c user.email=t@t -c user.name=t "$@"; }
 g -C "$R" init -q -b master
 mkdir -p "$R/Project-X/src" "$R/Project-X/ui" "$R/Docs"
 cat > "$R/Project-X/deliver.conf" <<'C'
@@ -24,7 +27,7 @@ g -C "$R" add -A; g -C "$R" commit -qm init
 g -C "$R" worktree add -q -b x-dev "$W/X-Dev" master
 g -C "$R" worktree add -q -b x-ui "$W/X-UI" master
 P="$T/post.log"; printf '#!/bin/sh\necho "$@" >> %s\n' "$P" > "$T/post"; chmod +x "$T/post"
-run() { GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$R" CCM_WORKTREES_DIR="$W" CCM_WT_DELIVER_LOG="$T/log" CCM_INBOX_POST="$T/post" bash "$WD" "$@" > "$T/out" 2>&1; echo $?; }
+run() { GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$R" CCM_WORKTREES_DIR="$W" CCM_WT_DELIVER_LOG="$T/log" CCM_WT_DELIVER_LOCK_DIR="$T" CCM_INBOX_POST="$T/post" bash "$WD" "$@" > "$T/out" 2>&1; echo $?; }
 m() { g -C "$R" rev-parse master; }
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; sed 's/^/   /' "$T/out"; fi; }
@@ -112,4 +115,5 @@ echo 2 > "$W/O-Dev/src/a"; g -C "$W/O-Dev" add -A; g -C "$W/O-Dev" commit -qm s;
 ok "13 own file in its own repo -> delivered into ITS master, the workspace did not move" '[ "$rc" = 0 ] && grep -q 2 "$O/src/a" && [ "$(m)" = "$mono" ]'
 o0=$(g -C "$O" rev-parse master); echo 3 > "$W/O-Dev/b"; g -C "$W/O-Dev" add -A; g -C "$W/O-Dev" commit -qm b; rc=$(run O-Dev)
 ok "13b someone else's file in its own repo -> refusal per OWNERS" '[ "$rc" != 0 ] && [ "$(g -C "$O" rev-parse master)" = "$o0" ] && grep -q "b (O-HQ)" "$T/out"'
+ok "14 the lock stayed in the test's own folder, nothing left after the runs" '[ -e "$T/wt_deliver-Project-X.lock" ] && [ -z "$(ls -d "$T"/*.lock.d 2>/dev/null)" ]'
 echo "wt-deliver: $pass pass, $fail fail"; [ $fail = 0 ]

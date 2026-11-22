@@ -39,6 +39,7 @@ import glob, json, os, re, sys, time
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 from ccm_proc import kill0, sh_argv  # noqa: E402  (a liveness probe that does not kill on Windows)
 
 HOME = os.path.expanduser("~")
@@ -343,7 +344,7 @@ def set_mode(agent, m):
     tmp = os.path.join(mode_dir(), f".{agent}.tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(m + "\n")
-    os.replace(tmp, os.path.join(mode_dir(), agent))
+    ccm_fs.replace(tmp, os.path.join(mode_dir(), agent))
 
 
 def mode_from_words(agent, rows):

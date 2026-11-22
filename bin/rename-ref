@@ -17,10 +17,13 @@
 # (space-separated) or the defaults below.
 set -euo pipefail
 eval "$(python3 "$(dirname "$(readlink -f "$0")")/../lib/ccm_conf.py" --shell)"
+export RENAME_REF_LIB="$(dirname "$(readlink -f "$0")")/../lib"
 export RENAME_REF_REPO="${RENAME_REF_REPO:-$CCM_WORKSPACE}"
 export RENAME_REF_EXTERNAL="${RENAME_REF_EXTERNAL:-$CCM_CLAUDE_DIR/scripts $CCM_CLAUDE_DIR/hooks $CCM_CLAUDE_DIR/skills $CCM_CLAUDE_DIR/settings.json $CCM_CLAUDE_DIR/CLAUDE.md $HOME/.claude/scripts $HOME/.claude/hooks $HOME/.claude/skills $HOME/.claude/settings.json $HOME/.claude/CLAUDE.md /usr/local/bin /var/spool/cron/crontabs /etc/systemd/system}"
 exec python3 - "$@" <<'PY'
 import os, re, subprocess, sys
+sys.path.insert(0, os.environ["RENAME_REF_LIB"])
+import ccm_fs  # os.replace that waits out a file held open on Windows
 from urllib.parse import unquote, quote
 
 REPO = os.path.realpath(os.environ["RENAME_REF_REPO"])
@@ -271,7 +274,7 @@ for p, nt in plan.items():
         tmp = os.path.join(os.path.dirname(ap), "." + os.path.basename(ap) + ".rr-tmp")  # atomically
         with open(tmp, "w", encoding="utf-8", errors="surrogateescape") as fh: fh.write(nt)
         os.chmod(tmp, st.st_mode & 0o7777)
-        os.replace(tmp, ap)
+        ccm_fs.replace(tmp, ap)
     finally:
         if lk: lk.close()
 

@@ -6,6 +6,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 BL=${BL:-$HERE/../scripts/blockers.py}
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent; mkdir -p "$HOME"
+WIN=0; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WIN=1 ;; esac   # Git Bash + native Python on Windows
+# Windows: approvals are trusted only inside the user's profile folder, and Python's ~ there is USERPROFILE, not HOME
+(( WIN )) && export USERPROFILE="$T"
 R="$T/repo"; mkdir -p "$R/Project-X" "$R/Agents/X-Dev" "$R/Agents/X-Ops"
 cat > "$R/Project-X/BLOCKERS.md" <<'B'
 # BLOCKERS
@@ -42,7 +45,8 @@ ok "4 B3 cleared, but B2 (manual) still open -> S2 does not move" 'grep -q "^| �
 rc=$(run clear X B2 "the human on the board"); ok "5 clear of a manual one -> S2 🔄, message to X-Dev" '[ "$rc" = 0 ] && grep -q "^- 🔄 \*\*\[E1.S2\]" "$R/Project-X/ROADMAP.md" && grep -q "^X-Dev .*E1.S2" "$T/post.log"'
 rc=$(run clear X B2 "again"); ok "5b a repeated clear -> rc 4" '[ "$rc" = 4 ]'
 rc=$(run add X "live payment key" "human" "test -s /nope"); ok "6 add -> B5 right after B4 in the table" '[ "$rc" = 0 ] && grep -q "^B5" "$T/out" && [ "$(grep -n "^| B5 |" "$R/Project-X/BLOCKERS.md" | cut -d: -f1)" = "$(( $(grep -n "^| B4 |" "$R/Project-X/BLOCKERS.md" | cut -d: -f1) + 1 ))" ]'
-rc=$(run list X --json); ok "7 list --json: open B4, B5; no closed ones" 'python3 -c "import json,sys; L=json.load(open(\"$T/out\")); sys.exit(0 if [b[\"id\"] for b in L]==[\"B4\",\"B5\"] else 1)"'
+# the path goes in as an argument: Git Bash turns /tmp/... into C:/... only in arguments, not inside the -c code
+rc=$(run list X --json); ok "7 list --json: open B4, B5; no closed ones" 'python3 -c "import json,sys; L=json.load(open(sys.argv[1])); sys.exit(0 if [b[\"id\"] for b in L]==[\"B4\",\"B5\"] else 1)" "$T/out"'
 rc=$(run add Nope a b c); ok "8 no such project -> rc 4" '[ "$rc" = 4 ]'
 # 9 an agent edited the register (its own Edit tool) between our read and our write -> our write must not overwrite it
 cat > "$T/race.py" <<'PY'
@@ -66,7 +70,8 @@ rm -f "$T/pwn2"; printf '| B21 | swap | someone | `test -e %s/nope` | 2026-11-02
 rc=$(run approve X B21); sed -i "s#test -e $T/nope#touch $T/pwn2#" "$R/Project-X/BLOCKERS.md"
 rc=$(run run); ok "12 an approved command was swapped in the file -> the new one is not run" '[ ! -e "$T/pwn2" ] && grep -q "^| B21 |" "$R/Project-X/BLOCKERS.md"'
 sed -i "s#touch $T/pwn2#true#" "$R/Project-X/BLOCKERS.md"; rc=$(run approve X B21); chmod 644 "$T/state/approved-checks.json"; rc=$(run run)
-ok "13 approvals file open to others -> nothing is run" 'grep -q "^| B21 |" "$R/Project-X/BLOCKERS.md" && grep -q "not owner-only 0600" "$LOG"'
+if (( WIN )); then echo "SKIP on Windows: 13 approvals file mode 644 - NTFS keeps no Unix mode (the Windows rule is in tests/windows-py-test.py g1-g3)"
+else ok "13 approvals file open to others -> nothing is run" 'grep -q "^| B21 |" "$R/Project-X/BLOCKERS.md" && grep -q "not owner-only 0600" "$LOG"'; fi
 chmod 600 "$T/state/approved-checks.json"
 rc=$(run add X "new" "human" "test -e $T/nope3"); touch "$T/nope3"; rc=$(run run); ok "14 a command written by add is approved by add itself" 'grep -q "^| ✅ B[0-9]* | new" "$R/Project-X/BLOCKERS.md"'
 mkdir -p "$R/Project-Y"; printf '| B1 | a | b | `manual` | 2026-11-02 | |\n' > "$R/Project-Y/BLOCKERS.md"
@@ -74,7 +79,8 @@ rc=$(run clear Y B1 "human"); ok "16 clear without ROADMAP -> rc 0, blocker ✅,
 mkdir -p "$R/Project-E"; rc=$(run clear E B1 "x"); ok "17 clear in a project without BLOCKERS.md -> rc 4, no traceback" '[ "$rc" = 4 ] && ! grep -q Traceback "$T/out"'
 mkdir -p "$R/Project-A0"; printf '| B1 | a | b | `true` | 2026-11-02 | |\n' > "$R/Project-A0/BLOCKERS.md"; rc=$(run approve A0 B1)
 echo x > "$R/Project-A0/ROADMAP.md"; mkdir "$R/Project-A0/ROADMAP.md.lock"; rc=$(run run)
-ok "18 a crash in one project does not leave the rest: reason in the log, Project-X passed" 'grep -q "Project-A0/BLOCKERS.md: pass crashed" "$LOG" && grep -q "Project-X:" "$T/out"'
+# the log names the path the system's way: Project-A0\BLOCKERS.md on Windows ("." = either separator)
+ok "18 a crash in one project does not leave the rest: reason in the log, Project-X passed" 'grep -q "Project-A0.BLOCKERS.md: pass crashed" "$LOG" && grep -q "Project-X:" "$T/out"'
 # 19 another project glob: CCM_PROJECTS_GLOB=Work-*
 mkdir -p "$R/Work-Z"; printf '| B1 | a | b | `manual` | 2026-11-02 | |\n' > "$R/Work-Z/BLOCKERS.md"
 out=$(cd "$R" && CCM_PROJECTS_GLOB='Work-*' BLOCKERS_REPO="$R" BLOCKERS_POST="$T/post" BLOCKERS_STATE="$T/state" python3 "$BL" list Z 2>&1); echo "$out" > "$T/out"

@@ -25,19 +25,23 @@ find_done_hdr() {
 }
 
 # Lock a SEPARATE stable file, not the inbox itself: mv swaps the inbox's inode, so two writers could hold locks on
-# different inodes (a race). Nobody mv's the .lock. Uses flock; without it (stock macOS) a mkdir spin-lock with
-# stale-lock cleanup (a lock dir older than 60 s belongs to a dead writer).
+# different inodes (a race). Nobody mv's the .lock. lib/ccm_lock.sh: flock, or where there is none (stock macOS, Git
+# Bash) a mkdir lock that a dead writer does not keep (its pid is checked; older than 1 min = stale anyway).
+# 30 s: on Windows every command is a new process and costs tens of ms, so 12 writers at once queue for seconds.
+source "$_ib_here/../lib/ccm_lock.sh"
 lock_inbox() {   # lock_inbox <inbox> <tool name for messages>
-    local inbox="$1" tool="$2" n=0
-    if command -v flock >/dev/null 2>&1; then
-        exec 9>>"${inbox}.lock"
-        flock -w 15 9 || { echo "$tool: lock timeout on $inbox" >&2; exit 3; }
-        return 0
-    fi
-    until mkdir "${inbox}.lock.d" 2>/dev/null; do
-        if [[ -n "$(find "${inbox}.lock.d" -maxdepth 0 -mmin +1 2>/dev/null)" ]]; then rmdir "${inbox}.lock.d" 2>/dev/null; continue; fi
-        n=$((n+1)); [[ $n -ge 150 ]] && { echo "$tool: lock timeout on $inbox" >&2; exit 3; }
-        sleep 0.1
+    ccm_lock 9 "$1.lock" 30 1 || { echo "$2: lock timeout on $1" >&2; exit 3; }
+}
+
+# A rename into place that outlives a moment's refusal. Windows refuses a rename onto (or from) a file another
+# process holds open - an antivirus scanning the file just written, the search indexer, a reader - and it passes in a
+# moment; under `set -e` a bare mv ended the script there (a letter lost, a .postXXXX left). ~5 s of tries; on Linux
+# the first one succeeds. ib_mv_retry <from> <to> -> 0 moved, 1 still refused (the caller decides what is safe).
+ib_mv_retry() {
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
+        mv -f "$1" "$2" 2>/dev/null && return 0
+        sleep 0.3
     done
-    trap 'rmdir "'"${inbox}"'.lock.d" 2>/dev/null' EXIT
+    mv -f "$1" "$2"
 }

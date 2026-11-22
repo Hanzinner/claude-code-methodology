@@ -99,8 +99,34 @@ CT = f"{R}/h/u/.claude-trash"; os.makedirs(f"{CT}/old.dir"); open(f"{CT}/old.dir
 rc, o = cl("--dry", TRASH_DIR=CT, TRASH_KEEP_DAYS="0"); ok("the default .claude-trash passes the name check", rc == 0 and "would delete 1" in o, o)
 NT = f"{R}/h/u/docs"; os.makedirs(NT); open(f"{NT}/keep", "w").write("x")
 rc, o = cl(TRASH_DIR=NT, TRASH_KEEP_DAYS="0"); ok("folder without \"trash\" in its name -> rc 2, touches nothing", rc == 2 and os.listdir(NT) == ["keep"], o)
-os.symlink(NT, f"{R}/h/u/x"); os.makedirs(f"{R}/h/u/x2"); os.symlink(NT, f"{R}/h/u/x2/.Trash")
-rc, o = cl(TRASH_DIR=f"{R}/h/u/x2/.Trash", TRASH_KEEP_DAYS="0"); ok("a trash that is a symlink to another folder -> rc 2", rc == 2 and os.listdir(NT) == ["keep"], o)
-os.symlink(f"{NT}/keep", f"{T2}/link"); rc, o = cl(TRASH_KEEP_DAYS="0")
-ok("symlink in the trash: the link goes, the target stays", os.listdir(T2) == [] and os.path.exists(f"{NT}/keep"), o)
+if os.name == "nt":
+    print("SKIP on Windows: the two symlink cases - os.symlink needs admin or Developer Mode there (WinError 1314)")
+else:
+    os.symlink(NT, f"{R}/h/u/x"); os.makedirs(f"{R}/h/u/x2"); os.symlink(NT, f"{R}/h/u/x2/.Trash")
+    rc, o = cl(TRASH_DIR=f"{R}/h/u/x2/.Trash", TRASH_KEEP_DAYS="0"); ok("a trash that is a symlink to another folder -> rc 2", rc == 2 and os.listdir(NT) == ["keep"], o)
+    os.symlink(f"{NT}/keep", f"{T2}/link"); rc, o = cl(TRASH_KEEP_DAYS="0")
+    ok("symlink in the trash: the link goes, the target stays", os.listdir(T2) == [] and os.path.exists(f"{NT}/keep"), o)
+# -- --clean with Windows paths: the depth guard counted "/" only, so C:\Users\x\.Trash (no "/" at all) was "too shallow"
+#    and the trash was never cleaned on Windows. Imitated here with Windows path rules (ntpath) on a folder whose name
+#    is the Windows path (relative to a temp cwd). On Windows itself the clean cases above already use real C:\ paths.
+if os.name == "nt":
+    print("SKIP on Windows: the ntpath imitation (the clean cases above run with real Windows paths here)")
+else:
+    import importlib.util, ntpath
+    os.environ.update(HOME=HOME, CLAUDE_METHODOLOGY_CONF=CONF, CCM_TRASH_DIR=TR)
+    _spec = importlib.util.spec_from_file_location("tg_under_test", TG); tg = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(tg)
+    W = f"{R}/win"; os.makedirs(f"{W}/C:\\h\\u\\.Trash"); os.makedirs(f"{W}/C:\\.Trash")
+    open(f"{W}/C:\\h\\u\\.Trash/old.txt", "w").write("x"); open(f"{W}/C:\\.Trash/keep", "w").write("x")
+    tg.ST = f"{R}/win-state"; os.makedirs(tg.ST); tg.KEEP_DAYS = 0
+    cwd, real_path = os.getcwd(), os.path
+    try:
+        os.chdir(W); os.path = ntpath
+        tg.TRASH = "C:\\h\\u\\.Trash"; rc_deep = tg.clean(False)
+        tg.TRASH = "C:\\.Trash"; rc_shallow = tg.clean(False)
+        tg.TRASH = "C:/h/u/.Trash"; rc_fwd = tg.clean(True)
+    finally:
+        os.path = real_path; os.chdir(cwd)
+    ok("Windows path C:\\h\\u\\.Trash: cleaned (rc 0, the old item gone)", rc_deep == 0 and os.listdir(f"{W}/C:\\h\\u\\.Trash") == [], rc_deep)
+    ok("Windows path C:\\.Trash (too shallow): still refused, rc 2, nothing touched", rc_shallow == 2 and os.listdir(f"{W}/C:\\.Trash") == ["keep"], rc_shallow)
+    ok("Windows path with forward slashes C:/h/u/.Trash passes the guard too", rc_fwd == 0, rc_fwd)
 print(f"trash-guard: {P} pass, {F} fail"); raise SystemExit(1 if F else 0)

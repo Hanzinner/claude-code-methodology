@@ -29,6 +29,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 import stats_collect as C  # noqa: E402  human_text, parse_file, agent_of: one definition of "the human's message"
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 
 STATS = C.STATS
 DAYDIR = f"{STATS}/corrections"
@@ -76,7 +77,7 @@ def save(p, obj):
     os.makedirs(os.path.dirname(p), exist_ok=True)
     tmp = p + ".tmp"
     json.dump(obj, open(tmp, "w"), ensure_ascii=False, indent=1)
-    os.replace(tmp, p)
+    ccm_fs.replace(tmp, p)
 
 
 def assistant_text(d):

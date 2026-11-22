@@ -15,6 +15,7 @@ Register:  claude mcp add --scope user search -- python3 <install dir>/mcp/searc
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 import json, time, urllib.request, urllib.error
 
 ENV = os.environ.get("SEARCH_ENV", os.path.join(conf("CCM_SECRETS_DIR"), "search.env"))
@@ -52,7 +53,7 @@ def mark(provider, kind, detail):
     tmp = f"{STATE}.{os.getpid()}.tmp"
     with open(tmp, "w") as f:
         json.dump(st, f, ensure_ascii=False, indent=1)
-    os.replace(tmp, STATE)
+    ccm_fs.replace(tmp, STATE)
 
 
 def clear(provider):
@@ -62,7 +63,7 @@ def clear(provider):
         tmp = f"{STATE}.{os.getpid()}.tmp"
         with open(tmp, "w") as f:
             json.dump(st, f, ensure_ascii=False, indent=1)
-        os.replace(tmp, STATE)
+        ccm_fs.replace(tmp, STATE)
 
 
 class Limit(Exception):

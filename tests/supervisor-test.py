@@ -174,14 +174,49 @@ ok("12 a missing hook file is red and named", summary(f"{R}/s12")["problems"] ==
 json.dump({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": f'"{hd}/good.sh"'}]}]}}, open(sets, "w"))
 rc, o = run([{"name": "Hooks", "kind": "hooks"}], state=f"{R}/s12b", SUPERVISOR_SETTINGS=sets)
 ok("12b all hooks present -> green", summary(f"{R}/s12b")["problems"] == [], o)
-os.chmod(f"{hd}/good.sh", 0o644)
-rc, o = run([{"name": "Hooks", "kind": "hooks"}], state=f"{R}/s12c", SUPERVISOR_SETTINGS=sets)
-ok("12c a hook called directly without +x is red", "no +x good.sh" in o, o)
+if os.name == "nt":
+    print("SKIP on Windows: 12c (+x) - Windows has no execute bit, os.access(X_OK) is true for any file")
+else:
+    os.chmod(f"{hd}/good.sh", 0o644)
+    rc, o = run([{"name": "Hooks", "kind": "hooks"}], state=f"{R}/s12c", SUPERVISOR_SETTINGS=sets)
+    ok("12c a hook called directly without +x is red", "no +x good.sh" in o, o)
 open(f"{hd}/stop-dispatch.sh", "w").write("#!/bin/sh\nBLOCKING=(alpha)\nDETECTORS=(beta gamma)\n"); os.chmod(f"{hd}/stop-dispatch.sh", 0o755)
 open(f"{hd}/alpha.py", "w").write("import os\n"); open(f"{hd}/beta.py", "w").write("import os\n")
 json.dump({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": f'"{hd}/stop-dispatch.sh"'}]}]}}, open(sets, "w"))
 rc, o = run([{"name": "Hooks", "kind": "hooks"}], state=f"{R}/s12d", SUPERVISOR_SETTINGS=sets)
 ok("12d a dispatcher branch with no file (gamma) is red, the present ones are not", "dispatch branch gamma" in o and "branch alpha" not in o and "branch beta" not in o, o)
+
+# 12e. Windows hook commands name C:/... (install.sh writes cygpath -m paths): the check used to see only paths starting
+#      with "/", found nothing and said "all in place (0)". A C:/ path that does not exist here must come out missing.
+json.dump({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": 'bash "C:/nowhere/.claude/hooks/hook-safe.sh" python "C:/nowhere/.claude/hooks/a-gate.py"'}]}]}}, open(sets, "w"))
+rc, o = run([{"name": "Hooks", "kind": "hooks"}], state=f"{R}/s12e", SUPERVISOR_SETTINGS=sets)
+ok("12e a hook command with C:/ paths is checked (not a blind green)", "missing a-gate.py" in o and "missing hook-safe.sh" in o, o)
+
+# 12f-12h. in-process, as on Windows: hook_paths reads drive-letter paths; post_inbox starts the .sh through bash.
+import importlib.util, shutil, types
+os.environ.update(HOME=R, CLAUDE_METHODOLOGY_CONF="/nonexistent")
+_spec = importlib.util.spec_from_file_location("sup_under_test", SUP); sup = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(sup)
+hp = sup.hook_paths('bash "C:/U/x/.claude/hooks/hook-safe.sh" py -3 "C:/U/x/.claude/hooks/a.py"')
+ok("12f hook_paths: C:/ paths found; after `bash` and after `py -3` they are not called directly",
+   hp == [("C:/U/x/.claude/hooks/hook-safe.sh", False), ("C:/U/x/.claude/hooks/a.py", False)], hp)
+hp = sup.hook_paths('python "C:\\U\\x\\.claude\\hooks\\a.py" && C:\\U\\x\\.claude\\scripts\\b.sh')
+ok("12g hook_paths: C:\\ paths (quoted and bare) found, as C:/", hp == [("C:/U/x/.claude/hooks/a.py", False), ("C:/U/x/.claude/scripts/b.sh", True)], hp)
+ok("12g2 hook_paths: Linux paths as before", sup.hook_paths('python3 "/h/.claude/hooks/a.py" && /h/.claude/scripts/b.sh x') ==
+   [("/h/.claude/hooks/a.py", False), ("/h/.claude/scripts/b.sh", True)], sup.hook_paths('python3 "/h/.claude/hooks/a.py" && /h/.claude/scripts/b.sh x'))
+seen = []
+sup.subprocess = types.SimpleNamespace(run=lambda argv, **kw: seen.append(argv) or types.SimpleNamespace(returncode=0, stdout="", stderr=""),
+                                       TimeoutExpired=subprocess.TimeoutExpired)
+sup.LOG = f"{R}/sup-inproc.log"
+real_name = os.name
+try:
+    os.name = "nt"   # what ccm_proc.sh_argv asks; restored at once
+    os.environ["SUPERVISOR_POST"] = "C:/x/scripts/inbox_post.sh"; sup.post_inbox("Owner", "hi")
+    os.environ["SUPERVISOR_POST"] = "C:/x/post.py"; sup.post_inbox("Owner", "hi")
+finally:
+    os.name = real_name
+    os.environ.pop("SUPERVISOR_POST", None)
+ok("12h Windows: inbox_post.sh is started through bash, a .py through Python (a bare script path cannot start there)",
+   len(seen) == 2 and seen[0][:2] == [shutil.which("bash") or "bash", "C:/x/scripts/inbox_post.sh"] and seen[1][:2] == [sys.executable, "C:/x/post.py"], seen)
 
 # 13. heartbeat key: the supervisor also writes CCM_SUPERVISOR_HEARTBEAT (what the watchman reads)
 hb = f"{R}/hb/pulse"

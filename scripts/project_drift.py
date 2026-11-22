@@ -12,6 +12,7 @@ import glob, json, os, sys, time, tomllib
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 
 REPO = conf("CCM_WORKSPACE")
 GLOB = conf("CCM_PROJECTS_GLOB", "Project-*")
@@ -76,7 +77,7 @@ def main():
         os.makedirs(STATE, exist_ok=True)
         tmp = f"{STATE}/drift.json.tmp"
         json.dump({"at": time.strftime("%F %H:%M"), "checked": seen, "red": red}, open(tmp, "w", encoding="utf-8"), ensure_ascii=False)
-        os.chmod(tmp, 0o644); os.replace(tmp, f"{STATE}/drift.json")
+        os.chmod(tmp, 0o644); ccm_fs.replace(tmp, f"{STATE}/drift.json")
     except OSError as e:
         print(f"state not written: {e}")
     for n, p in red.items():

@@ -13,14 +13,15 @@ Cron (hourly):  35 * * * * python3 ~/.claude/scripts/stats_collect.py
 import glob, json, os, re, sys, time
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
+import ccm_time  # noqa: E402  (CCM_TIMEZONE also without a zone database: Windows Python without tzdata)
 
 HOME = os.path.expanduser("~")
 _tz = conf("CCM_TIMEZONE", "")
-TZ = ZoneInfo(_tz) if _tz else datetime.now().astimezone().tzinfo
+TZ = ccm_time.zone(_tz) or datetime.now().astimezone().tzinfo
 STATS = os.path.expanduser(os.environ.get("STATS_DIR", "~/.claude/stats"))
 AGENTS_DIR = conf("CCM_AGENTS_DIR", "") or os.path.join(conf("CCM_WORKSPACE", os.path.join(HOME, "claude-projects")), "Agents")
 SRC = [os.path.expanduser(os.environ.get("CLAUDE_PROJECTS_DIR", "~/.claude/projects"))]
@@ -202,7 +203,7 @@ def main():
         recs.append(r)
     os.makedirs(STATS, exist_ok=True)
     json.dump(newc, open(CACHE + ".tmp", "w"))
-    os.replace(CACHE + ".tmp", CACHE)
+    ccm_fs.replace(CACHE + ".tmp", CACHE)
 
     # fold subagents into the parent session
     sess = {}
@@ -319,7 +320,7 @@ def main():
     }
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump(data, open(OUT + ".tmp", "w"), ensure_ascii=False)
-    os.replace(OUT + ".tmp", OUT)
+    ccm_fs.replace(OUT + ".tmp", OUT)
     print(f"ok: {len(files)} files ({parsed} re-parsed), {len(sess)} sessions, {len(human_ts)} human messages, "
           f"{time.time() - t0:.0f} s -> {OUT}")
 

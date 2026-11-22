@@ -35,6 +35,8 @@ try:
 except ImportError:   # Windows: the same calls on msvcrt (lib/ccm_lock.py)
     import ccm_lock as fcntl
 import human_quote  # noqa: E402
+import ccm_fs  # noqa: E402  (chown: Windows Python has no os.chown)
+import ccm_time  # noqa: E402  (CCM_TIMEZONE also without a zone database: Windows Python without tzdata)
 
 REPO = os.environ.get("STORY_ADD_REPO") or conf("CCM_WORKSPACE")
 PREFIX = conf("CCM_PROJECTS_GLOB", "Project-*").split("*")[0]
@@ -93,14 +95,7 @@ def plan(text, epic):
 
 
 def tz():
-    name = conf("CCM_TIMEZONE", "")
-    if name:
-        try:
-            from zoneinfo import ZoneInfo
-            return ZoneInfo(name)
-        except Exception:
-            pass
-    return None  # system zone
+    return ccm_time.zone(conf("CCM_TIMEZONE", ""))  # None = system zone (also when the name can't be loaded: one warning)
 
 
 def build_line(code_in_line, summary, quote):
@@ -119,12 +114,9 @@ def write_atomic(path, text):
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
-        try:
-            os.chown(tmp, st.st_uid, st.st_gid)
-        except OSError:
-            pass  # not root: a file of another owner can't be kept as is; the mode still is
+        ccm_fs.chown(tmp, st.st_uid, st.st_gid)  # not root (or Windows): the owner can't be kept as is; the mode still is
         os.chmod(tmp, st.st_mode & 0o7777)
-        os.replace(tmp, path)
+        ccm_fs.replace(tmp, path)
     except BaseException:
         if os.path.exists(tmp):
             os.unlink(tmp)  # this run's own tmp, never someone else's file
@@ -179,7 +171,7 @@ def main(argv):
     st = os.stat(rm)
     with open(lock, "a") as lf:
         try:  # the lock file gets the ROADMAP's owner, so the other user of the workspace can open it too
-            os.chown(lock, st.st_uid, st.st_gid)
+            ccm_fs.chown(lock, st.st_uid, st.st_gid)
             os.chmod(lock, 0o664)
         except OSError:
             pass

@@ -15,11 +15,12 @@ CCM_TIMEZONE · STATS_PAUSED (see stats_orphan_docs.py: paused agents are not re
 """
 import glob, json, os, re, subprocess, sys, time
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
+import ccm_time  # noqa: E402  (CCM_TIMEZONE also without a zone database: Windows Python without tzdata)
 
 HOME = os.path.expanduser("~")
 WS = conf("CCM_WORKSPACE", os.path.join(HOME, "claude-projects"))
@@ -30,7 +31,7 @@ MISTAKES = conf("CCM_MISTAKES", "") or os.path.join(WS, "MISTAKES.md")
 PAUSED = os.environ.get("STATS_PAUSED", f"{STATS}/paused-agents.txt")
 POST = os.path.join(HERE, "inbox_post.sh")
 _tz = conf("CCM_TIMEZONE", "")
-TZ = ZoneInfo(_tz) if _tz else datetime.now().astimezone().tzinfo
+TZ = ccm_time.zone(_tz) or datetime.now().astimezone().tzinfo
 NOW = time.time()
 TAG = re.compile(r"\b(XS|S|M|L|XL)\s*[·.]\s*\d{1,3}\b")
 DATE = re.compile(r"\[(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?\]")
@@ -144,7 +145,7 @@ def main():
             "agents": agents, "red": red}
     os.makedirs(STATS, exist_ok=True)
     tmp = OUT + f".{os.getpid()}.tmp"
-    json.dump(data, open(tmp, "w"), ensure_ascii=False); os.replace(tmp, OUT)
+    json.dump(data, open(tmp, "w"), ensure_ascii=False); ccm_fs.replace(tmp, OUT)
 
     # a letter to the owner once a day if the journal has unsorted entries (dedupe by date in a state file)
     today = datetime.fromtimestamp(NOW, TZ).strftime("%Y-%m-%d")

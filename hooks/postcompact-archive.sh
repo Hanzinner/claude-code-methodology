@@ -11,8 +11,10 @@ DIR="$HOME/.claude/compaction-log"
 mkdir -p "$DIR" 2>/dev/null || exit 0
 HOOK_INPUT=$(cat 2>/dev/null || true)
 export HOOK_INPUT
-python3 - "$DIR" <<'EOF' 2>/dev/null
+python3 - "$DIR" "$(dirname "$(readlink -f "$0")")/../lib" <<'EOF' 2>/dev/null
 import json, sys, time, os
+sys.path.insert(0, sys.argv[2])
+import ccm_fs  # os.replace that waits out a file held open on Windows (an antivirus reading the new .tmp)
 d = json.loads(os.environ.get("HOOK_INPUT") or "{}")
 sid = (d.get("session_id") or "unknown")[:8]
 summary = d.get("compact_summary") or d.get("summary") or ""
@@ -23,6 +25,6 @@ tmp = os.path.join(sys.argv[1], f".{sid}-{ts}.tmp")
 out = os.path.join(sys.argv[1], f"{sid}-{ts}.md")
 with open(tmp, "w", encoding="utf-8") as f:
     f.write(f"# Compaction {ts} · session {sid}\n\n{summary}\n")
-os.replace(tmp, out)
+ccm_fs.replace(tmp, out)
 EOF
 exit 0

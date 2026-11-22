@@ -22,6 +22,8 @@ run()  { OUT=$("$SA" "$@" 2>&1); RC=$?; LAST=${OUT##*$'\n'}; }
 rmf()  { echo "$STORY_ADD_REPO/Project-$1/ROADMAP.md"; }
 mk()   { mkdir -p "$STORY_ADD_REPO/Project-$1"; cat > "$(rmf "$1")"; }
 ROOT=0; [[ $(id -u) == 0 ]] && ROOT=1
+WIN=0; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WIN=1 ;; esac   # Git Bash + native Python on Windows
+skip() { echo "SKIP on Windows: $1"; }
 
 mkdir -p "$CLAUDE_PROJECTS_DIR/-home-x"
 printf '%s\n' \
@@ -55,7 +57,8 @@ check "epic with gaps: E7 -> E7.S10 (max 9 + 1)" '[[ $RC == 0 && $LAST == E7.S10
 check "the line is at the end of EPIC 7, before EPIC 8" \
   '[[ $(grep -n "E7.S10" "$(rmf Game)" | cut -d: -f1) == $(( $(grep -n "^## EPIC 8" "$(rmf Game)" | cut -d: -f1) - 2 )) ]]'
 check "line format \"- ⏳ **[E7.S10] summary**\"" 'grep -qxF -- "- ⏳ **[E7.S10] Map: holes in the forest**" "$(rmf Game)"'
-check "owner and mode kept ($OWN)" '[[ $(stat -c "%u:%g %a" "$(rmf Game)") == "$OWN" && $OWN == *" 640" ]]'
+if (( WIN )); then skip "owner and mode kept - chmod 640 is not kept on NTFS (Git Bash shows 644), files have no Unix owner"
+else check "owner and mode kept ($OWN)" '[[ $(stat -c "%u:%g %a" "$(rmf Game)") == "$OWN" && $OWN == *" 640" ]]'; fi
 run Game "New button" --epic 1
 check "another epic: --epic 1 -> E1.S3" '[[ $RC == 0 && $LAST == E1.S3 ]]'
 
@@ -69,8 +72,13 @@ check "exactly one \"## New\", at the end, both lines under it" \
 
 # --- 3. --from-human: a message found -> "from <human>" tail; not found / assistant only -> rc 2, file unchanged
 run Game "Tree: back" --epic E7 --from-human 'the "BACK" button in the tree   does nothing'
+if python3 -c 'import sys, zoneinfo; zoneinfo.ZoneInfo(sys.argv[1])' Asia/Dubai 2>/dev/null; then
 check "--from-human with a message -> E7.S11 with the message time (CCM_TIMEZONE, UTC+4) and the fragment" \
   '[[ $RC == 0 && $LAST == E7.S11 ]] && grep -qF -- "- ⏳ **[E7.S11] Tree: back** · from Alex 2026-11-22 14:39 \"the \"BACK\" button in the tree does nothing\"" "$(rmf Game)"'
+else   # Windows Python without the tzdata package: the system's zone is used (lib/ccm_time.py), so the hour is not fixed
+check "--from-human with a message -> E7.S11 with a message time and the fragment (no zone database: system zone)" \
+  '[[ $RC == 0 && $LAST == E7.S11 ]] && grep -qE -- "^- ⏳ \*\*\[E7.S11\] Tree: back\*\* · from Alex 2026-11-2[123] [0-9]{2}:[0-9]{2} \"the \"BACK\" button in the tree does nothing\"" "$(rmf Game)"'
+fi
 H=$(md5sum < "$(rmf Game)")
 run Game "Made up" --epic E7 --from-human "nobody ever typed this here"
 check "--from-human with no such message -> rc 2, nothing added" '[[ $RC == 2 && $(md5sum < "$(rmf Game)") == "$H" ]]'

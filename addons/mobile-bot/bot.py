@@ -31,6 +31,10 @@ try:
     from ccm_conf import conf as _ccm_conf
 except Exception:
     _ccm_conf = None
+try:
+    from ccm_fs import replace as _replace   # os.replace that waits out a file held open on Windows
+except ImportError:   # run on its own, without the methodology's lib/: plain os.replace
+    _replace = os.replace
 
 
 def _conf(key: str, default: str = "") -> str:
@@ -1104,7 +1108,7 @@ def _outbox_save_answer(chunk: str) -> None:
     f = TG_OUTBOX / f"{time.time_ns()}_{os.getpid()}.json"
     tmp = f.with_name("." + f.name + ".tmp")
     tmp.write_text(json.dumps({"self": True, "agent": "bot", "text": chunk}, ensure_ascii=False))
-    os.replace(tmp, f)
+    _replace(tmp, f)
 
 
 def _retry_seconds(e: RetryAfter) -> float:
@@ -2174,7 +2178,7 @@ def _map_add(pairs: list[tuple[str, str]]) -> None:
         m = dict(list(m.items())[-2000:])   # dict keeps insertion order -> keep the fresh ones
     tmp = AGENT_MSG_MAP.with_suffix(".tmp")
     tmp.write_text(json.dumps(m, ensure_ascii=False))
-    os.replace(tmp, AGENT_MSG_MAP)
+    _replace(tmp, AGENT_MSG_MAP)
 
 
 async def _deliver_to_agent(agent: str, text: str) -> str:
@@ -2388,7 +2392,7 @@ def _topics_save(t: dict) -> None:
     TOPICS_FILE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     tmp = TOPICS_FILE.with_name(".topics.tmp")
     tmp.write_text(json.dumps(t, ensure_ascii=False))
-    os.replace(tmp, TOPICS_FILE)
+    _replace(tmp, TOPICS_FILE)
 
 
 _topics_lock = asyncio.Lock()   # the outbox and the group handlers create topics in parallel
@@ -2555,14 +2559,14 @@ async def _outbox_flush(bot) -> None:
             agent, text = str(item["agent"]), str(item["text"])
         except (OSError, ValueError, KeyError) as e:
             log.warning("outbox: broken %s (%s) -> bad/", f.name, e)
-            os.replace(f, TG_OUTBOX / "bad" / f.name)
+            _replace(f, TG_OUTBOX / "bad" / f.name)
             continue
         own = bool(item.get("self"))   # the bot's own reply that did not arrive in time: a reply to it is not for an agent
         head = "📨 <b>a reply that did not arrive earlier</b>\n\n" if own else f"📨 <b>from {html.escape(agent)}</b>\n\n"
         chunks = md_chunks(text)
         if not chunks:   # no visible text (tg_reply.sh and Python see "blank" differently) - not "sent"
             log.warning("outbox: %s - a letter without visible text -> bad/", f.name)
-            os.replace(f, TG_OUTBOX / "bad" / f.name)
+            _replace(f, TG_OUTBOX / "bad" / f.name)
             continue
         # Progress lives in the file itself ("done" = how many pieces have gone): a network failure in the
         # middle of a long letter does not send it again from the first piece.
@@ -2604,7 +2608,7 @@ async def _outbox_flush(bot) -> None:
             item["done"] = sorted(done)
             tmp = f.with_name("." + f.name + ".tmp")
             tmp.write_text(json.dumps(item, ensure_ascii=False))
-            os.replace(tmp, f)
+            _replace(tmp, f)
             raise
         if topic_dead:
             log.warning("outbox: topic of %s is dead - removing it, the letter goes again (a new topic or the private chat)", agent)
@@ -2616,10 +2620,10 @@ async def _outbox_flush(bot) -> None:
             item["private"] = item["topic_fail"] >= 2
             item["done"] = []
             tmp = f.with_name("." + f.name + ".tmp")
-            tmp.write_text(json.dumps(item, ensure_ascii=False)); os.replace(tmp, f)
+            tmp.write_text(json.dumps(item, ensure_ascii=False)); _replace(tmp, f)
             continue
         _map_add(sent)
-        os.replace(f, TG_OUTBOX / "sent" / f.name)
+        _replace(f, TG_OUTBOX / "sent" / f.name)
         log.info("outbox: %s -> Telegram (%s)", agent, "own reply" if own else f"{len(sent)} msg")
 
 
@@ -2655,7 +2659,7 @@ def _inq_write(path: pathlib.Path, item: dict) -> None:
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)   # the human's texts - owner only
     with os.fdopen(fd, "w") as f:
         json.dump(item, f, ensure_ascii=False)
-    os.replace(tmp, path)
+    _replace(tmp, path)
 
 
 def _inq_pending() -> list[pathlib.Path]:
@@ -2758,13 +2762,13 @@ async def _inq_process_one(app: Application, path: pathlib.Path) -> None:
             await asyncio.sleep(5)
             return
         await _inq_notify(app.bot, chat_id, f"{e}")
-        os.replace(path, TG_INQ / "bad" / path.name)
+        _replace(path, TG_INQ / "bad" / path.name)
         return
     except Exception as e:
         log.exception("inq: %s attempt %d/%d", path.name, item["attempts"], INQ_ATTEMPTS)
         why = str(e) if isinstance(e, ClaudeFailed) else "internal bot error"
         if item["attempts"] >= INQ_ATTEMPTS:
-            os.replace(path, TG_INQ / "bad" / path.name)
+            _replace(path, TG_INQ / "bad" / path.name)
             await _inq_notify(app.bot, chat_id, f"❌ Not handled after {INQ_ATTEMPTS} attempts, send it again: \"{preview}\"\n{why}")
         else:
             pause = INQ_BACKOFF[min(item["attempts"], len(INQ_BACKOFF)) - 1]
@@ -2804,7 +2808,7 @@ async def _inq_worker(app: Application) -> None:
         except Exception:     # a broken queue file: into bad/, so it does not stop the rest
             log.exception("inq: could not read %s -> bad/", pending[0].name)
             try:
-                os.replace(pending[0], TG_INQ / "bad" / pending[0].name)
+                _replace(pending[0], TG_INQ / "bad" / pending[0].name)
             except OSError:      # the worker must not die silently while the entry still accepts letters
                 log.exception("inq: could not move %s away", pending[0].name)
                 await asyncio.sleep(30)

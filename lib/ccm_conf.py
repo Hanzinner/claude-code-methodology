@@ -29,6 +29,25 @@ def utf8_stdio():
 
 utf8_stdio()
 
+
+def home_follows_HOME():
+    """One home for bash and Python: $HOME. Windows Python takes "~" from USERPROFILE and ignores HOME, while the bash
+    scripts, Git Bash and every test (HOME=<temp dir>) go by HOME - so a test's Python wrote into the person's REAL
+    ~/.claude (two test reminders stayed behind on a real machine). Where USERPROFILE exists (Windows) and HOME names
+    another folder, USERPROFILE is set to HOME for this process and its children. Installed for real, the two are the
+    same folder (install.sh writes by HOME, Python reads by USERPROFILE, and the install works) - nothing changes.
+    On Windows only a HOME with a drive letter is followed (an unconverted /c/Users/x would mean C:\\c\\Users\\x).
+    Linux and macOS have no USERPROFILE: nothing happens. lib/pyshim/sitecustomize.py does the same for scripts that
+    do not import this module."""
+    h, up = os.environ.get("HOME"), os.environ.get("USERPROFILE")
+    if not h or up is None or (os.name == "nt" and not os.path.splitdrive(h)[0]) or not os.path.isabs(h):
+        return
+    if os.path.normcase(os.path.normpath(h)) != os.path.normcase(os.path.normpath(up)):
+        os.environ["USERPROFILE"] = h
+
+
+home_follows_HOME()
+
 HERE = os.path.dirname(os.path.realpath(__file__))
 INSTALL_DIR = os.path.dirname(HERE)
 HOME = os.path.expanduser("~")

@@ -20,6 +20,7 @@ import glob, hashlib, json, os, re, subprocess, sys, time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf  # noqa: E402
+import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 STATS = os.path.expanduser(os.environ.get("STATS_DIR", "~/.claude/stats"))
@@ -122,10 +123,10 @@ def main(argv):
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     tmp = OUT + f".{os.getpid()}.tmp"
     json.dump({"ts": now, "docs": tot, "orphans": orph, "agents": report}, open(tmp, "w"), ensure_ascii=False, indent=1)
-    os.replace(tmp, OUT)
+    ccm_fs.replace(tmp, OUT)
     if not dry:
         tmp = STATE + f".{os.getpid()}.tmp"
-        json.dump(sent, open(tmp, "w"), ensure_ascii=False); os.replace(tmp, STATE)
+        json.dump(sent, open(tmp, "w"), ensure_ascii=False); ccm_fs.replace(tmp, STATE)
     print(f"orphan_docs: agents {len(report)}, documents {tot}, uncovered {orph} ({orph * 100 // max(tot, 1)}%); letters {letters}, failed {fails}")
     return 1 if fails else 0
 
