@@ -8,6 +8,7 @@ Utilities called from hooks or directly. All idempotent. Paths are set per scrip
 |--------|--------|
 | `pdf-extract.sh <pdf> [--images] [--dpi=N]` | PDF → `.txt` (full) + `.meta.txt` + `.pages/p####.txt` + optional `.images/p####.png`. |
 | `html-extract.sh <html>` | HTML → `.txt` via `lynx -dump` (plain text). |
+| `ai_studio_to_md.py [folder\|file]` | Google AI Studio chat exports (JSON with `chunkedPrompt`) → `.md` next to each: thoughts dropped, attachments as one-line placeholders, the human labelled with `CCM_HUMAN_NAME`. A folder is searched recursively. |
 
 System deps: `poppler-utils`, `lynx`, `pandoc`.
 
@@ -66,6 +67,7 @@ Scripts of the swarm. Agent names are folder names under `CCM_AGENTS_DIR`; proje
 | Script | Action |
 |--------|--------|
 | `new_project.sh (--own-repo [--profile web\|game\|tool] \| --no-code) <Name> [agent...]` | Starts a project: `release.toml`, `ROADMAP.md`, `BLOCKERS.md`, agent folders, first commit (own repo). Default agents `<Name>-HQ`, `<Name>-Dev`. |
+| `rename_agent.sh <old> <new> [--apply]` | Renames an agent in one go: folder (old name into `.aliases`), session identities, alarm mode, work-guard list, `hq =` in `release.toml`, its `AGENTS.md` row, whole-word mentions in briefings, OWNERS, the roadmap's `Lead:` line and the team's todo files; a letter to the project team. History (`[D]` lines, closed sections, the rest of the roadmap, journals, inboxes) is not rewritten. Without `--apply` only prints the plan. |
 | `releaser.py` | Release queue run by cron: per project a separate system user merges the oldest `.ready` marker into its own clone, runs the gate from `release.toml`, and on green fast-forwards `master`. Red -> `master` untouched, letter to the lead. Commands: `run`, `approve` (root), `ready <agent> "<what>"`, `status`. **Only with `install.sh --with-releaser`.** |
 | `setup-releaser.sh` | System side of the above (root): the `releaser` user, state folders, optional sudoers line (`--sudo-cmd`), `/etc/cron.d/ccm-releaser` with `--cron` (releaser every 5 min, drift nightly, stale hourly). `--dry-run`. Run by `--with-releaser`. |
 | `project_drift.py` | Nightly: red line for each project with code that lacks a parseable `release.toml`, a gate command, or a recent green release. Writes `drift.json`. Exit 1 when any is red. |
