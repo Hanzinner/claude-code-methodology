@@ -5,11 +5,17 @@ Accepted = the human's "yes" in the chat, checked by a script, not the agent's w
 the human typed; the script looks for it in a message of the HUMAN in this session's transcript (lib/human_quote.py)
 and appends to <project>/ACCEPTED.jsonl: {story, quote (the whole message), ts (of the message), sid, agent, at}.
 Not found -> rc 2, nothing written. scripts/story_status.py shows the record as the story's "accepted" stage.
+Short form ("yes", "+", "ok" - under 8 characters): only a WHOLE message of the human that is a word of agreement
+(YES_EN; YES_UK too when CCM_LANG_EXTRA has "uk"), and the last assistant message before it must name this S-code
+(human_quote.find_short_reply) - otherwise the "yes" may have answered another question, and a whole "no" is not a
+"yes". The record then also has short_form: true and question (up to 200 characters of the assistant's question).
 Why: stories were marked accepted on "the human liked it" retold by an agent; nobody could point at the words.
 <project>: "Shop" or "Project-Shop" (folder matching CCM_PROJECTS_GLOB). The S-code must be in <project>/ROADMAP.md
 (same check as take_task.sh); a new request gets its number with story_add.sh first.
-rc: 0 written (or already there) · 1 usage error / the check cannot be done · 2 no such message · 4 no project/ROADMAP/story.
-Config: CCM_WORKSPACE, CCM_PROJECTS_GLOB. Env overrides (tests): ACCEPT_REPO (workspace), CLAUDE_PROJECTS_DIR
+rc: 0 written (or already there) · 1 usage error / the check cannot be done · 2 no such message (or a short one that
+does not answer a question naming the code, or is not a word of agreement) · 4 no project/ROADMAP/story.
+Config: CCM_WORKSPACE, CCM_PROJECTS_GLOB, CCM_HUMAN_NAME, CCM_LANG_EXTRA.
+Env overrides (tests): ACCEPT_REPO (workspace), CLAUDE_PROJECTS_DIR
 (transcripts, default ~/.claude/projects), ACCEPT_IDENTITY_DIR (default ~/.claude/agent-identity), CLAUDE_CODE_SESSION_ID."""
 import datetime
 import fcntl
@@ -26,6 +32,13 @@ import human_quote  # noqa: E402
 REPO = os.environ.get("ACCEPT_REPO") or conf("CCM_WORKSPACE")
 PREFIX = conf("CCM_PROJECTS_GLOB", "Project-*").split("*")[0]
 IDENT = os.environ.get("ACCEPT_IDENTITY_DIR") or os.path.expanduser("~/.claude/agent-identity")
+WHO = conf("CCM_HUMAN_NAME", "the user")
+
+# Short form: a whole message of the human counts as acceptance only if it is one of these (after human_quote.whole:
+# casefold, trailing .,!?;: cut). A whole "no" to "Accept E7.S9?" is an answer to the question, not a "yes".
+YES_EN = {"yes", "y", "yep", "yeah", "sure", "ok", "okay", "+", "+1", "go", "accept", "agreed", "lgtm", "👍", "✅"}
+YES_UK = {"так", "ок", "окей", "да", "го", "давай", "приймаю", "згоден", "угу", "ага"}
+YES = YES_EN | (YES_UK if "uk" in conf("CCM_LANG_EXTRA", "") else set())
 
 
 def agent_name(sid):
@@ -66,6 +79,37 @@ def append_jsonl(path, rec, key):
     return True
 
 
+def short_reply(frag, code, sid):
+    """Short form -> (message, ts, the assistant's question), or None with the reason for the refusal printed."""
+    res = human_quote.find_short_reply(frag, [code], sid)
+    if res["hit"]:
+        h = res["hit"]
+        if human_quote.whole(h["quote"]) not in YES:
+            print(f"⛔ \"{h['quote']}\" is not a word of agreement (the short form is accepted only as: "
+                  f"{', '.join(sorted(YES))}). \"Accepted\" {code} not written. Give a verbatim fragment of the message "
+                  f"of at least {human_quote.MIN_LEN} characters, or ask {WHO} again.")
+            return None
+        return h["quote"], h["ts"], h["question"]
+    shown = human_quote.whole(frag)
+    ask = (f"What to do: ask {WHO} again, naming the code in the question itself (e.g. \"Do you accept {code} - ...?\"), "
+           f"and run accept.py again after the answer - or give a verbatim fragment of the message of at least "
+           f"{human_quote.MIN_LEN} characters.")
+    if not res["replies"]:
+        print(f"⛔ \"{shown}\" is under {human_quote.MIN_LEN} characters - taken only as a WHOLE message of {WHO}, and "
+              f"there is no whole \"{shown}\" in this session (only inside a longer message, or not typed by {WHO}). "
+              f"\"Accepted\" {code} not written.\n{ask}")
+        return None
+    last = res["replies"][-1]
+    if last["question"] is None:
+        why = "there is no message of yours right before it (or another message of theirs is in between)"
+    else:
+        why = (f"your last message before it does not name {code}: "
+               f"\"{human_quote.excerpt(last['question'], [code], 160)}\"")
+    print(f"⛔ {WHO} typed \"{shown}\" ({last['ts']}), but {why} - it may have answered another question. "
+          f"\"Accepted\" {code} not written.\n{ask}")
+    return None
+
+
 def main(argv):
     args, sid = [], None
     it = iter(argv)
@@ -96,21 +140,28 @@ def main(argv):
         print(f"⛔ story {code} is not in {rm} - add it (story_add.sh) or take an existing one")
         return 4
     sid = sid or os.environ.get("CLAUDE_CODE_SESSION_ID")
+    extra = {}
     try:
-        hit = human_quote.find_quote(frag, sid)
+        if human_quote.is_short(frag):
+            r = short_reply(frag, code, sid)
+            if r is None:
+                return 2
+            quote, ts, question = r
+            extra = {"short_form": True, "question": human_quote.excerpt(question, [code])}
+        else:
+            hit = human_quote.find_quote(frag, sid)
+            if not hit:
+                print(f"⛔ {WHO} did not type this in this session - \"accepted\" not written")
+                return 2
+            quote, ts = hit
     except human_quote.QuoteError as e:
         print(f"⛔ {e}")
         return 1
-    who = conf("CCM_HUMAN_NAME", "the user")
-    if not hit:
-        print(f"⛔ {who} did not type this in this session - \"accepted\" not written")
-        return 2
-    quote, ts = hit
     rec = {"story": code, "quote": quote, "ts": ts, "sid": sid, "agent": agent_name(sid),
-           "at": datetime.datetime.now().astimezone().isoformat(timespec="seconds")}
+           "at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"), **extra}
     out = os.path.join(pd, "ACCEPTED.jsonl")
     if append_jsonl(out, rec, ("story", "ts", "sid")):
-        print(f"✅ {name} {code} accepted by {who} ({ts}): \"{quote[:200]}\" -> {out}")
+        print(f"✅ {name} {code} accepted by {WHO} ({ts}): \"{quote[:200]}\" -> {out}")
     else:
         print(f"✅ {name} {code}: this message ({ts}) is already recorded in {out}")
     return 0

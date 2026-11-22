@@ -3,7 +3,10 @@
 no config file). Checks: a fragment in a message of the human -> ✅ and a line in ACCEPTED.jsonl; not there -> rc 2;
 only in the assistant's text, a tool_result, a system-reminder, isMeta, a task-notification, a peer agent's message,
 `claude -p` (sdk-cli), a compact summary, a <command-...>, an <ide_selection> -> refused; scripts/story_status.py shows
-the record. ACC=<path to accept.py> tests another copy (its human_quote is imported from ../lib next to it).
+the record. Short form ("yes" / "+" / "ok", under 8 characters; a session of its own with parentUuid chains): a whole
+message of the human that is a word of agreement + the S-code in the last assistant message before it (in the same
+branch) -> ✅ with short_form/question; otherwise rc 2; Ukrainian words only with CCM_LANG_EXTRA=uk.
+ACC=<path to accept.py> tests another copy (its human_quote is imported from ../lib next to it).
 Last line: accept-test: N pass, M fail."""
 import importlib.util
 import json
@@ -93,7 +96,7 @@ try:
 
     env = dict(os.environ, CCM_TEST="1", HOME=home, CLAUDE_METHODOLOGY_CONF="/nonexistent", CCM_HUMAN_NAME="Alex",
                ACCEPT_REPO=ws, CLAUDE_PROJECTS_DIR=projects, ACCEPT_IDENTITY_DIR=ident, CLAUDE_CODE_SESSION_ID=SID)
-    for k in ("CCM_PROJECTS_GLOB", "CCM_WORKSPACE"):
+    for k in ("CCM_PROJECTS_GLOB", "CCM_WORKSPACE", "CCM_LANG_EXTRA"):
         env.pop(k, None)
     acc = os.path.join(pd, "ACCEPTED.jsonl")
 
@@ -146,7 +149,12 @@ try:
     check(nlines() == before, "after the refusals ACCEPTED.jsonl unchanged", f"{before}->{nlines()}")
     # 5. usage errors
     rc, out = run("Game", "E7.S2", "yes ok")
-    check(rc == 1 and "shorter" in out, "fragment < 8 characters -> rc 1", f"rc={rc} {out!r}")
+    check(rc == 2 and "WHOLE" in out and "ask Alex again" in out,
+          "fragment < 8 characters, no such whole message -> rc 2 with what to do", f"rc={rc} {out!r}")
+    rc, out = run("Game", "E7.S2", "ok")
+    check(rc == 2 and "does not name E7.S2" in out,
+          "\"ok\" as a whole message, older transcript without parentUuid (file order), assistant without the code -> rc 2",
+          f"rc={rc} {out!r}")
     rc, out = run("Game", "E7.S9", "no lines. yes, i accept")
     check(rc == 4 and "not in" in out, "story not in ROADMAP -> rc 4", f"rc={rc} {out!r}")
     rc, out = run("Game", "E7.S", "no lines. yes, i accept")
@@ -169,7 +177,141 @@ try:
     rc, out = run("Tool", "S4", "taking the menu as is", env_=dict(env, CCM_PROJECTS_GLOB="Work-*"))
     check(rc == 0 and os.path.exists(os.path.join(wd, "ACCEPTED.jsonl")), "CCM_PROJECTS_GLOB=Work-* -> Work-Tool/ACCEPTED.jsonl",
           f"rc={rc} {out!r}")
-    # 7. the module directly (scope: how many human messages it sees in the transcript)
+    # 7. short form - a session of its own, records with uuid/parentUuid as in a real transcript
+    SID2 = "22222222-3333-4444-5555-666666666666"
+    pd2 = os.path.join(ws, "Project-Short")
+    os.makedirs(pd2)
+    with open(os.path.join(pd2, "ROADMAP.md"), "w", encoding="utf-8") as f:
+        f.write("# S\n\n## EPIC 7\n" + "".join(f"- ⏳ **[E7.S{i}] story {i}**\n" for i in range(2, 14)))
+    with open(os.path.join(ident, SID2), "w") as f:
+        f.write(os.path.join(ws, "Agents", "Short-HQ") + "\n")
+    recs2, seq = [], [0]
+
+    def add(rec, parent="__last__"):
+        seq[0] += 1
+        u = f"u{seq[0]:03d}"
+        rec = dict(rec, uuid=u, sessionId=SID2,
+                   parentUuid=(recs2[-1]["uuid"] if recs2 else None) if parent == "__last__" else parent)
+        recs2.append(rec)
+        return u
+
+    def asst(mid, *blocks, **kw):
+        return add({"type": "assistant", "timestamp": "2026-11-22T07:00:00.000Z",
+                    "message": {"id": mid, "role": "assistant", "content": list(blocks)}}, **kw)
+
+    def txt(t):
+        return {"type": "text", "text": t}
+
+    def hum(t, ts, **kw):
+        return add(user(t, ts), **kw)
+
+    hum("make the wheel", "2026-11-22T07:00:00.000Z")
+    asst("m1", {"type": "thinking", "thinking": "thinking about E7.S11"})
+    asst("m1", txt("The wheel is ready, have a look. Do you accept [E7.S2]?"))
+    add({"type": "system", "subtype": "stop_hook_summary", "timestamp": "2026-11-22T07:01:00.000Z"})
+    hum("Yes!", "2026-11-22T07:01:00.000Z")                          # -> E7.S2 accepted
+    # E7.S3: the code is in the previous API message, the last message has none
+    asst("m2", txt("Story E7.S3 is done."))
+    asst("m2", {"type": "tool_use", "id": "t2", "name": "Bash", "input": {}})
+    add(user([{"type": "tool_result", "tool_use_id": "t2", "content": "ok"}], "2026-11-22T07:02:00.000Z"))
+    asst("m3", txt("Do you accept?"))
+    hum("+", "2026-11-22T07:03:00.000Z")
+    # E7.S4: the code is in the first text block of the same API message (each block is a record of its own)
+    asst("m4", txt("Story E7.S4 is ready."))
+    asst("m4", txt("Do you accept?"))
+    hum("ok", "2026-11-22T07:04:00.000Z")
+    # no code: a "yes" to another question
+    asst("m5", txt("Delete the old file?"))
+    hum("yes", "2026-11-22T07:05:00.000Z")
+    # "accept" only inside a longer message
+    asst("m6", txt("Do you accept E7.S6?"))
+    hum("accept, but change the button", "2026-11-22T07:06:00.000Z")
+    # E7.S8: a "yes" only from non-humans
+    asst("m8", txt("Do you accept E7.S8?"))
+    add(user("yes", "2026-11-22T07:08:00.000Z", origin={"kind": "task-notification"}))
+    add(user("[from agent: Shop-HQ] yes", "2026-11-22T07:08:01.000Z", entrypoint="sdk-cli"))
+    add(user("<system-reminder>yes</system-reminder>", "2026-11-22T07:08:02.000Z"))
+    add(user("yes", "2026-11-22T07:08:03.000Z", isMeta=True))
+    add({"type": "attachment", "timestamp": "2026-11-22T07:08:04.000Z",
+         "attachment": {"type": "queued_command", "commandMode": "prompt", "isMeta": True,
+                        "origin": {"kind": "peer", "from": "uds:x"}, "prompt": "yes"}})
+    asst("m8b", txt("Got the notification, looking further."))
+    hum("show the log", "2026-11-22T07:08:10.000Z")
+    # E7.S9: branches - the "yes" hangs on the "Delete?" branch, "Do you accept E7.S9?" is on the sibling (rewind/fork)
+    fork = asst("m9a", txt("Delete the cache?"))
+    asst("m9b", txt("Do you accept E7.S9?"), parent=recs2[-2]["uuid"])
+    hum("yes", "2026-11-22T07:09:00.000Z", parent=fork)
+    # E7.S10: another message of the human between the question and the "yes"
+    asst("m10", txt("Do you accept E7.S10?"))
+    hum("show it again", "2026-11-22T07:10:00.000Z")
+    asst("m10b", {"type": "tool_use", "id": "t10", "name": "Bash", "input": {}})
+    add(user([{"type": "tool_result", "tool_use_id": "t10", "content": "ok"}], "2026-11-22T07:10:01.000Z"))
+    hum("yes", "2026-11-22T07:10:02.000Z")
+    # E7.S7: a question over 200 characters, the code in the middle
+    asst("m7", txt("A long report. " * 30 + "Do you accept E7.S7? " + "More details. " * 30))
+    hum("yes.", "2026-11-22T07:11:00.000Z")
+    # E7.S12: a whole "no" to a question with the code - not acceptance (the list of words of agreement)
+    asst("m12", txt("Do you accept E7.S12?"))
+    hum("no", "2026-11-22T07:12:00.000Z")
+    # E7.S13: a Ukrainian "yes" - a word of agreement only with CCM_LANG_EXTRA=uk
+    asst("m13", txt("Do you accept E7.S13?"))
+    hum("так", "2026-11-22T07:13:00.000Z")
+    with open(os.path.join(projects, "-home-x", f"{SID2}.jsonl"), "w", encoding="utf-8") as f:
+        for r in recs2:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+    env3 = dict(env, CLAUDE_CODE_SESSION_ID=SID2)
+    acc2 = os.path.join(pd2, "ACCEPTED.jsonl")
+
+    def recs_acc2():
+        if not os.path.exists(acc2):
+            return []
+        return [json.loads(x) for x in open(acc2, encoding="utf-8").read().split("\n") if x.strip()]
+
+    rc, out = run("Short", "E7.S2", "yes", env_=env3)
+    r2 = recs_acc2()
+    check(rc == 0 and "✅" in out and len(r2) == 1, "\"Yes!\" as a whole message + the code in the assistant's question -> ✅",
+          f"rc={rc} {out!r}")
+    r2 = r2[-1] if r2 else {}
+    check(r2.get("short_form") is True and "E7.S2" in r2.get("question", "") and r2.get("quote") == "Yes!"
+          and r2.get("ts") == "2026-11-22T07:01:00.000Z" and r2.get("agent") == "Short-HQ",
+          "record: short_form, question with the code, quote = the whole message, ts", repr(r2))
+    rc, out = run("Short", "E7.S4", "Ok.", env_=env3)
+    check(rc == 0 and len(recs_acc2()) == 2, "the code in the first text block of the same API message -> ✅",
+          f"rc={rc} {out!r}")
+    rc, out = run("Short", "E7.S7", "YES", env_=env3)
+    r7 = recs_acc2()[-1] if len(recs_acc2()) == 3 else {}
+    check(rc == 0 and "E7.S7" in r7.get("question", "") and len(r7.get("question", "")) <= 202,
+          "a long question -> question of at most 200 characters around the code", f"rc={rc} {out!r} {r7!r}")
+    n_ok = len(recs_acc2())
+    rc, out = run("Short", "E7.S12", "no", env_=env3)
+    check(rc == 2 and "not a word of agreement" in out and len(recs_acc2()) == n_ok,
+          "a whole \"no\" to \"Do you accept E7.S12?\" -> rc 2, not written", f"rc={rc} {out!r}")
+    rc, out = run("Short", "E7.S13", "так", env_=env3)
+    check(rc == 2 and "not a word of agreement" in out and len(recs_acc2()) == n_ok,
+          "a whole \"так\" without CCM_LANG_EXTRA=uk -> rc 2, not written", f"rc={rc} {out!r}")
+    for code, frag, need, what in [
+            ("E7.S3", "+", "does not name E7.S3", "the code only in the previous API message, the last one has none"),
+            ("E7.S5", "yes", "does not name E7.S5", "a \"yes\" with no code in the message before it"),
+            ("E7.S6", "accept", "WHOLE", "\"accept\" only inside a longer message"),
+            ("E7.S2", "+", "does not name E7.S2", "a \"+\" to another code (E7.S3)"),
+            ("E7.S8", "yes", "does not name E7.S8", "a \"yes\" from a notification / agent / hook / isMeta / peer"),
+            ("E7.S9", "yes", "does not name E7.S9", "a \"yes\" in another branch of the conversation (the code is in the sibling)"),
+            ("E7.S10", "yes", "does not name E7.S10", "another message of the human between the question and the \"yes\""),
+            ("E7.S11", "yes", "does not name E7.S11", "the code only in thinking - the human never saw it")]:
+        rc, out = run("Short", code, frag, env_=env3)
+        check(rc == 2 and need in out and "ask Alex again" in out, f"{what} -> rc 2 with what to do",
+              f"rc={rc} {out!r}")
+    check(len(recs_acc2()) == n_ok, "after the short refusals ACCEPTED.jsonl unchanged", f"{n_ok}->{len(recs_acc2())}")
+    rc, out = run("Short", "E7.S13", "так", env_=dict(env3, CCM_LANG_EXTRA="uk"))
+    r13 = recs_acc2()[-1] if recs_acc2() else {}
+    check(rc == 0 and r13.get("story") == "E7.S13" and r13.get("quote") == "так" and r13.get("short_form") is True,
+          "a whole \"так\" with CCM_LANG_EXTRA=uk -> ✅", f"rc={rc} {out!r} {r13!r}")
+    rc, out = run("Short", "E7.S6", "change the button", env_=env3)
+    r6 = recs_acc2()[-1] if recs_acc2() else {}
+    check(rc == 0 and r6.get("story") == "E7.S6" and "short_form" not in r6 and "question" not in r6,
+          "a long fragment (>= 8) - as before, no short_form", f"rc={rc} {out!r} {r6!r}")
+    # 8. the module directly (scope: how many human messages it sees in the transcript)
     seen = -1
     hqp = os.path.join(os.path.dirname(os.path.realpath(ACC)), "..", "lib", "human_quote.py")
     if os.path.isfile(hqp):
@@ -185,7 +327,11 @@ try:
                 continue
             seen += bool(isinstance(r, dict) and hq.human_text(r))
     check(seen == 4, "the module sees exactly 4 human messages of 13 records (3 + \"ok\" without the reminder)", f"seen={seen}")
-    # 8. story_status.py shows the accepted record (the reader of ACCEPTED.jsonl)
+    check(seen >= 0 and hasattr(hq, "code_re") and hq.code_re("S7").search("E7.S7") is None
+          and hq.code_re("E7.S7").search("E7.S70") is None and hq.code_re("E7.S7").search("(e7.s7)")
+          and hq.code_re("S68").search("story S68?"),
+          "code_re: S7 is not found in E7.S7, E7.S7 not in E7.S70; case does not matter")
+    # 9. story_status.py shows the accepted record (the reader of ACCEPTED.jsonl)
     if not os.environ.get("ACC"):
         rc, out = run("Game", "E7.S2", script=SS, env_=dict(env, STORY_REPO=ws))
         check(rc == 0 and "accepted by the human: ACCEPTED.jsonl:1" in out and "the wheel works" in out,
