@@ -79,7 +79,9 @@ is `--with-git-snapshot`. One job uses the network: `scripts/quota_status.py` re
 plan is used, at most once every 5 minutes. Jobs that run a model and spend your quota (daily memory
 consolidation, correction stats) are off unless you pass `--with-consolidation`.
 
-Want it for one project only: say `--project <path>` instead of `--user`. The optional extras (system
+Want it for one project only: say `--project <path>` instead of `--user`; the agents' working folder (agent
+folders, mistakes journal) then goes to `~/claude-workspace/<project name>`, outside your repo (`--workspace <path>`
+to choose another place). The optional extras (system
 packages for PDF/HTML extraction, the Telegram bot) are off by default; ask the agent for them separately.
 
 **Updating** as new layers land: `git pull && ./install.sh` again. Your memory, your own code lessons, your

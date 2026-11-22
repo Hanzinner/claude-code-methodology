@@ -11,6 +11,8 @@ For a person, not for the agent. Each step says what you do and what you will se
    `CLAUDE.md.new` next to it).
 3. **Check `~/.claude/methodology.conf`.** The installer asked for your name, working folder and time zone;
    the hints agents read use them ("ask <your name>"). Change a line and it applies on the next prompt.
+   Installed with `--project <dir>`: the file is `<dir>/.claude/methodology.conf`, and the working folder is
+   `~/claude-workspace/<dir's name>`, outside your repo, so none of it lands in your commits.
 4. **Optional accounts** — web search (Tavily/Exa), offsite backup, the phone bot: [`accounts.md`](accounts.md)
    lists where to sign up, what is free and which file each key goes into. Nothing else depends on them.
 5. **Work as usual.** Section 2 says what changed and why.

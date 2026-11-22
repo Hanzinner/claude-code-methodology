@@ -8,11 +8,11 @@
 # Usage:
 #   ./install.sh                 # interactive
 #   ./install.sh --user          # install to ~/.claude (non-interactive default)
-#   ./install.sh --project DIR   # install to DIR/.claude
+#   ./install.sh --project DIR   # install to DIR/.claude; the workspace goes OUTSIDE the repo: ~/claude-workspace/<DIR's name>
 #   ./install.sh --dry-run       # show what would happen, do nothing
 #   ./install.sh --yes           # take every default, ask nothing (CI, scripted installs)
 #   --name NAME                  # who the agents work for (shown in their hints)
-#   --workspace DIR              # folder the agents work in (journal, agent folders)
+#   --workspace DIR              # folder the agents work in (journal, agent folders); with --project it may be DIR itself
 #   --timezone ZONE              # IANA zone for timestamps, e.g. Europe/Berlin
 #   --no-verify                  # skip the checks at the end
 #   --verify-all                 # also run every installed test (~5 min) instead of the quick check
@@ -198,7 +198,16 @@ else
   say "A few settings for this machine (Enter = default):"
   def_name=$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f5 | cut -d, -f1)
   [[ -n "$def_name" ]] || def_name=$(id -un)
-  if [[ "$SCOPE" == "project" ]]; then def_ws="$PROJECT_DIR"; else def_ws="$HOME/claude-projects"; fi
+  # --project: the workspace (AGENTS.md, MISTAKES.md, LIBRARY.md, Agents/, the shared documents) must not land in the
+  # person's own repo, where it would show in their git status and get committed. Default: ~/claude-workspace/<name of
+  # the project folder>; when that folder already serves another project (its .ccm-project names a different path, or
+  # it is not ours), <name>-<8 hex of the project path>. --workspace <the project dir> puts it in the repo on purpose.
+  if [[ "$SCOPE" == "project" ]]; then
+    def_ws="$HOME/claude-workspace/$(basename "$PROJECT_DIR")"
+    if [[ -e "$def_ws" && "$(cat "$def_ws/.ccm-project" 2>/dev/null)" != "$PROJECT_DIR" ]]; then
+      def_ws="$def_ws-$(python3 -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:8])' "$PROJECT_DIR")"
+    fi
+  else def_ws="$HOME/claude-projects"; fi
   def_tz=$(cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || true)
   C_NAME="${OPT_NAME:-$(ask "Your name — agents address their hints to it" "$def_name")}"
   C_WS="${OPT_WORKSPACE:-$(ask "Workspace folder (agent folders, mistakes journal)" "$def_ws")}"
@@ -229,6 +238,8 @@ PYCONF
   fi
   do_or_show mkdir -p "$C_WS" "$C_TRASH" "$C_SECRETS"
   do_or_show chmod 700 "$C_SECRETS"
+  # which project this default workspace belongs to: a second project with the same folder name gets its own
+  [[ "$SCOPE" == "project" && "$C_WS" == "$def_ws" && $DRY_RUN -eq 0 ]] && echo "$PROJECT_DIR" > "$C_WS/.ccm-project"
 fi
 
 # ---- backup existing -----------------------------------------------------
@@ -449,9 +460,16 @@ backup_if_exists "$SETTINGS"
 # Substitute the install target into the template
 if [[ $DRY_RUN -eq 0 ]]; then
   # JSON-safe substitution: a path containing " \ | & would break a plain sed replacement
-  python3 - "$REPO_DIR/settings.template.json" "$SETTINGS" "$TARGET" "$MEMDIR" "$MEM_SET" <<'PYSUB'
+  # --project with the workspace outside the project: Claude Code asks before every edit outside the folder it runs in,
+  # so the workspace goes into permissions.additionalDirectories (the agents write their journal and inboxes there)
+  EXTRA_DIR=""
+  if [[ "$SCOPE" == "project" ]]; then
+    EXTRA_DIR=$(python3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
+    case "$EXTRA_DIR/" in "$PROJECT_DIR/"*) EXTRA_DIR="" ;; esac
+  fi
+  python3 - "$REPO_DIR/settings.template.json" "$SETTINGS" "$TARGET" "$MEMDIR" "$MEM_SET" "$EXTRA_DIR" <<'PYSUB'
 import json, sys
-src, dst, target, memdir, mem_set = sys.argv[1:]
+src, dst, target, memdir, mem_set, extra_dir = sys.argv[1:]
 # in commands the path sits inside shell double quotes → escape \ " $ ` for the shell first
 sh = target.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
 text = open(src).read()
@@ -478,6 +496,12 @@ for k, v in ours.items():
         merged.setdefault(k, v)                   # anything the user set wins
 if mem_set != "1":   # the person's own autoMemoryDirectory (here or in settings.local.json) is never touched
     merged.setdefault("autoMemoryDirectory", memdir)
+if extra_dir:        # added once; the person's own entries stay
+    perms = merged.get("permissions") if isinstance(merged.get("permissions"), dict) else {}
+    dirs = perms.get("additionalDirectories") if isinstance(perms.get("additionalDirectories"), list) else []
+    if extra_dir not in dirs:
+        dirs = dirs + [extra_dir]
+    merged["permissions"] = {**perms, "additionalDirectories": dirs}
 hooks = {}
 for event, groups in (have.get("hooks") or {}).items():
     for g in groups:
@@ -790,6 +814,14 @@ else
 fi
 [[ -z "$DEPS_MISSING" ]] || warn "Missing system commands: $(printf '%s\n' "$DEPS_MISSING" | sed -n 's/^missing: \([^ ]*\) .*/\1/p' | paste -sd' ' -) — see \"missing:\" at the top"
 [[ $VERIFY_ALL -eq 1 ]] || echo "  (quick check done; every mechanism's own test: ./install.sh --verify-all … — about 5 min)"
+if [[ $DRY_RUN -eq 0 ]]; then
+  WS_END=$(python3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
+  echo; say "Workspace (agent folders, mistakes journal, shared documents): $WS_END"
+  if [[ "$SCOPE" == "project" ]]; then
+    case "$WS_END/" in "$PROJECT_DIR/"*) echo "  (inside your project: these files show up in its git status)" ;;
+      *) echo "  (outside $PROJECT_DIR, so none of it shows up in your project's git)" ;; esac
+  fi
+fi
 echo
 echo "Next steps:"
 echo "  1) Start a new Claude Code session (existing sessions won't pick up the new config)"
