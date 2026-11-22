@@ -18,7 +18,11 @@ line: "the system (rules, hooks, commands) or Claude Code itself?". Claude Code 
    `scope=` (`user` or `project`), `project=`. No file (installed before this command existed): the repo is
    `~/claude-code-methodology`, the installed version is that clone's current `HEAD`, scope `user`.
 2. **Get the new version.** In the repo: `git pull --ff-only`. If it refuses (local changes, a diverged
-   branch), stop and show the person the message; do not reset or stash anything yourself. Never install from a second, temporary clone instead: the install records where it came from, and the next update looks there.
+   branch), stop and show the person the message; do not reset or stash anything yourself. If it refuses because the histories diverged ("forced update" in the fetch, or git asks who you are to make a
+   merge): the repo's history was rewritten once (a clone from before 2026-11-16). Check `git status --short` is
+   empty and `git log origin/main..HEAD` holds no commits of the person's own; then tell them in one line that the
+   copy will be reset to the new version and nothing of theirs is in it, and on their "yes" run
+   `git reset --hard origin/main`. Local changes or own commits: stop and show them. Never install from a second, temporary clone instead: the install records where it came from, and the next update looks there.
    Nothing new (`HEAD` equals the installed commit) → say "already up to date" and stop.
 3. **What is new, for a person.** `git log --format='%s%n%b' <installed commit>..HEAD` and
    `git diff <installed commit>..HEAD -- docs/getting-started.md README.md`. Tell the person only what changes
