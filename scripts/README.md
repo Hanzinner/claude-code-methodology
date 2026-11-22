@@ -57,6 +57,8 @@ Scripts of the swarm. Agent names are folder names under `CCM_AGENTS_DIR`; proje
 | `blockers.py` | Blockers as rows in `<project>/BLOCKERS.md`, each with a check command. `run` (cron every 15 min, installer adds it) runs only approved checks, clears blockers, flips story lines in `ROADMAP.md` and posts letters. Also `add`, `approve`, `clear`, `list [--json]`. A hand-edited command is not run until `approve`. |
 | `blocker_add.sh` | Wrapper for `blockers.py add`: whoever hits the wall registers it; prints the number `B<n>`. |
 | `story_status.py <project> <S-code>` | A story's state computed from the roadmap line, blockers, TODOs and inboxes, commits and code files. What `status-guard.py` wants run before a state report. |
+| `story_add.sh <project> "<summary>" [--epic E7] [--from-human "<words>"]` | A request gets its number at once: the next free story code in the project's own format (`E7.S12`, `S68`), appended to `ROADMAP.md` under a lock, atomically; the last output line is the code. `--from-human` adds the time and words of the human's message, only if they are found in this session's transcript. |
+| `accept.py <project> <S-code> "<the human's words>"` | "Accepted by the human" for a story: written to `<project>/ACCEPTED.jsonl` only when the words are found in a message the human typed in this session (not the assistant, a tool, a hook or another agent); `story_status.py` shows it. Shares `lib/human_quote.py` with `story_add.py`. |
 | `take_task.sh <project> <story>` | "I take this story": writes it to `~/.claude/task-taken/<session id>`. For now a journal; nothing enforces it. |
 
 ### Projects and releases

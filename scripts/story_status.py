@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """story_status.py <project> <S-code> - the state of a story computed from SOURCES, never from memory.
 Prints: the ROADMAP line - its blockers from BLOCKERS.md (open/cleared) - mentions in the TODO files and inboxes of the
-project's agents (open items) - commits with the code in the message or in the changed text - code files carrying the code.
+project's agents (open items) - "accepted by the human" from ACCEPTED.jsonl (scripts/accept.py) - commits with the code in the message or in the changed text - code files carrying the code.
 <project>: "Bid" or "Project-Bid" (folder matching CCM_PROJECTS_GLOB). Paste the output into the report;
 status-guard lets a state report through only after such a run in the same turn.
 Why: a coordinator reported one story's state three times from memory ("code ready" -> "not started" -> "nobody started")
 while the code had been committed for days. A plan is not a fact about code.
 Agents of the project are the folders <CCM_AGENTS_DIR>/<project>-* (their agent-TODO.md / human-TODO.md / inbox.md).
 Config: CCM_WORKSPACE, CCM_AGENTS_DIR, CCM_PROJECTS_GLOB (NEW, default "Project-*"). Env overrides (tests): STORY_REPO."""
-import glob, os, re, subprocess, sys
+import glob, json, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
@@ -51,6 +51,24 @@ def main(a):
             if rx.search(l) and l.lstrip().startswith("- [ ]"):
                 print(f"  {os.path.relpath(f, REPO)}:{i}: {l.strip()[:220]}"); n += 1
     print(f"  ({n})" if n else "  - none")
+    acc = []  # written by scripts/accept.py only when the human's words were found in the transcript
+    try:
+        for i, l in enumerate(open(os.path.join(pd, "ACCEPTED.jsonl"), encoding="utf-8"), 1):
+            try:
+                r = json.loads(l)
+            except ValueError:
+                continue
+            if isinstance(r, dict) and str(r.get("story", "")).upper().split(".")[-1] == code:
+                acc.append((i, r))
+    except OSError:
+        pass
+    if acc:
+        i, r = acc[-1]
+        q = re.sub(r"\s+", " ", str(r.get("quote", "")))
+        print(f"-- accepted by the human: ACCEPTED.jsonl:{i} {r.get('ts')} \"{q[:160]}{'…' if len(q) > 160 else ''}\""
+              f" ({r.get('agent')}, session {str(r.get('sid'))[:8]})")
+    else:
+        print("-- accepted by the human: - none (scripts/accept.py writes it)")
     g = lambda *x: subprocess.run(["git", "-c", "core.quotepath=off", "-C", REPO, *x], capture_output=True, text=True).stdout.strip()
     log = g("log", "--oneline", "-8", f"--grep={code}\\b", "-E", "--", pn) or "- none"
     print(f"-- commits with {code} in the message:\n{log}")
