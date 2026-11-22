@@ -204,6 +204,19 @@ if todo:
     for t in todo:
         print("  -", t)
 
+# system commands the mechanisms call (lib/deps_check.py, the same block install.sh prints at its start). Not counted as
+# broken: the hooks still exit 0 - which is exactly why a missing `timeout` is invisible everywhere else.
+sys.path.insert(0, os.path.join(REPO, "lib"))
+try:
+    import deps_check
+    deps = deps_check.block()
+except Exception as e:
+    deps = [f"deps_check.py failed: {type(e).__name__}: {e}"]
+if deps:
+    print("\nSystem commands missing (the install still counts as ok; these parts do not work until you install them):")
+    for l in deps:
+        print("  " + l)
+
 print(f"\n{ok} ok, {len(bad)} missing or broken")
 for b in bad:
     print("  -", b)

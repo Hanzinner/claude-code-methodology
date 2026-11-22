@@ -140,6 +140,16 @@ print("\n".join(out).rstrip("\n"))')
   exit 0
 fi
 
+# ---- system commands the mechanisms call ----------------------------------
+# python3 is required; flock, timeout, setsid, crontab are not on a stock macOS. Without them nothing fails loudly
+# (hooks under hook-safe.sh fail open, locks "time out"), so name each one and what it stops, then go on (warn, not die).
+command -v python3 >/dev/null 2>&1 || die "python3 is required (hooks and the installer use it)"
+DEPS_MISSING=$(python3 "$REPO_DIR/lib/deps_check.py" 2>&1) || DEPS_MISSING="deps_check.py failed: $DEPS_MISSING"
+if [[ -n "$DEPS_MISSING" ]]; then
+  warn "Some system commands are missing — the install goes on, but these parts will not work until you install them:"
+  printf '%s\n' "$DEPS_MISSING" | sed 's/^/  /' >&2
+fi
+
 # ---- detect claude-code --------------------------------------------------
 say "Detecting Claude Code…"
 if command -v claude >/dev/null 2>&1; then
@@ -152,7 +162,6 @@ else
 fi
 
 # ---- choose scope --------------------------------------------------------
-command -v python3 >/dev/null 2>&1 || die "python3 is required (hooks and the installer use it)"
 [[ -z "$SCOPE" && $YES -eq 1 ]] && SCOPE="user"
 if [[ -z "$SCOPE" ]]; then
   echo
@@ -779,6 +788,7 @@ if [[ $TESTS_FAILED -gt 0 ]]; then
 else
   ok "Install complete."
 fi
+[[ -z "$DEPS_MISSING" ]] || warn "Missing system commands: $(printf '%s\n' "$DEPS_MISSING" | sed -n 's/^missing: \([^ ]*\) .*/\1/p' | paste -sd' ' -) — see \"missing:\" at the top"
 [[ $VERIFY_ALL -eq 1 ]] || echo "  (quick check done; every mechanism's own test: ./install.sh --verify-all … — about 5 min)"
 echo
 echo "Next steps:"

@@ -87,7 +87,10 @@ permissions, env, model and your own hooks in `settings.json` are kept (only the
 into the installed `hooks/` are replaced). If you edited `CLAUDE.md`, it is kept and the new version is
 written next to it as `CLAUDE.md.new`. Every replaced file is also backed up as `*.bak-<timestamp>`.
 
-**Platforms:** Linux and macOS (bash + python3). On **Windows, use WSL** (`wsl --install`, then install
+**Platforms:** Linux and macOS (bash + python3). The mechanisms also call `flock`, `timeout`, `setsid` and
+`crontab`; a stock macOS lacks the first three (`brew install flock coreutils`, then put
+`$(brew --prefix)/opt/coreutils/libexec/gnubin` first in PATH: brew names it `gtimeout`). `install.sh` and
+`check-install.py` name each missing one and what stops without it. On **Windows, use WSL** (`wsl --install`, then install
 Claude Code and this repo inside it). Native Windows is not supported yet: the hooks are bash and python
 scripts, and Claude Code on Windows runs PowerShell unless Git Bash is installed.
 
