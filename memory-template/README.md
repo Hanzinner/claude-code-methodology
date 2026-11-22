@@ -30,8 +30,8 @@ name: short-kebab-case-slug
 description: one-line summary used to decide relevance
 metadata:
   type: user | feedback | project | reference
-  source: where the fact came from      # needed only if you enable memory-write-gate
-  verified: yes | inferred | unverified # ditto — a guess is honestly "inferred"
+  source: where the fact came from      # required: hooks/memory-write-gate.py refuses a memory file without it
+  verified: yes | inferred | unverified # required too — a guess is honestly "inferred"
 ---
 ```
 

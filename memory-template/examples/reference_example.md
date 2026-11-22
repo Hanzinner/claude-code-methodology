@@ -3,6 +3,8 @@ name: reference-example
 description: Example reference-type memory — pointer to an external system and what it's for.
 metadata:
   type: reference
+  source: the user, naming the dashboards they use (example)
+  verified: yes
 ---
 
 # Internal dashboards (example)

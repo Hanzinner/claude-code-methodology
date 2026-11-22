@@ -3,6 +3,8 @@ name: project-example
 description: Example project-type memory — current state of an active project with Why and How to apply.
 metadata:
   type: project
+  source: the project lead's status note (example)
+  verified: yes
 ---
 
 # Project Acme — auth migration (example)

@@ -3,6 +3,8 @@ name: user-example
 description: Example user-type memory — who they are, their domain expertise, what register to use with them.
 metadata:
   type: user
+  source: the user, about themselves (example)
+  verified: yes
 ---
 
 # About the user (example)

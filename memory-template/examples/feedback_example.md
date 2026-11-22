@@ -3,6 +3,8 @@ name: feedback-example
 description: Example feedback-type memory — a correction with Why and How to apply.
 metadata:
   type: feedback
+  source: the user, correcting a test run in this chat (example)
+  verified: yes
 ---
 
 # Integration tests must hit a real database (example)
