@@ -126,6 +126,9 @@ already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS
    arrives while it is mid-task right after its current step; it does the thing, or moves it to its to-do list,
    and closes the letter (`scripts/inbox_done.sh`). Writing into someone else's inbox by hand is refused, so a
    letter can't get garbled or lost. You can give an agent a task the same way without opening its chat.
+   Two helpers keep letters honest and moving: a number in a letter ("21/21 pass") has to be in what the agent
+   actually ran, or it is told to check before sending; and an urgent letter that a live agent has not picked up
+   tells its sender to wake that agent.
 5. **What needs you is in one place.** Each agent keeps a `human-TODO.md` in its folder: only what only you can decide (taste, product, priority,
    anything that can't be undone), one line each. The rest it decides and does itself. How agents filter what
    reaches you: [`po-interface.md`](po-interface.md).
