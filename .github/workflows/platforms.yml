@@ -27,7 +27,8 @@ jobs:
           STOCK_PATH: ${{ matrix.path }}
         shell: /bin/bash {0}
         run: |
-          [ -n "$STOCK_PATH" ] && export PATH="$STOCK_PATH"
+          # stock: no Homebrew bash either (the runner has one on disk; install.sh would start the hooks through it)
+          [ -n "$STOCK_PATH" ] && export PATH="$STOCK_PATH" CCM_BASH_CANDIDATES=""
           echo "PATH=$PATH"; /bin/bash tests/platform-smoke.sh
   tests:
     strategy:
@@ -48,7 +49,7 @@ jobs:
           STOCK_PATH: ${{ matrix.path }}
         shell: /bin/bash {0}
         run: |
-          [ -n "$STOCK_PATH" ] && export PATH="$STOCK_PATH"
+          [ -n "$STOCK_PATH" ] && export PATH="$STOCK_PATH" CCM_BASH_CANDIDATES=""
           # macOS has no `timeout`: perl's alarm does the same everywhere (one red test must not stop the loop: no -e)
           limit() { perl -e 'alarm shift; exec @ARGV or die "exec: $!"' 300 "$@"; }
           fails=""; n=0
