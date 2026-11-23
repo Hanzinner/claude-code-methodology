@@ -58,7 +58,7 @@ jobs:
             if [ "${t%.py}" != "$t" ]; then limit python3 "$t"; else limit /bin/bash "$t"; fi
             rc=$?
             echo "::endgroup::"
-            [ $rc = 0 ] || { echo "::error::$t rc=$rc"; fails="$fails $t"; }
+            [ $rc = 0 ] || { echo "FAILED: $t rc=$rc"; fails="$fails $t"; }   # in the log; one annotation below names all
           done
           set -- $fails
           echo "ran $n, failed $#:"; for f in "$@"; do echo "  $f"; done
