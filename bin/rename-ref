@@ -95,7 +95,10 @@ stem_variants = {ostem.lower(), ostem.replace("_", "-").lower(), ostem.replace("
 
 # -- 1. external mentions (before any change)
 # "$REPO"/x.md - a quote/bracket between the variable and the slash (the dominant idiom in shell scripts)
-ext_pat = re.compile(r"(?:" + re.escape(REPO) + r"|\$\{?\w+\}?[\"')]?|\})/" + re.escape(old) + r"(?![\w.-])")
+# the workspace as written AND as resolved: a script names it by the path it knows, which may run through a link
+# (macOS: /var/folders/... is /private/var/folders/..., /tmp is /private/tmp) - matching only the real path missed it
+_repo_forms = "|".join(re.escape(r) for r in sorted({REPO, os.path.abspath(os.environ["RENAME_REF_REPO"]).rstrip("/") or "/"}))
+ext_pat = re.compile(r"(?:" + _repo_forms + r"|\$\{?\w+\}?[\"')]?|\})/" + re.escape(old) + r"(?![\w.-])")
 ext_hits, ext_unread = [], []
 def walk_ext(root):
     # follow symlinked directories (followlinks), cut cycles by realpath

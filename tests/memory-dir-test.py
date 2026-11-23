@@ -8,7 +8,9 @@ import json, os, shutil, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 ROOT = os.path.dirname(HERE)
-T = tempfile.mkdtemp(prefix="memory-dir-test-")
+# realpath: lib/ccm_conf.py finds the install dir through realpath(__file__); a macOS temp dir is /var/folders/...,
+# a link to /private/var/folders/... - the unresolved name never equalled what the script printed
+T = os.path.realpath(tempfile.mkdtemp(prefix="memory-dir-test-"))
 C = f"{T}/c"                     # the install dir
 os.makedirs(f"{T}/home")
 for sub in ("lib", "hooks"):
