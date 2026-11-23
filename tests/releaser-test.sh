@@ -21,6 +21,7 @@ commit() { # commit <branch> <file> <text>
   echo "$3" > "$T/wt-$1/$2"; g "$T/wt-$1" add -A; g "$T/wt-$1" commit -qm "$2"; g "$T/wt-$1" rev-parse HEAD; }
 env_() { env HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$R" CCM_INBOX_POST="$T/post" CCM_RELEASER_APPROVED="$T/approved.json" CCM_RELEASER_LOG="$T/log" CCM_RELEASER_STATE="$S" CCM_RELEASER_USER=nobody CCM_RELEASER_OWNER=root "$@"; }
 run() { (cd "$R" && env_ python3 "$REL" "$@") > "$T/out" 2>&1; echo $?; }
+sedi() { local f; for f; do :; done; sed -i.bak "$@" && rm -f "$f.bak"; }   # sed -i that BSD sed takes too
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; sed 's/^/   /' "$T/out" | tail -5; tail -3 "$T/log" 2>/dev/null | cut -c1-300; fi; }
 mark() { mkdir -p "$S/queue/Project-X"; printf '{"sha":"%s","agent":"%s","summary":"s"}' "$2" "${3:-X-Dev}" > "$S/queue/Project-X/$1.ready"; }
@@ -39,7 +40,7 @@ ok "3 green -> master has the sha, file in tree, marker gone, letter to the auth
 ok "3b owners of the shared tree unchanged, the releaser clone belongs to nobody" '[ "$(owners)" = 0 ] && [ "$(stat -c %U "$S/work/Project-X/.git")" = nobody ] && grep -q "\"result\": \"green\"" "$S/Project-X.json"'
 
 # 4 MAIN: the gate tries to write into the shared tree and fails red -> tree byte-for-byte the same
-sed -i "s#^test = .*#test = \"id -un > $T/who; touch $O/pwn; echo x >> $O/a; test ! -e BAD\"#" "$O/release.toml"; rc=$(run approve X); chmod 777 "$T"
+sedi "s#^test = .*#test = \"id -un > $T/who; touch $O/pwn; echo x >> $O/a; test ! -e BAD\"#" "$O/release.toml"; rc=$(run approve X); chmod 777 "$T"
 wt bad; S2=$(commit bad BAD x); M1=$(head_); : > "$T/post.log"; before=$(snap)
 mark bad "$S2"; rc=$(run run)
 ok "4 the gate runs as the separate user, not root" '[ "$(cat "$T/who")" = nobody ]'
@@ -50,7 +51,7 @@ n=$(grep -c START "$T/log"); rc=$(run run)
 ok "4e the same sha is not run again, no second letter" '[ "$(grep -c START "$T/log")" = "$n" ] && [ "$(grep -c "NOT merged" "$T/post.log")" = 1 ]'
 g "$T/wt-bad" rm -q BAD; g "$T/wt-bad" commit -qm fix; S3=$(g "$T/wt-bad" rev-parse HEAD); mark bad "$S3"; rc=$(run run)
 ok "5 new sha after red -> green, .failed removed" 'g "$O" merge-base --is-ancestor "$S3" master && [ ! -e "$S/queue/Project-X/bad.ready.failed" ]'
-sed -i "s#^test = .*#test = \"test ! -e BAD\"#" "$O/release.toml"; rc=$(run approve X); g "$O" add -A; g "$O" diff --cached --quiet || g "$O" commit -qm toml
+sedi "s#^test = .*#test = \"test ! -e BAD\"#" "$O/release.toml"; rc=$(run approve X); g "$O" add -A; g "$O" diff --cached --quiet || g "$O" commit -qm toml
 
 wt c1; S4=$(commit c1 a 1); wt c2; S5=$(commit c2 a 2)
 : > "$T/post.log"; mark c1 "$S4"; rc=$(run run); M2=$(head_); mark c2 "$S5"; rc=$(run run)
@@ -62,7 +63,7 @@ ok "7 markers with a missing or malformed sha -> red, nothing executed" '[ -e "$
 rm -f "$S/queue/Project-X/"*
 
 # 8 the toml was edited after the approval
-wt d2; S6=$(commit d2 c c); M3=$(head_); cp "$O/release.toml" "$T/toml.bak"; sed -i "s#^test = .*#test = \"touch $T/pwn2\"#" "$O/release.toml"; mark d2 "$S6"; rc=$(run run)
+wt d2; S6=$(commit d2 c c); M3=$(head_); cp "$O/release.toml" "$T/toml.bak"; sedi "s#^test = .*#test = \"touch $T/pwn2\"#" "$O/release.toml"; mark d2 "$S6"; rc=$(run run)
 ok "8 a substituted command is not executed" '[ ! -e "$T/pwn2" ] && [ "$(head_)" = "$M3" ] && grep -q "\"unapproved\"" "$S/Project-X.json"'
 
 # 9 master moved during the gate -> not lost: next pass is green on the new master
@@ -70,10 +71,10 @@ cat > "$T/mover.sh" <<E
 until [ -e "$T/moved" ]; do sleep 0.1; done
 /usr/bin/git -c safe.directory='*' -C "$O" commit -q --allow-empty -m moved-during-gate
 E
-sed -i "s#^test = .*#test = \"touch $T/moved; sleep 2\"#" "$O/release.toml"; rc=$(run approve X); rm -f "$T/moved"; bash "$T/mover.sh" & mv_pid=$!
+sedi "s#^test = .*#test = \"touch $T/moved; sleep 2\"#" "$O/release.toml"; rc=$(run approve X); rm -f "$T/moved"; bash "$T/mover.sh" & mv_pid=$!
 rc=$(run run); wait $mv_pid
 ok "9 master moved during the gate -> retry, marker stays" 'grep -q "\"retry\"" "$S/Project-X.json" && [ -e "$S/queue/Project-X/d2.ready" ] && ! g "$O" merge-base --is-ancestor "$S6" master'
-sed -i "s#^test = .*#test = \"true\"#" "$O/release.toml"; rc=$(run approve X); rc=$(run run)
+sedi "s#^test = .*#test = \"true\"#" "$O/release.toml"; rc=$(run approve X); rc=$(run run)
 ok "9b next pass -> green, both commits in master" 'g "$O" merge-base --is-ancestor "$S6" master && g "$O" log --format=%s | grep -q moved-during-gate'
 
 # 10 an uncommitted change blocks the ff -> red with the reason, the human's work is intact
@@ -95,10 +96,10 @@ ok "12 monorepo folder and broken toml -> reasons in the log" 'grep -q "Project-
 rm -rf "$R/Project-Mono" "$R/Project-Z"
 wt d4; S8=$(commit d4 f f); mark d4 "$S8"; (cd "$R" && env_ CCM_RELEASER_USER=no-such-user python3 "$REL" run) > "$T/out" 2>&1
 ok "13 no such user -> nothing run, marker intact" 'grep -q "user no-such-user does not exist" "$T/log" && [ -e "$S/queue/Project-X/d4.ready" ] && ! g "$O" merge-base --is-ancestor "$S8" master'
-printf 'links = ["../../etc", "node_modules"]\n' >> "$O/release.toml"; mkdir "$O/node_modules"; sed -i 's#^test = .*#test = "test -L node_modules \&\& test ! -e etc"#' "$O/release.toml"; rc=$(run approve X); rc=$(run run)
+printf 'links = ["../../etc", "node_modules"]\n' >> "$O/release.toml"; mkdir "$O/node_modules"; sedi 's#^test = .*#test = "test -L node_modules \&\& test ! -e etc"#' "$O/release.toml"; rc=$(run approve X); rc=$(run run)
 ok "14 links: own path as a symlink, one with .. skipped, green" 'g "$O" merge-base --is-ancestor "$S8" master && grep -q "links .* is outside the project" "$T/log"'
 # 15 run_as in the toml does nothing: root cannot be chosen
-printf 'run_as = "root"\n' >> "$O/release.toml"; sed -i "s#^test = .*#test = \"id -un > $T/who2\"#" "$O/release.toml"; rc=$(run approve X); wt d5; S9=$(commit d5 g g); mark d5 "$S9"; rc=$(run run)
+printf 'run_as = "root"\n' >> "$O/release.toml"; sedi "s#^test = .*#test = \"id -un > $T/who2\"#" "$O/release.toml"; rc=$(run approve X); wt d5; S9=$(commit d5 g g); mark d5 "$S9"; rc=$(run run)
 ok "15 run_as = root is ignored, the gate runs as the separate user" '[ "$(cat "$T/who2")" = nobody ]'
 # 16 a non-root user cannot approve (the code is copied into the sandbox: the unprivileged user may not read the checkout)
 mkdir -p "$T/code/scripts" "$T/code/lib"; cp "$REL" "$T/code/scripts/releaser.py"; cp "$(dirname "$REL")/../lib/ccm_conf.py" "$T/code/lib/"; chmod -R a+rX "$T/code"

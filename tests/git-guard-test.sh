@@ -31,7 +31,7 @@ ok "9c nested repo: push is not blocked by the wrapper (not 88)" "$([ "$(g "$N" 
 ok "9d nested repo: reset --hard is not blocked (not 88)" "$([ "$(g "$N" reset --hard)" = 88 ] && echo 88 || echo ok)" ok
 ok "10 status in the shared repo -> 0"                "$(g "$M" status --short)" 0
 ok "11 reset --hard in the shared repo -> 88"         "$(g "$M" reset --hard)" 88
-ok "12 no remote left in the shared repo after the attempts" "$(rg_ -C "$M" remote | wc -l)" 0
+ok "12 no remote left in the shared repo after the attempts" "$(rg_ -C "$M" remote | wc -l | tr -d " ")" 0
 # remote blocking is OFF unless the key is set
 ok "12b CCM_GIT_GUARD_BLOCK_REMOTE=0 -> remote add allowed in the shared repo" "$(CCM_GIT_GUARD_BLOCK_REMOTE=0 g "$M" remote add okremote https://example.com/z.git)" 0
 rg_ -C "$M" remote remove okremote

@@ -27,7 +27,7 @@ ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $
 printf 'T=%s\n' "$FAKE" > "$W/scripts/first-leak.sh"
 rc=$(run); ok "0 secret already in the FIRST snapshot (no HEAD): taken out, the rest committed" '[ "$rc" = 0 ] && ! gl ls-files | grep -q first-leak.sh && gl ls-files | grep -q s1.sh'
 rm "$W/scripts/first-leak.sh"; rm -rf "$T/mech.git"; : > "$T/posted"
-rc=$(run); ok "1 first snapshot: rc 0, 13 files in the commit" '[ "$rc" = 0 ] && [ "$(gl ls-files | wc -l)" = 13 ]'
+rc=$(run); ok "1 first snapshot: rc 0, 13 files in the commit" '[ "$rc" = 0 ] && [ "$(gl ls-files | wc -l | tr -d " ")" = 13 ]'
 ok "1b run from a cwd inside the tree (as cron): files are IN the commit, not only in the index" '[ "$(gl ls-tree -r --name-only HEAD | grep -c "^scripts/")" = 12 ]'
 rc=$(run); ok "2 no changes: rc 0, no new commit" '[ "$rc" = 0 ] && [ "$(gl rev-list --count HEAD)" = 1 ]'
 echo 'echo changed' >> "$W/scripts/s1.sh"; printf 'T=%s\n' "$FAKE" > "$W/scripts/leak.sh"
@@ -43,7 +43,7 @@ gl reset -q; rm "$W/scripts/manual.sh"
 rc=$(WLX="$WL"$'\nlib/*' run)
 ok "6a a pattern without files -> rc 3, the letter names exactly it" '[ "$rc" = 3 ] && grep -q "lib/\*" "$T/posted" && ! grep -q "scripts/\*.sh" "$T/posted"'
 n1=$(wc -l < "$T/posted"); rc=$(WLX="$WL"$'\nlib/*' run)
-ok "6b the same letter is not sent twice a day" '[ "$(wc -l < "$T/posted")" = "$n1" ]'
+ok "6b the same letter is not sent twice a day" '[ "$(wc -l < "$T/posted" | tr -d " ")" = "$n1" ]'
 rc=$(WLX="scripts/*.sh" MECH_MIN_FILES=50 run)
 ok "6c fewer files than MECH_MIN_FILES -> rc 3 (broken instrument, no false green)" '[ "$rc" = 3 ]'
 rc=$(WLX="$WL"$'\n'"${T#/}/ws/*.md" run)

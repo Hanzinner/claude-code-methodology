@@ -18,7 +18,7 @@ fi
 [[ -n "${INSTALL:-}" ]] || { echo "install-deps-test: SKIP (no clone with install.sh: set CCM_REPO_DIR=<clone> - nothing was tested)"; exit 0; }
 REPO=$(cd "$(dirname "$INSTALL")" && pwd)
 T=$(mktemp -d) || exit 2; [[ -d "$T" ]] || exit 2; trap 'rm -rf "$T"' EXIT
-for v in $(compgen -e | grep '^CCM_\|^CLAUDE_METHODOLOGY_'); do unset "$v"; done   # a setting from this machine would beat the test's
+for v in $(compgen -e | grep -e '^CCM_' -e '^CLAUDE_METHODOLOGY_'); do unset "$v"; done   # a setting from this machine would beat the test's
 unset TAVILY_API_KEY EXA_API_KEY
 export CCM_TEST=1
 # stand-in bashes; the cases 0-10 run with a 4+ one, so the bash check stays out of their way on any machine (a Mac
@@ -54,7 +54,7 @@ ok "0 the fake PATH lacks flock/timeout/gtimeout/perl/setsid/crontab, has python
 mkdir -p "$T/h1"; out=$(inst "$T/bin" "$T/h1"); rc=$?
 ok "1 no flock/timeout/setsid/crontab -> the install goes on, exit 0 (rc=$rc)" '[ $rc = 0 ] && [ -f "$T/h1/.claude/settings.json" ] && [ -f "$T/h1/.claude/hooks/hook-safe.sh" ]'
 ok "2 a 'missing:' line for timeout and crontab; none for flock, setsid (they have fallbacks)" \
-   'grep -q "^ *missing: timeout — " <<<"$out" && grep -q "^ *missing: crontab — " <<<"$out" && ! grep -q "missing: flock\|missing: setsid" <<<"$out"'
+   'grep -q "^ *missing: timeout — " <<<"$out" && grep -q "^ *missing: crontab — " <<<"$out" && ! grep -q -e "missing: flock" -e "missing: setsid" <<<"$out"'
 ok "3 each line names what stops: timeout -> hook-safe.sh, crontab -> the scheduled jobs" \
    'grep "missing: timeout" <<<"$out" | grep -q "hook-safe.sh" && grep "missing: crontab" <<<"$out" | grep -q "scheduled job"'
 ok "4 commands that are there are not listed (python3)" '! grep -q "missing: python3" <<<"$out"'

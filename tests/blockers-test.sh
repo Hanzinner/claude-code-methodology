@@ -29,6 +29,7 @@ B
 printf '#!/bin/sh\necho "$1 $(cat)" >> %s/post.log\n' "$T" > "$T/post"; chmod +x "$T/post"
 run() { (cd "$R" && BLOCKERS_REPO="$R" BLOCKERS_POST="$T/post" BLOCKERS_STATE="$T/state" python3 "$BL" "$@") > "$T/out" 2>&1; echo $?; }
 LOG="$T/state/blockers.log"
+sedi() { local f; for f; do :; done; sed -i.bak "$@" && rm -f "$f.bak"; }   # sed -i that BSD sed takes too
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; sed 's/^/   /' "$T/out"; fi; }
 run approve X B1 >/dev/null; run approve X B3 >/dev/null
@@ -67,9 +68,9 @@ rc=$(run run --dry); ok "10b --dry does not run it either" '[ ! -e "$T/pwn" ]'
 rc=$(run run); ok "10c one message to the lead per command" '[ "$(grep -c "^X-HQ .*B20" "$T/post.log")" = 1 ]'
 rc=$(run approve X B20); ok "11 approve prints the command, the next pass runs it" '[ "$rc" = 0 ] && grep -q "touch" "$T/out" && [ "$(run run)" = 0 ] && [ -e "$T/pwn" ] && grep -q "^| ✅ B20 |" "$R/Project-X/BLOCKERS.md"'
 rm -f "$T/pwn2"; printf '| B21 | swap | someone | `test -e %s/nope` | 2026-11-02 | |\n' "$T" >> "$R/Project-X/BLOCKERS.md"
-rc=$(run approve X B21); sed -i "s#test -e $T/nope#touch $T/pwn2#" "$R/Project-X/BLOCKERS.md"
+rc=$(run approve X B21); sedi "s#test -e $T/nope#touch $T/pwn2#" "$R/Project-X/BLOCKERS.md"
 rc=$(run run); ok "12 an approved command was swapped in the file -> the new one is not run" '[ ! -e "$T/pwn2" ] && grep -q "^| B21 |" "$R/Project-X/BLOCKERS.md"'
-sed -i "s#touch $T/pwn2#true#" "$R/Project-X/BLOCKERS.md"; rc=$(run approve X B21); chmod 644 "$T/state/approved-checks.json"; rc=$(run run)
+sedi "s#touch $T/pwn2#true#" "$R/Project-X/BLOCKERS.md"; rc=$(run approve X B21); chmod 644 "$T/state/approved-checks.json"; rc=$(run run)
 if (( WIN )); then echo "SKIP on Windows: 13 approvals file mode 644 - NTFS keeps no Unix mode (the Windows rule is in tests/windows-py-test.py g1-g3)"
 else ok "13 approvals file open to others -> nothing is run" 'grep -q "^| B21 |" "$R/Project-X/BLOCKERS.md" && grep -q "not owner-only 0600" "$LOG"'; fi
 chmod 600 "$T/state/approved-checks.json"

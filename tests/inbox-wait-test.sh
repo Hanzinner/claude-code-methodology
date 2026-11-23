@@ -3,6 +3,7 @@
 # pid file, keeps one alarm per agent/tab, honours the modes. IW=<path> tests another copy. Sandbox only.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
+. "$HERE/../lib/ccm_compat.sh"   # ccm_timeout: a stock macOS has no timeout
 IW=${IW:-$HERE/../scripts/inbox_wait.sh}
 T=$(mktemp -d) || exit 2; trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_AGENTS_DIR="$T/Agents" ALARM_MODE_DIR="$T/mode" INBOX_WAIT_POLL=1 CCM_TEST=1
@@ -41,7 +42,7 @@ ok "--until in 2 h with a 3 s ceiling -> \"served its link... N min left... star
 # one alarm per agent: a second one with a live first exits at once, the pid file stays with the first
 inbox ""
 bash "$IW" T --max 30 >/dev/null 2>&1 & p1=$!
-armed T $p1; out=$(timeout 10 bash "$IW" T --max 60 2>&1); rc=$?
+armed T $p1; out=$(ccm_timeout 10 bash "$IW" T --max 60 2>&1); rc=$?
 ok "a second with a live first -> at once, \"already armed (pid ...)\", rc 0" '[[ $rc == 0 && $out == *"already armed (pid $p1)"* ]]'
 ok "...the pid file stayed with the first" '[[ "$(cat "$HOME/.claude/inbox-wait/T" 2>/dev/null)" == "$p1" ]]'
 kill $p1 2>/dev/null; wait $p1 2>/dev/null; rm -f "$HOME/.claude/inbox-wait/T"
@@ -64,14 +65,14 @@ kill $pu 2>/dev/null; wait $pu 2>/dev/null
 mkdir -p "$T/fake"; cp /bin/bash "$T/fake/claude"
 # "; true" - a second command: otherwise bash -c execs and "claude" disappears from the chain
 "$T/fake/claude" -c "bash $(printf %q "$IW") T --max 120; true" >/dev/null 2>&1 & pf=$!; armed T; p1=$(cat "$HOME/.claude/inbox-wait/T" 2>/dev/null)
-out=$(timeout 60 bash "$IW" T --max 3 2>&1); rc=$?
+out=$(ccm_timeout 60 bash "$IW" T --max 3 2>&1); rc=$?
 ok "another tab: \"armed in ANOTHER tab\" and my own alarm ran" '[[ -n $p1 && $out == *"ANOTHER tab (pid $p1)"* && $out == *"of waiting passed"* ]]'
 ok "...the pid file stayed with the other tab's alarm (my exit did not erase it)" '[[ "$(cat "$HOME/.claude/inbox-wait/T" 2>/dev/null)" == "$p1" ]]'
 kill $p1 $pf 2>/dev/null; wait $pf 2>/dev/null; rm -f "$HOME/.claude/inbox-wait/T"
 
 # an old name via .aliases -> the same inbox, the pid file under the real name
 printf '# was\nOldT\n' > "$T/Agents/T/.aliases"
-out=$(timeout 30 bash "$IW" OldT --max 2 2>&1); rc=$?
+out=$(ccm_timeout 30 bash "$IW" OldT --max 2 2>&1); rc=$?
 ok "an old name via .aliases -> the alarm works under the real name, not \"no inbox found\"" '[[ $out != *"no inbox found"* && $rc != 2 ]]'
 out=$(bash "$IW" Nobody-Here --max 2 2>&1); rc=$?
 ok "unknown agent -> rc 2" '[[ $rc == 2 && $out == *"no inbox found"* ]]'
