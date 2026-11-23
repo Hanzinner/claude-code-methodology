@@ -1,5 +1,6 @@
-# Install smoke test and the repo's tests on Linux (the reference) and macOS (stock /bin/bash 3.2, BSD tools).
-# Runs on every push and by hand. Nothing here needs a secret.
+# Install smoke test and the repo's tests on Linux (the reference), macOS as GitHub gives it (Homebrew bash 5 and GNU
+# tools on PATH) and "macos stock": PATH cut to the system dirs, as on a Mac without Homebrew (/bin/bash 3.2, BSD stat,
+# date, readlink; no timeout, flock). Runs on every push and by hand. Nothing here needs a secret.
 name: platforms
 on:
   push:
@@ -11,7 +12,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - { name: linux, os: ubuntu-latest, path: "" }
+          - { name: macos-brew, os: macos-latest, path: "" }
+          - { name: macos-stock, os: macos-latest, path: "/usr/bin:/bin:/usr/sbin:/sbin" }
+    name: smoke (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -19,12 +24,20 @@ jobs:
       - name: install smoke test (throwaway HOME)
         env:
           SMOKE_CRON: "1"
-        run: bash tests/platform-smoke.sh
+          STOCK_PATH: ${{ matrix.path }}
+        shell: /bin/bash {0}
+        run: |
+          [ -n "$STOCK_PATH" ] && export PATH="$STOCK_PATH"
+          echo "PATH=$PATH"; /bin/bash tests/platform-smoke.sh
   tests:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - { name: linux, os: ubuntu-latest, path: "" }
+          - { name: macos-brew, os: macos-latest, path: "" }
+          - { name: macos-stock, os: macos-latest, path: "/usr/bin:/bin:/usr/sbin:/sbin" }
+    name: tests (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
@@ -32,19 +45,22 @@ jobs:
       - name: repo tests (each file on its own; the list of failures is at the end)
         env:
           CCM_TEST: "1"
+          STOCK_PATH: ${{ matrix.path }}
+        shell: /bin/bash {0}
         run: |
-          set +e   # one red test must not stop the loop
-          # macOS has no `timeout`: perl's alarm does the same on both
+          [ -n "$STOCK_PATH" ] && export PATH="$STOCK_PATH"
+          # macOS has no `timeout`: perl's alarm does the same everywhere (one red test must not stop the loop: no -e)
           limit() { perl -e 'alarm shift; exec @ARGV or die "exec: $!"' 300 "$@"; }
-          fails=()
+          fails=""; n=0
           for t in tests/*-test.sh tests/*-test.py; do
             case $t in *install-windows-test.sh) continue ;; esac
+            n=$((n+1))
             echo "::group::$t"
-            if [[ $t == *.py ]]; then limit python3 "$t"; else limit bash "$t"; fi
+            if [ "${t%.py}" != "$t" ]; then limit python3 "$t"; else limit /bin/bash "$t"; fi
             rc=$?
             echo "::endgroup::"
-            [[ $rc == 0 ]] || { echo "::error::$t rc=$rc"; fails+=("$t"); }
+            [ $rc = 0 ] || { echo "::error::$t rc=$rc"; fails="$fails $t"; }
           done
-          echo "failed: ${#fails[@]}"; printf '  %s\n' "${fails[@]}"
-          [[ ${#fails[@]} == 0 ]]
-        shell: bash
+          set -- $fails
+          echo "ran $n, failed $#:"; for f in "$@"; do echo "  $f"; done
+          [ $# = 0 ]

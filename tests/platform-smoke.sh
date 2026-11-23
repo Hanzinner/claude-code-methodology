@@ -20,7 +20,8 @@ locale -a 2>/dev/null | grep -i -E '^c\.utf-?8$' >/dev/null && echo "  locale C.
 
 echo "== install"
 CRON=(--no-cron); [[ "${SMOKE_CRON:-0}" = 1 ]] && CRON=()   # CI: the runner's own crontab; by hand: never touch yours
-( cd "$REPO" && ./install.sh --user --yes "${CRON[@]}" </dev/null ) > "$T/install.log" 2>&1; rc=$?
+# ${CRON[@]+...} below: on bash 3.2 (stock macOS) "${CRON[@]}" of an empty array under set -u is an error
+( cd "$REPO" && ./install.sh --user --yes ${CRON[@]+"${CRON[@]}"} </dev/null ) > "$T/install.log" 2>&1; rc=$?
 echo "install exit=$rc"; tail -30 "$T/install.log"; [[ $rc = 0 ]] || bad=1
 
 echo "== check-install"
