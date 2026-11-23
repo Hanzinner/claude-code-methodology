@@ -1,6 +1,6 @@
-# Install smoke test and the repo's tests on Linux (the reference), macOS as GitHub gives it (Homebrew bash 5 and GNU
-# tools on PATH) and "macos stock": PATH cut to the system dirs, as on a Mac without Homebrew (/bin/bash 3.2, BSD stat,
-# date, readlink; no timeout, flock). Runs on every push and by hand. Nothing here needs a secret.
+# Install smoke test and the repo's tests on Linux (the reference) and "macos stock": PATH cut to the system dirs, as on
+# a Mac without Homebrew (/bin/bash 3.2, BSD stat, date, readlink; no timeout, flock). A plain macos-latest job without
+# the cut gave the same /bin/bash 3.2 (no Homebrew bash on the runner) and only doubled the wait for macOS runners. Runs on every push and by hand. Nothing here needs a secret.
 name: platforms
 on:
   push:
@@ -14,7 +14,6 @@ jobs:
       matrix:
         include:
           - { name: linux, os: ubuntu-latest, path: "" }
-          - { name: macos-brew, os: macos-latest, path: "" }
           - { name: macos-stock, os: macos-latest, path: "/usr/bin:/bin:/usr/sbin:/sbin" }
     name: smoke (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -36,7 +35,6 @@ jobs:
       matrix:
         include:
           - { name: linux, os: ubuntu-latest, path: "" }
-          - { name: macos-brew, os: macos-latest, path: "" }
           - { name: macos-stock, os: macos-latest, path: "/usr/bin:/bin:/usr/sbin:/sbin" }
     name: tests (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
