@@ -1,0 +1,50 @@
+# Install smoke test and the repo's tests on Linux (the reference) and macOS (stock /bin/bash 3.2, BSD tools).
+# Runs on every push and by hand. Nothing here needs a secret.
+name: platforms
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: install smoke test (throwaway HOME)
+        env:
+          SMOKE_CRON: "1"
+        run: bash tests/platform-smoke.sh
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: repo tests (each file on its own; the list of failures is at the end)
+        env:
+          CCM_TEST: "1"
+        run: |
+          set +e   # one red test must not stop the loop
+          # macOS has no `timeout`: perl's alarm does the same on both
+          limit() { perl -e 'alarm shift; exec @ARGV or die "exec: $!"' 300 "$@"; }
+          fails=()
+          for t in tests/*-test.sh tests/*-test.py; do
+            case $t in *install-windows-test.sh) continue ;; esac
+            echo "::group::$t"
+            if [[ $t == *.py ]]; then limit python3 "$t"; else limit bash "$t"; fi
+            rc=$?
+            echo "::endgroup::"
+            [[ $rc == 0 ]] || { echo "::error::$t rc=$rc"; fails+=("$t"); }
+          done
+          echo "failed: ${#fails[@]}"; printf '  %s\n' "${fails[@]}"
+          [[ ${#fails[@]} == 0 ]]
+        shell: bash
