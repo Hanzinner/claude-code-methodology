@@ -1,6 +1,6 @@
 # Coding standard
 
-**Version: 2** (2026-11). An agent confirms it in its briefing with the line `Standard: v2 read <date>`; when the version grows, it reads the new entries under "Changelog" at the bottom and updates the line (`scripts/standard_version.py` shows who is behind).
+**Version: 3** (2026-11). An agent confirms it in its briefing with the line `Standard: v2 read <date>`; when the version grows, it reads the new entries under "Changelog" at the bottom and updates the line (`scripts/standard_version.py` shows who is behind).
 
 **Audience: anyone who writes code, a script, a hook, a site or a detection rule.** One file for yourself or a shared mechanism, no difference. These are rules about the code itself and about proving it works.
 
@@ -191,3 +191,4 @@ A rule nobody guards, agents do not follow (measured). A new item in this file i
 
 - **v1** (2026-11) — first public version: the core path of a change, handing in with a run proof, who guards what.
 - **v2** (2026-11-16) — project-work, core 2a: before the first code edit in a project take the task (`scripts/take_task.sh <project> <story>`); an edit without a task goes to a journal; at most 2 tasks in progress. What to do: take a task before editing; update your line to `Standard: v2`.
+- **v3** (2026-11-23) — project-work, core 3a: a story the operator judges by eye is marked 👁; order: show (the cheapest way) → "yes" → tests → PR; the executor shows it directly; a `preview` command in `release.toml`; a third build for pictures without a "yes" stops. What to do: mark open stories with a look 👁, fill `preview` in `release.toml` (`"none"` if nothing to look at); update "Standard: v3".
