@@ -106,3 +106,9 @@ Setup these come from: a Linux VM on a Windows Hyper-V host, driven over SSH (pl
 - **Why:** Hyper-V allocates a 32 MB block on first write and doesn't give it back until it's entirely empty. Linux scatters temporary files across the whole disk. `Optimize-VHD` returns only entirely empty blocks (after `fstrim`).
 - **Right way:** `resize2fs` to the wanted size from initramfs (local-premount, before the root is mounted), cut the partition with `sfdisk -N`, run `blkdiscard -f` on the freed gap (without `-f`: "device busy"), then `Optimize-VHD`.
 - **Traps:** `parted -s` refuses to shrink (needs `---pretend-input-tty`); a `resize2fs` failure in a script without `pipefail` passes unnoticed; after cutting the partition the `/dev/sdaN` node disappears and reappears (use `udevadm settle` + a wait loop); a failure after `resize2fs` is a `panic`, not a normal boot (the filesystem may be half-moved); a `resize2fs -z` undo file needs space on another disk.
+
+### `df` inside WSL or a guest shows the virtual disk's ceiling, not the host's free space
+- **Symptom:** `df -h /` in WSL reports ~900 GB free while the host drive holding `ext4.vhdx` has 10 GB left; a big write then fails or freezes the guest.
+- **Why:** a dynamic virtual disk reports its maximum size (1 TB for WSL by default); the real limit is the free space of the host drive the file lives on.
+- **Right way:** free space for a guest is measured on the host (`Get-PSDrive` / `Get-Volume` in PowerShell for the drive holding the `.vhdx`), before any large write.
+- **Seen:** once.
