@@ -13,8 +13,9 @@
 # Settings (methodology.conf or env): CCM_WORKSPACE, CCM_AGENTS_DIR, CCM_PROJECTS_GLOB (default Project-*), and these optional ones,
 # empty = the step is skipped:
 #   CCM_REGISTER_AGENT       an executable that creates one agent (called with the agent name); empty = built-in scaffold
-#   CCM_PROJECT_WATCH_DOCS   space-separated docs added to every new agent's .watchlist (e.g. a team-work doc)
-#   CCM_PROJECT_WATCH_DOCS_HQ  the same, for the lead only
+#   CCM_PROJECT_WATCH_DOCS   space-separated docs added to every new agent's .watchlist; empty = CODING-STANDARD.md and
+#                            PROJECT-WORK.md, those of them the installer put in the workspace; "none" = no .watchlist
+#   CCM_PROJECT_WATCH_DOCS_HQ  the same, for the lead only (no default)
 #   CCM_WORK_GUARD_AGENTS    a file with one agent per line (an "alarm" list); new agents are appended
 #   CCM_PROJECTS_SITE        a local address of a projects page; only mentioned in the final message
 # A lead agent created in advance is attached, not refused (its briefing and todo are not touched).
@@ -30,6 +31,10 @@ GLOB=${CCM_PROJECTS_GLOB:-$(conf_get CCM_PROJECTS_GLOB)}; GLOB=${GLOB:-Project-*
 PREFIX=${GLOB%%\**}
 REG=${CCM_REGISTER_AGENT:-$(conf_get CCM_REGISTER_AGENT)}
 DOCS=${CCM_PROJECT_WATCH_DOCS:-$(conf_get CCM_PROJECT_WATCH_DOCS)}
+# the team-work rules: a new project agent reads them first and gets told when they change (an empty .watchlist used to
+# leave a new lead not knowing it is the lead)
+TEAM_DOCS=(); for d in PROJECT-WORK.md CODING-STANDARD.md; do [[ -f "$REPO/$d" ]] && TEAM_DOCS+=("$d"); done
+if [[ -z "$DOCS" ]]; then DOCS="${TEAM_DOCS[*]}"; elif [[ "$DOCS" == none ]]; then DOCS=""; fi
 DOCS_HQ=${CCM_PROJECT_WATCH_DOCS_HQ:-$(conf_get CCM_PROJECT_WATCH_DOCS_HQ)}
 WGA=${CCM_WORK_GUARD_AGENTS:-$(conf_get CCM_WORK_GUARD_AGENTS)}
 SITE=${CCM_PROJECTS_SITE:-$(conf_get CCM_PROJECTS_SITE)}
@@ -117,13 +122,20 @@ fi
 
 # ---- agents: a registrar hook, or the built-in scaffold from swarm-template/Agents/_example-agent
 scaffold() {   # scaffold <agent> <lead|member>
-    local a=$1 ad="$AGENTS_DIR/$1"
+    local a=$1 ad="$AGENTS_DIR/$1" role read d
     mkdir -p "$ad"
+    if [[ "$2" == lead ]]; then
+        role="the lead of project $name: the only one who talks to the operator about its plan, priorities and team; writes the stories in ROADMAP.md, hands out work, accepts it (showing a look goes from the executor to the operator directly)"
+    else
+        role="works in project $name: takes tasks from the lead $hq; a story the operator judges by eye is shown to the operator directly, tests come after the yes"
+    fi
+    read="$D/ROADMAP.md"
+    for d in "${TEAM_DOCS[@]}"; do read+=", $REPO/$d (the CORE first)"; done
     cat > "$ad/briefing.md" <<E
 # $a - briefing
 
-> Role in one line: $( [[ "$2" == lead ]] && echo "the lead of project $name" || echo "works in project $name" ).
-> Read first: $D/ROADMAP.md
+> Role in one line: $role.
+> Read first: $read
 
 ## Owns
 - The files and domains of project $name that the lead assigns (the lead keeps $D/OWNERS if there is one).

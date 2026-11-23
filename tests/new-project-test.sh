@@ -47,4 +47,8 @@ rc=$(run Nope); ok "11 neither --own-repo nor --no-code -> rc 2 with the hint, n
 rc=$(run --own-repo --no-code Both); ok "11b both together -> rc 2" '[ "$rc" = 2 ] && [ ! -e "$R/Project-Both" ]'
 rc=$(envs bash "$NP" --no-code Mini > "$T/out" 2>&1; echo $?); ok "12 no optional keys set -> works, no alarm file, no .watchlist" '[ "$rc" = 0 ] && [ ! -e "$R/Agents/Mini-HQ/.watchlist" ]'
 rc=$(envs CCM_PROJECTS_SITE=projects.example.lan bash "$NP" --no-code Site > "$T/out" 2>&1; echo $?); ok "12b projects site key -> mentioned once" '[ "$rc" = 0 ] && grep -q "projects.example.lan" "$T/out"'
+touch "$R/PROJECT-WORK.md" "$R/CODING-STANDARD.md"
+rc=$(envs bash "$NP" --no-code Team > "$T/out" 2>&1; echo $?); ok "13 team docs in the workspace, no key -> both agents watch them, briefing points to them, lead knows it is the lead" '[ "$rc" = 0 ] && ( for a in Team-HQ Team-Dev; do grep -qx PROJECT-WORK.md "$R/Agents/$a/.watchlist" && grep -qx CODING-STANDARD.md "$R/Agents/$a/.watchlist" && grep -q "^> Read first: .*ROADMAP.md, .*PROJECT-WORK.md (the CORE first)" "$R/Agents/$a/briefing.md" || exit 1; done ) 2>/dev/null && grep -q "talks to the operator about its plan, priorities and team" "$R/Agents/Team-HQ/briefing.md" && grep -q "takes tasks from the lead Team-HQ" "$R/Agents/Team-Dev/briefing.md"'
+rc=$(envs CCM_PROJECT_WATCH_DOCS=none bash "$NP" --no-code Quiet > "$T/out" 2>&1; echo $?); ok "13b CCM_PROJECT_WATCH_DOCS=none -> no .watchlist, briefing still points to the docs" '[ "$rc" = 0 ] && [ ! -e "$R/Agents/Quiet-HQ/.watchlist" ] && grep -q "PROJECT-WORK.md" "$R/Agents/Quiet-HQ/briefing.md"'
+rm "$R/PROJECT-WORK.md" "$R/CODING-STANDARD.md"
 echo "new-project: $pass pass, $fail fail"; [ $fail = 0 ]

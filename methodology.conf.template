@@ -48,6 +48,8 @@ CCM_INPUT_GUARD_MUTE=""                 # input-guard: file with agent names to 
 
 # ---- several agents (layer 2) ----
 CCM_PROJECTS_GLOB="Project-*"           # project folders in the workspace, one repo each
+CCM_PROJECT_WATCH_DOCS=""               # new_project.sh: docs every new project agent watches; empty = CODING-STANDARD.md PROJECT-WORK.md (those in the workspace), "none" = off
+CCM_PROJECT_WATCH_DOCS_HQ=""            # the same, for the lead only
 CCM_WORK_GUARD_AGENTS=""                # file with agent names (one per line) that must not stop with open work; empty = off
 CCM_STATUS_GUARD_AGENTS=""              # coordinator agents (comma-separated) whose "story is X / waiting for you" needs a source run; empty = off
 CCM_ALARM_MODE_DIR=""                   # per-agent alarm mode files; empty = ~/.claude/alarm-mode
