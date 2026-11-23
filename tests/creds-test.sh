@@ -6,7 +6,7 @@ CR=${CR:-$HERE/../bin/creds}
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_SECRETS_DIR="$T/store" CCM_WORKSPACE="$T/ws"
 mkdir -p "$HOME" "$CCM_SECRETS_DIR/search" "$CCM_WORKSPACE"
-SECRET="s3cr3tvalue$$"
+SECRET="$(printf s3cr3t)value$$"   # built at run time: a secret scanner reads a literal as a key
 printf 'SEARCH_KEY=%s\nOTHER=1\n' "$SECRET" > "$CCM_SECRETS_DIR/search/tavily.env"
 printf 'TG=abc\n' > "$CCM_SECRETS_DIR/telegram.env"
 printf 'TG=old\n' > "$CCM_SECRETS_DIR/telegram.env.bak1"

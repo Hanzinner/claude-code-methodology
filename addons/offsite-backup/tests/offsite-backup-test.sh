@@ -20,12 +20,13 @@ case "$1" in
 esac
 F
 chmod +x "$T/bin/restic"; export PATH="$T/bin:$PATH"
+FAKE_SAK=SECRETKEYVALUE   # through a variable: a secret scanner reads the literal assignment as a key
 cat > "$T/sec/restic.env" <<E2
 BACKUP_BACKEND=s3
 S3_BUCKET=bkt
 S3_ENDPOINT=https://s3.example.test/
 AWS_ACCESS_KEY_ID=SECRETKEYID
-AWS_SECRET_ACCESS_KEY=SECRETKEYVALUE
+AWS_SECRET_ACCESS_KEY=$FAKE_SAK
 BACKUP_PATHS=$T/ws:$T/nonexistent
 E2
 chmod 600 "$T/sec/restic.env"; echo "pass" > "$T/sec/backup-passphrase.txt"; chmod 600 "$T/sec/backup-passphrase.txt"

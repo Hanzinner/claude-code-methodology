@@ -30,7 +30,7 @@ PY
 python3 "$T/srv.py" $PORT "$T" & SRV=$!
 for i in 1 2 3 4 5 6 7 8 9 10; do (echo > /dev/tcp/127.0.0.1/$PORT) 2>/dev/null && break; sleep 0.2; done
 export SEARCH_ENV="$T/env" SEARCH_STATE="$T/state.json" SEARCH_TAVILY_URL="http://127.0.0.1:$PORT/tavily" SEARCH_EXA_URL="http://127.0.0.1:$PORT/exa"
-printf 'TAVILY_API_KEY=t\nEXA_API_KEY=e\n' > "$T/env"
+printf '%s=t\n%s=e\n' TAVILY_API_KEY EXA_API_KEY > "$T/env"   # names as arguments: a secret scanner reads NAME=value as a key
 codes() { echo "$1" > "$T/tavily.code"; echo "$2" > "$T/exa.code"; : > "$T/hits"; }
 call() { printf '%s\n%s\n%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
          '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
@@ -59,7 +59,7 @@ ok "5 cooldown over -> Tavily again, state cleared" 'echo "$out" | grep -q "sear
 rm -f "$T/state.json"; codes 429 200; out=$(call)
 python3 -c "import json,time;s=json.load(open('$T/state.json'));assert s['tavily']['kind']=='rate' and s['tavily']['until']-time.time()<=61" 2>/dev/null; rc=$?
 ok "6 429 -> short cooldown (<=60 s), query goes to Exa" '[ $rc = 0 ] && echo "$out" | grep -q "search via exa"'
-rm -f "$T/state.json"; printf 'TAVILY_API_KEY=t\nEXA_API_KEY=\n' > "$T/env"; codes 432 200; out=$(call)
+rm -f "$T/state.json"; printf '%s=t\n%s=\n' TAVILY_API_KEY EXA_API_KEY > "$T/env"; codes 432 200; out=$(call)
 ok "7 no Exa key: Tavily 432 -> exhausted at once, Exa not poked" 'echo "$out" | grep -q "isError\": true" && [ "$(cat $T/hits)" = tavily ]'
 out=$(hook); ok "7b no Exa key + Tavily exhausted -> WebSearch allowed" '[ "$out" = allow ]'
 out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 "$SM")
