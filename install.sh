@@ -25,7 +25,7 @@
 #   --with-offsite-backup        # restic backup of your files to S3-compatible storage: copy to <dir>/addons/offsite-backup/, run its setup (own crontab, no root)
 #   --with-agent-browser         # a headless browser the agents drive: copy to <dir>/addons/agent-browser/, fetch its engine (no root); service/links = setup-agent-browser.sh (root, optional)
 #   --with-net-change            # safe network changes (snapshot, apply, roll back unless confirmed): copy to <dir>/addons/net-change/; setup-net-change.sh needs root
-#   --with-dashboard             # local read-only status page of the agents (127.0.0.1:8765): copy to <dir>/addons/dashboard/ (nothing to set up)
+#   --with-dashboard             # local read-only status page of the agents (127.0.0.1:8765): copy to <dir>/addons/dashboard/, a systemd --user unit started now and after a reboot (linger; no root); no systemd: how to start it by hand
 #   --with-session-hygiene       # daily: trim old tool outputs from large inactive chat files (only sessions the nightly chat backup holds as they are; text never touched): copy to <dir>/addons/session-hygiene/ + a crontab line
 #   --with-reader                # document reader for the workspace (.md/.fb2 in the browser, 127.0.0.1:8001): copy to <dir>/addons/reader/, start it now and after a reboot (crontab, no root)
 #   --no-cron                    # do not touch the crontab (also automatic for an install under a temp dir)
@@ -134,6 +134,14 @@ do_or_show() {  # do_or_show <cmd> <arg>... — arguments are passed as-is, neve
 ON_WINDOWS=0
 case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) ON_WINDOWS=1 ;; esac
 [[ -n "${MSYSTEM:-}" ]] && ON_WINDOWS=1
+# Claude Code's own installer puts claude into ~/.local/bin, and only a login shell's profile adds that to PATH: run over
+# ssh without one, `command -v claude` missed it and the install went on as if there were no claude (no search server).
+# Here, before Python is chosen: every command below then resolves as in a login shell, not python3 from one PATH and
+# claude from another. HOME is still the Git Bash form (/c/Users/...) here, so the entry has no drive colon.
+ORIG_PATH="$PATH"   # the PATH the person's own shells have: the "add ~/.local/bin to PATH" hint below is judged by it
+if [[ -d "$HOME/.local/bin" ]]; then
+  case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH"; export PATH ;; esac
+fi
 py_works() { "$@" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' </dev/null >/dev/null 2>&1; }
 PY=()
 for cand in python3 python "py -3"; do
@@ -199,7 +207,9 @@ fi
 # flock, timeout, setsid, crontab are not on a stock macOS; Git Bash on Windows lacks flock, setsid and crontab. Without
 # them nothing fails loudly (hooks under hook-safe.sh fail open, jobs are not scheduled), so name each one and what it
 # stops, then go on (warn, not die).
-DEPS_MISSING=$(py3 "$REPO_DIR/lib/deps_check.py" 2>&1) || DEPS_MISSING="deps_check.py failed: $DEPS_MISSING"
+# an add-on's own needs only when it is asked for (agent-browser: node, npm, a Chrome/Chromium)
+DEPS_ARGS=(); [[ $WITH_AGENT_BROWSER -eq 1 ]] && DEPS_ARGS+=(--addon agent-browser)
+DEPS_MISSING=$(py3 "$REPO_DIR/lib/deps_check.py" ${DEPS_ARGS[@]+"${DEPS_ARGS[@]}"} 2>&1) || DEPS_MISSING="deps_check.py failed: $DEPS_MISSING"
 if [[ -n "$DEPS_MISSING" ]]; then
   warn "Some system commands are missing — the install goes on, but these parts will not work until you install them:"
   printf '%s\n' "$DEPS_MISSING" | sed 's/^/  /' >&2
@@ -433,7 +443,7 @@ if [[ "$SCOPE" == "user" ]] && compgen -G "$TARGET/bin/*" >/dev/null; then
         printf 'exec %q "$@"\n' "$f"; } > "$l" && chmod +x "$l"
     fi
   done
-  case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) warn "add ~/.local/bin to PATH for the tools (secret-scan, swap-live, creds, rename-ref)" ;; esac
+  case ":$ORIG_PATH:" in *":$HOME/.local/bin:"*) ;; *) warn "add ~/.local/bin to PATH for the tools (secret-scan, swap-live, creds, rename-ref)" ;; esac
 fi
 
 say "Supervisor registry…"
@@ -857,7 +867,15 @@ fi
 if [[ $WITH_DASHBOARD -eq 1 ]]; then
   echo; say "add-on dashboard…"
   copy_addon dashboard "$TARGET/addons/dashboard"
-  ok "dashboard copied — start it: $PY_CMD $TARGET/addons/dashboard/dashboard.py (read-only, 127.0.0.1:8765)"
+  ok "dashboard copied to $TARGET/addons/dashboard (read-only, 127.0.0.1:8765)"
+  # a systemd --user unit + linger, so the page outlives this shell and a reboot; no systemd -> how to start it by hand
+  DB=(bash "$AD_DIR/dashboard/setup-dashboard.sh" ${SETUP_DRY[@]+"${SETUP_DRY[@]}"} --python "$PY_CMD")
+  # under tests both stand-ins, never one: a real loginctl would turn linger on for whoever runs the test
+  if [[ $NO_CRON -eq 1 && ! ( "${CCM_TEST:-}" == 1 && -n "${CCM_SYSTEMCTL:-}" && -n "${CCM_LOGINCTL:-}" ) ]]; then
+    warn "dashboard not started (--no-cron or a temp install dir: nothing runs in the background). Start it: $PY_CMD $TARGET/addons/dashboard/dashboard.py &  - as a service: bash $TARGET/addons/dashboard/setup-dashboard.sh"
+  else
+    "${DB[@]}" || warn "dashboard service not set up (rc $?) - see above; start it by hand: $PY_CMD $TARGET/addons/dashboard/dashboard.py &"
+  fi
 fi
 if [[ $WITH_READER -eq 1 ]]; then
   echo; say "add-on reader…"

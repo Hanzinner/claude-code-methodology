@@ -22,10 +22,15 @@ python3 addons/dashboard/dashboard.py --port 9000 --stale-min 45
 * `ASK` tiles sort first - they are the ones waiting for you.
 * The page has **no login** and shows question text agents typed. It binds to localhost by default; to reach it from
   another device, put your own authenticating reverse proxy in front instead of changing `--bind` to `0.0.0.0`.
-* Run it however you run small services: a terminal, `tmux`, or a `systemd --user` unit with
-  `ExecStart=/usr/bin/python3 %h/.claude/addons/dashboard/dashboard.py`. It writes nothing, so it ships no setup script.
+* `setup-dashboard.sh` keeps it running: a `systemd --user` unit `ccm-dashboard.service` (enabled and started), and
+  `loginctl enable-linger` so it starts after a reboot and keeps running after you log out (no root; when linger needs
+  root it prints the `sudo loginctl enable-linger <you>` line). `--port N`, `--dry-run`; `--uninstall` stops it and moves
+  the unit file to the trash. Where there is no systemd (macOS, a container) it sets up nothing and prints how to
+  start the page by hand.
 
-`install.sh --with-dashboard` copies this folder to `<claude dir>/addons/dashboard/`; nothing else. No supervisor
-entry: the page is started by hand and has no fixed port to probe.
+`install.sh --with-dashboard` copies this folder to `<claude dir>/addons/dashboard/` and runs `setup-dashboard.sh`
+(not for an install into a temp dir or with `--no-cron`: nothing is started in the background then). No supervisor
+entry: the port can be changed, so there is no fixed one to probe.
 
-Test: `tests/dashboard-test.py` (temp status dir, random localhost port).
+Tests: `tests/dashboard-test.py` (temp status dir, random localhost port); the setup: `tests/install-addons-test.sh`
+in the repo (stand-in systemctl and loginctl).

@@ -214,7 +214,8 @@ if todo:
 sys.path.insert(0, os.path.join(REPO, "lib"))
 try:
     import deps_check
-    deps = deps_check.block()
+    # an installed add-on's own needs too (agent-browser: node, npm, a Chrome/Chromium), as install.sh did for its flag
+    deps = deps_check.block([a for a in deps_check.ADDON_DEPS if os.path.isdir(f"{target}/addons/{a}")])
 except Exception as e:
     deps = [f"deps_check.py failed: {type(e).__name__}: {e}"]
 if deps:

@@ -1116,6 +1116,34 @@ def _retry_seconds(e: RetryAfter) -> float:
     return ra.total_seconds() if hasattr(ra, "total_seconds") else float(ra)
 
 
+# On a slow network Telegram answered the first calls ~30 s late. With PTB's default 5 s read timeout that was a
+# TimedOut during startup -> the process exited -> systemd restarted it every few seconds -> Telegram answered 429
+# for hours (the limit outlived even a new token). So: timeouts that fit a slow link, and a startup that waits.
+TG_CONNECT_TIMEOUT = 15
+TG_READ_TIMEOUT = 60
+STARTUP_BACKOFF = (5, 300)   # pause after the first network failure at startup, doubling up to the ceiling, s
+TG_API_URL = ""              # "" = api.telegram.org; the startup test points it at a fake Telegram on a loopback
+
+
+async def _tg_retry(call, what: str):
+    """Run a Telegram call until it succeeds. A flood limit (429) is waited out in full: a call before retry_after
+    only extends the ban. Timeouts and network errors back off. Anything else (bad token, BadRequest) is raised:
+    waiting does not cure it."""
+    pause = STARTUP_BACKOFF[0]
+    while True:
+        try:
+            return await call()
+        except TelegramError as e:
+            if not _transient(e):
+                raise
+            if isinstance(e, RetryAfter):
+                wait = _retry_seconds(e) + 1   # +1: Telegram counts whole seconds
+            else:
+                wait, pause = pause, min(pause * 2, STARTUP_BACKOFF[1])
+            log.warning("%s: %s - next try in %.0f s", what, e, wait)
+            await asyncio.sleep(wait)
+
+
 async def _reply_after_effect(msg, text: str, **kw):
     """A confirmation AFTER an action is done (letter delivered, blocker cleared). A failure here must not go
     to the queue, or it would repeat the action itself. -> Message or None."""
@@ -2871,7 +2899,7 @@ async def post_init(app: Application) -> None:
         BotCommand("to", "letter to an agent: /to Agent text"),
         BotCommand("wake", "wake an agent's tab: /wake Agent"),
     ] if SWARM_ON else []
-    await app.bot.set_my_commands(swarm_cmds + [
+    await _tg_retry(lambda: app.bot.set_my_commands(swarm_cmds + [
         BotCommand("model", "choose model (opus/sonnet/haiku)"),
         BotCommand("effort", "effort level (low -> max)"),
         BotCommand("settings", "current settings"),
@@ -2886,7 +2914,7 @@ async def post_init(app: Application) -> None:
         BotCommand("setpin", "set/change PIN"),
         BotCommand("lock", "lock now"),
         BotCommand("whoami", "your Telegram id"),
-    ])
+    ]), "register bot commands")
     log.info("bot commands registered")
 
 
@@ -2898,7 +2926,14 @@ def main():
         log.error("ALLOWED_TG_USERS is empty - refusing to start (fail-closed)")
         raise SystemExit(1)
     log.info("starting bot, allowed users: %s, pin_required=%s, swarm=%s", ALLOWED, pin_required(), SWARM_ON)
-    app = Application.builder().token(TOKEN).post_init(post_init).post_stop(post_stop).build()
+    b = (Application.builder().token(TOKEN).post_init(post_init).post_stop(post_stop)
+         .connect_timeout(TG_CONNECT_TIMEOUT).read_timeout(TG_READ_TIMEOUT).write_timeout(TG_READ_TIMEOUT)
+         .pool_timeout(TG_CONNECT_TIMEOUT)
+         .get_updates_connect_timeout(TG_CONNECT_TIMEOUT).get_updates_read_timeout(TG_READ_TIMEOUT)
+         .get_updates_write_timeout(TG_READ_TIMEOUT).get_updates_pool_timeout(TG_CONNECT_TIMEOUT))
+    if TG_API_URL:
+        b = b.base_url(TG_API_URL)
+    app = b.build()
     app.add_handler(TypeHandler(Update, _drop_stale), group=-1)
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("whoami", cmd_whoami))
@@ -2927,7 +2962,14 @@ def main():
         & ~filters.COMMAND & filters.UpdateType.MESSAGE,   # an edit is not a new message
         enqueue_message,
     ))
-    app.run_polling(drop_pending_updates=False)   # the bot was down: the messages still arrive (Telegram keeps them 24 h)
+    # getMe (the first call) under our own retry: run_polling's bootstrap retries a timeout at once, with no pause,
+    # and PTB before 21.11 did not retry it at all. The same event loop then runs the bot: the HTTP client is bound to it.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(_tg_retry(app.initialize, "connect to Telegram"))
+    # bootstrap_retries=-1: deleteWebhook at the start of polling is retried too, and a 429 there waits retry_after
+    app.run_polling(drop_pending_updates=False,   # the bot was down: the messages still arrive (Telegram keeps them 24 h)
+                    bootstrap_retries=-1)
 
 
 if __name__ == "__main__":

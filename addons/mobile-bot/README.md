@@ -48,7 +48,7 @@ addons/mobile-bot/
 │   ├── osm-nearby.sh, osm_nearby.py   # OSM Overpass nearby search
 │   ├── tg_reply.sh                    # an agent answers the human in the bot chat
 │   └── mobile_gate_check.sh           # supervisor check: the safety gate really blocks
-└── tests/                         # test_restrict, test_core, test_queue, test_rotate, test_topics, test_helpers
+└── tests/                         # test_restrict, test_core, test_queue, test_rotate, test_topics, test_helpers, test_startup
 ```
 
 ## Secrets - everything in CCM_SECRETS_DIR
@@ -94,6 +94,9 @@ next write moves it. The gate treats `CCM_SECRETS_DIR` as a secret zone. The bot
   removed only after success. The rate limit holds a message back (it does not drop it); a restart loses nothing; a failed
   attempt is retried 3 times and then the human is told. A retried message carries a note that the earlier attempt may have
   partly run.
+- **A slow or flood-limited Telegram at startup** does not stop the bot: timeouts are 15 s to connect and 60 s to read,
+  a 429 is waited out for its full `retry_after`, a timeout backs off (5 s doubling to 5 min). The unit restarts a
+  crashed bot after 120 s, not 5: a restart every few seconds made Telegram answer 429 for hours.
 - **Replies that cannot be sent** are retried, then kept in the outbox and sent when Telegram is back; long replies are cut on
   line boundaries and each piece is converted to HTML separately (never inside a tag).
 - **Session rotation.** A session above `MOBILE_BOT_ROTATE_TOKENS` (default 200000, 0 = off) writes a summary right after

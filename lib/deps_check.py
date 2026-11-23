@@ -2,6 +2,8 @@
 """System commands the mechanisms call that a stock macOS, Git Bash on Windows (or a minimal Linux) does not have.
 
   python3 lib/deps_check.py              # all there: prints nothing; else one block: "missing: X — what stops" + "install: ..."
+  python3 lib/deps_check.py --addon agent-browser   # also what that add-on needs (only when it is installed: an
+                                                   # install without it must not be told to fetch Node and Chromium)
   python3 lib/deps_check.py --hook-bash  # the bash 4+ that hook commands should name by its full path, or nothing
 
 Always exit 0: a missing command is a warning, never a reason to stop an install. install.sh prints the block at its
@@ -62,6 +64,33 @@ DEPS = (
 )
 
 
+# what an add-on needs, in the DEPS shape; checked only for the add-ons named with --addon. agent-browser: install.sh
+# fetches its engine with npm (install-engine.sh), and the engine drives a Chrome/Chromium over remote debugging -
+# without one br has nothing to drive (setup-agent-browser.sh --browser-service starts it, or your own Chrome + CCM_BR_CDP).
+_CHROMES = ("chromium", "chromium-browser", "google-chrome-stable", "google-chrome")   # the names setup-agent-browser.sh looks for
+ADDON_DEPS = {
+    "agent-browser": (
+        ("node", "agent-browser add-on: npm needs it to fetch the browser engine (install-engine.sh), so br has no engine",
+         "nodejs", "node", "", "winget install OpenJS.NodeJS.LTS, then open a new Git Bash"),
+        ("npm", "agent-browser add-on: install-engine.sh fetches the engine with npm pack - without it br has no engine",
+         "npm", "node", "", "it comes with Node.js: winget install OpenJS.NodeJS.LTS"),
+        ("chromium", "agent-browser add-on: the engine drives a Chrome/Chromium over remote debugging - without one br "
+         "has nothing to drive (setup-agent-browser.sh --browser-service runs it headless; or your own Chrome + CCM_BR_CDP)",
+         "chromium", None, "Google Chrome from google.com/chrome, or brew install --cask chromium",
+         "install Google Chrome, start it with --remote-debugging-port and set CCM_BR_CDP"),
+    ),
+}
+ALTERNATIVES["node"] = ("nodejs",)   # Debian's older package named the binary nodejs
+ALTERNATIVES["chromium"] = _CHROMES[1:]
+
+
+def _chrome():
+    if any(shutil.which(c) for c in _CHROMES):
+        return True
+    # a Mac has the browser as an app bundle, not on PATH
+    return sys.platform == "darwin" and any(os.path.isdir(f"/Applications/{a}.app") for a in ("Google Chrome", "Chromium"))
+
+
 def on_windows():
     return sys.platform == "win32" or bool(os.environ.get("MSYSTEM"))   # MSYSTEM: set by Git Bash (MINGW64)
 
@@ -75,11 +104,13 @@ def _readlink_f():
         return False
 
 
-PROBES = {"readlink -f": _readlink_f}   # a command that exists but may lack the option the scripts use
+PROBES = {"readlink -f": _readlink_f,   # a command that exists but may lack the option the scripts use
+          "chromium": _chrome}
 
 
-def missing():
-    return [d for d in DEPS if not (PROBES[d[0]]() if d[0] in PROBES
+def missing(addons=()):
+    want = DEPS + tuple(d for a in addons for d in ADDON_DEPS.get(a, ()))
+    return [d for d in want if not (PROBES[d[0]]() if d[0] in PROBES
                                     else any(shutil.which(c) for c in (d[0],) + ALTERNATIVES.get(d[0], ())))]
 
 
@@ -141,9 +172,9 @@ def bash_dep():
             None, "bash coreutils", "coreutils: GNU date, stat, timeout - the branch of each script that runs everywhere else", "")
 
 
-def block():
-    """lines to print; [] when nothing is missing"""
-    miss = missing()
+def block(addons=()):
+    """lines to print; [] when nothing is missing. addons: names from ADDON_DEPS whose needs are checked too"""
+    miss = missing(addons)
     b = bash_dep()
     if b:
         miss.append(b)
@@ -167,7 +198,16 @@ if __name__ == "__main__":
         if hb:
             print(hb)
         sys.exit(0)
-    out = block()
+    args, addons = sys.argv[1:], []
+    if args[:1] in (["-h"], ["--help"]):
+        print("\n\n".join(__doc__.split("\n\n")[:2])); sys.exit(0)
+    while args[:1] == ["--addon"] and len(args) >= 2:
+        addons.append(args[1]); args = args[2:]
+    if args or any(a not in ADDON_DEPS for a in addons):
+        # a typo must not look like "nothing missing"; still exit 0 (never a reason to stop an install)
+        print(f"deps_check.py: usage: [--addon {'|'.join(ADDON_DEPS)}]... | --hook-bash (got {' '.join(sys.argv[1:])})")
+        sys.exit(0)
+    out = block(addons)
     if out:
         print("\n".join(out))
     sys.exit(0)
