@@ -96,7 +96,7 @@ while [[ $# -gt 0 ]]; do
                    [[ $# -ge 2 ]] || { echo "install.sh: $1 requires a value" >&2; exit 2; }
                    case "$1" in --name) OPT_NAME="$2" ;; --workspace) OPT_WORKSPACE="$2" ;; --timezone) OPT_TZ="$2" ;; esac
                    shift ;;
-    -h|--help)     sed -n '2,/^[^#]/{/^#/s/^# \?//p}' "$0"; exit 0 ;;
+    -h|--help)     sed -n '2,/^[^#]/{/^#/s/^# \{0,1\}//p;}' "$0"; exit 0 ;;   # BSD sed: no \?, a ; before }
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
   shift
@@ -204,6 +204,11 @@ if [[ -n "$DEPS_MISSING" ]]; then
   warn "Some system commands are missing — the install goes on, but these parts will not work until you install them:"
   printf '%s\n' "$DEPS_MISSING" | sed 's/^/  /' >&2
 fi
+# /bin/bash older than 4 (a stock macOS: 3.2) and a newer bash on this machine (Homebrew): the hook commands and the cron
+# lines of .sh scripts start THAT bash by its full path - a hook started as "/usr/bin/env bash" gets whatever bash comes
+# first in Claude Code's PATH. Empty where /bin/bash and the bash in PATH are 4+ (Linux, Git Bash): nothing changes.
+HOOK_BASH=$(py3 "$REPO_DIR/lib/deps_check.py" --hook-bash 2>/dev/null | tr -d '\r') || HOOK_BASH=""
+[[ -n "$HOOK_BASH" ]] && ok "hooks and scheduled .sh jobs will run under $HOOK_BASH (bash $("$HOOK_BASH" -c 'echo $BASH_VERSION' 2>/dev/null)): /bin/bash here is older than 4"
 
 # ---- detect claude-code --------------------------------------------------
 say "Detecting Claude Code…"
@@ -567,9 +572,9 @@ if [[ $DRY_RUN -eq 0 ]]; then
     EXTRA_DIR=$(py3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
     case "$EXTRA_DIR/" in "$PROJECT_DIR/"*) EXTRA_DIR="" ;; esac
   fi
-  py3 - "$REPO_DIR/settings.template.json" "$SETTINGS" "$TARGET" "$MEMDIR" "$MEM_SET" "$EXTRA_DIR" "$PY_CMD" "$ON_WINDOWS" <<'PYSUB'
+  py3 - "$REPO_DIR/settings.template.json" "$SETTINGS" "$TARGET" "$MEMDIR" "$MEM_SET" "$EXTRA_DIR" "$PY_CMD" "$ON_WINDOWS" "$HOOK_BASH" <<'PYSUB'
 import json, re, sys
-src, dst, target, memdir, mem_set, extra_dir, py_cmd, on_windows = sys.argv[1:]
+src, dst, target, memdir, mem_set, extra_dir, py_cmd, on_windows, hook_bash = sys.argv[1:]
 # in commands the path sits inside shell double quotes → escape \ " $ ` for the shell first
 sh = target.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
 text = open(src).read()
@@ -594,6 +599,12 @@ if on_windows == "1":   # print() of "—" or "→" into a pipe: the Windows cod
         for g in groups:
             for h in g.get("hooks", []):
                 h["command"] = re.sub(r'^(\s*)("[^"]*\.sh")', r"\1bash \2", h.get("command", ""))
+elif hook_bash:   # /bin/bash < 4 here (stock macOS) and a newer bash exists: a .sh hook command starts through it
+    qb = '"' + hook_bash.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`") + '"'
+    for groups in ours["hooks"].values():
+        for g in groups:
+            for h in g.get("hooks", []):
+                h["command"] = re.sub(r'^(\s*)("[^"]*\.sh")', lambda m: m.group(1) + qb + " " + m.group(2), h.get("command", ""))
 try:
     have = json.load(open(dst))
     if not isinstance(have, dict):
@@ -666,6 +677,13 @@ CRON_END="# <<< claude-code-methodology ($TARGET)"
 q() { printf '%q' "$1"; }
 # quota every minute, one run at a time: flock where there is one (none on macOS/Windows: the run is short, timeout 50 caps it)
 QLOCK=""; command -v flock >/dev/null 2>&1 && QLOCK="flock -n $(q "$HOME/.claude/quota.lock")"
+# its time cap: timeout; else gtimeout by full path (Homebrew is not in cron's PATH); else perl's alarm (a stock macOS)
+if command -v timeout >/dev/null 2>&1; then QTMO="timeout 50"
+elif command -v gtimeout >/dev/null 2>&1; then QTMO="$(q "$(command -v gtimeout)") 50"
+elif command -v perl >/dev/null 2>&1; then QTMO="perl -e 'alarm shift; exec @ARGV' 50"
+else QTMO=""; fi
+# a .sh job runs through the newer bash where /bin/bash is 3.2 and one was found (HOOK_BASH above); else by its #! line
+SH=""; [[ -n "$HOOK_BASH" ]] && SH="$(q "$HOOK_BASH") "
 # Nothing that DELETES is scheduled unless asked: trash cleanup needs --enable-cleanup or a "y" here.
 if [[ $CLEANUP -eq 0 && $YES -eq 0 ]]; then
   yn=$(ask "Delete trash items (older than CCM_TRASH_DAYS) and chat-backup copies (older than 365 days) automatically, daily? (y/N)" "N")
@@ -677,31 +695,31 @@ CRON_LINES="$CRON_BEGIN
 * * * * * $PY_CMD $(q "$TARGET/scripts/remind.py") --fire >/dev/null 2>&1
 */15 * * * * $PY_CMD $(q "$TARGET/scripts/blockers.py") run >/dev/null 2>&1
 */15 * * * * $PY_CMD $(q "$TARGET/scripts/supervisor.py") >/dev/null 2>&1
-* * * * * $QLOCK timeout 50 $PY_CMD $(q "$TARGET/scripts/quota_status.py") --json --out $(q "$HOME/.claude/quota-status.json") 2>>$(q "$HOME/.claude/quota.err")
+* * * * * $QLOCK ${QTMO:+$QTMO }$PY_CMD $(q "$TARGET/scripts/quota_status.py") --json --out $(q "$HOME/.claude/quota-status.json") 2>>$(q "$HOME/.claude/quota.err")
 7 * * * * $PY_CMD $(q "$TARGET/scripts/quota_log_line.py") >/dev/null 2>&1
 15 * * * * $PY_CMD $(q "$TARGET/scripts/token_daily_report.py") --after 8 >/dev/null 2>&1
-*/10 * * * * $(q "$TARGET/scripts/mech_snapshot.sh") >/dev/null 2>&1
+*/10 * * * * $SH$(q "$TARGET/scripts/mech_snapshot.sh") >/dev/null 2>&1
 35 * * * * $PY_CMD $(q "$TARGET/scripts/stats_collect.py") >/dev/null 2>&1
 40 * * * * $PY_CMD $(q "$TARGET/scripts/stats_adoption.py") >/dev/null 2>&1
 45 * * * * $PY_CMD $(q "$TARGET/scripts/stats_orphan_docs.py") >/dev/null 2>&1
 */15 * * * * $PY_CMD $(q "$TARGET/scripts/stats_projects.py") >/dev/null 2>&1
-35 12 * * 0 mkdir -p $(q "$HOME/.claude/logs") && $(q "$TARGET/scripts/mistakes_review.sh") >> $(q "$HOME/.claude/logs/mistakes-review.log") 2>&1
-@reboot sleep 300 && $(q "$TARGET/scripts/mistakes_review_catchup.sh") >/dev/null 2>&1
+35 12 * * 0 mkdir -p $(q "$HOME/.claude/logs") && $SH$(q "$TARGET/scripts/mistakes_review.sh") >> $(q "$HOME/.claude/logs/mistakes-review.log") 2>&1
+@reboot sleep 300 && $SH$(q "$TARGET/scripts/mistakes_review_catchup.sh") >/dev/null 2>&1
 52 12 * * * $PY_CMD $(q "$TARGET/scripts/library_check.py") >/dev/null 2>&1
-50 12 * * * $(q "$TARGET/scripts/swarm_tools_check.sh") >/dev/null 2>&1
-@reboot sleep 120 && $(q "$TARGET/scripts/git_empty_objects_check.sh") >/dev/null 2>&1
-25 5 * * * $(q "$TARGET/scripts/public_gate_selftest.sh") >/dev/null 2>&1
-30 12 * * 0 $(q "$TARGET/scripts/prune_watchman_state.sh") >/dev/null 2>&1
-10 3 * * * mkdir -p $(q "$HOME/.claude/logs") && RETENTION_DAYS=$([[ $CLEANUP -eq 1 ]] && echo 365 || echo 0) $(q "$TARGET/scripts/backup-chats.sh") >> $(q "$HOME/.claude/logs/chat-backup.log") 2>&1"
+50 12 * * * $SH$(q "$TARGET/scripts/swarm_tools_check.sh") >/dev/null 2>&1
+@reboot sleep 120 && $SH$(q "$TARGET/scripts/git_empty_objects_check.sh") >/dev/null 2>&1
+25 5 * * * $SH$(q "$TARGET/scripts/public_gate_selftest.sh") >/dev/null 2>&1
+30 12 * * 0 $SH$(q "$TARGET/scripts/prune_watchman_state.sh") >/dev/null 2>&1
+10 3 * * * mkdir -p $(q "$HOME/.claude/logs") && RETENTION_DAYS=$([[ $CLEANUP -eq 1 ]] && echo 365 || echo 0) $SH$(q "$TARGET/scripts/backup-chats.sh") >> $(q "$HOME/.claude/logs/chat-backup.log") 2>&1"
 # the chat backup is a COPY (rsync with hard links): it deletes nothing unless cleanup is on, then day-folders > 365 days
 [[ $WITH_CONSOLIDATION -eq 1 ]] && CRON_LINES="$CRON_LINES
-20 * * * * $(q "$TARGET/scripts/memory_consolidation.sh") >/dev/null 2>&1
+20 * * * * $SH$(q "$TARGET/scripts/memory_consolidation.sh") >/dev/null 2>&1
 20 * * * * $PY_CMD $(q "$TARGET/scripts/stats_corrections.py") --days 3 --after 6 >/dev/null 2>&1"
 if [[ $WITH_GIT_SNAPSHOT -eq 1 ]]; then
   WS_SNAP=$(py3 "$TARGET/lib/ccm_conf.py" CCM_WORKSPACE)
   git -C "$WS_SNAP" rev-parse --git-dir >/dev/null 2>&1 || warn "--with-git-snapshot: $WS_SNAP is not a git repo yet — the snapshot will log FAIL until you run git init there"
   CRON_LINES="$CRON_LINES
-0 4 * * * mkdir -p $(q "$HOME/.claude/logs") && LOG=$(q "$HOME/.claude/logs/git-snapshot.log") $(q "$TARGET/scripts/daily-git-snapshot.sh") $(q "$WS_SNAP") >/dev/null 2>&1"
+0 4 * * * mkdir -p $(q "$HOME/.claude/logs") && LOG=$(q "$HOME/.claude/logs/git-snapshot.log") $SH$(q "$TARGET/scripts/daily-git-snapshot.sh") $(q "$WS_SNAP") >/dev/null 2>&1"
 fi
 # the reader add-on is started after a reboot from here (no root, no service manager needed); install.sh starts it now too
 [[ $WITH_READER -eq 1 ]] && CRON_LINES="$CRON_LINES
@@ -709,7 +727,7 @@ fi
 # session hygiene rewrites chat files: only from 04:00 (after the 03:10 chat backup), retried hourly by catchup-run while
 # that backup is not fresh (rc 75); it touches only sessions the backup holds exactly as they are now
 [[ $WITH_SESSION_HYGIENE -eq 1 ]] && CRON_LINES="$CRON_LINES
-7 * * * * $(q "$TARGET/bin/catchup-run") session_hygiene daily --after 4 -- $PY_CMD $(q "$TARGET/addons/session-hygiene/session-hygiene.py")"
+7 * * * * $SH$(q "$TARGET/bin/catchup-run") session_hygiene daily --after 4 -- $PY_CMD $(q "$TARGET/addons/session-hygiene/session-hygiene.py")"
 [[ $CLEANUP -eq 1 ]] && CRON_LINES="$CRON_LINES
 35 4 * * * $PY_CMD $(q "$TARGET/hooks/trash-guard.py") --clean >/dev/null 2>&1"
 CRON_LINES="$CRON_LINES
@@ -925,7 +943,7 @@ if [[ $VERIFY -eq 1 && $VERIFY_ALL -eq 1 && $DRY_RUN -eq 0 ]]; then
   if [[ ${#ADDON_TESTS[@]} -gt 0 ]]; then
     echo
     say "Checking the installed add-ons…"
-    for t in "${ADDON_TESTS[@]}"; do
+    for t in ${ADDON_TESTS[@]+"${ADDON_TESTS[@]}"}; do
       case "$t" in *.py) runner=py3 ;; *.sh) runner=bash ;; *) continue ;; esac
       if out=$(cd "$(dirname "$t")/.." && "$runner" "$t" 2>&1); then
         ok "$(basename "$(dirname "$(dirname "$t")")"): $(printf '%s\n' "$out" | tail -1)"
