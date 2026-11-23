@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 sys.path.insert(0, HERE)
 from ccm_conf import conf  # noqa: E402
 from agent_listening import last_ts  # noqa: E402
+from ccm_proc import kill0  # noqa: E402
 
 HOME = os.path.expanduser("~")
 IDENT = os.environ.get("TAB_STUCK_IDENT", os.path.join(HOME, ".claude", "agent-identity"))
@@ -68,10 +69,22 @@ def last_turn(tp):
 
 
 def waiter_alive(agent):
+    """the alarm's pid file names a live process. /proc where it exists (Linux); elsewhere (macOS: no /proc, so every
+    live alarm looked dead and a waiting tab was reported stuck) the signal-0 probe."""
     try:
         p = open(os.path.join(WAIT, agent)).read().strip()
-        return bool(p) and os.path.exists(f"/proc/{p}")
     except OSError:
+        return False
+    if not p.isdigit():
+        return False
+    if os.path.isdir("/proc") or os.name == "nt":   # Windows: the file holds an MSYS pid (Git Bash $$), not a Windows one
+        return os.path.exists(f"/proc/{p}")
+    try:
+        kill0(int(p))
+        return True
+    except PermissionError:
+        return True                 # it exists, it is someone else's
+    except (OSError, ValueError):
         return False
 
 

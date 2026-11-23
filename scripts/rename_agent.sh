@@ -209,9 +209,19 @@ print(f"   identity: {len(sids)} session(s) -> {rel(new_dir)}{OK if sids else ''
 
 
 def alive(s):
+    """the same process: /proc start time (Linux). No /proc (macOS): the pid exists - the best that can be checked
+    there (agent_tab.py does the same); before, every tab looked dead and the restart warning never came."""
     try:
         return open(f"/proc/{s['pid']}/stat").read().rsplit(")", 1)[1].split()[19] == str(s.get("procStart"))
     except (OSError, IndexError, KeyError, TypeError):
+        pass
+    if os.path.isdir("/proc") or os.name == "nt":
+        return False
+    try:
+        pid = int(s["pid"])
+        return pid > 0 and bool(subprocess.run(["ps", "-p", str(pid), "-o", "pid="], capture_output=True, text=True,
+                                               timeout=3).stdout.strip())
+    except (KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError):
         return False
 
 
@@ -227,14 +237,24 @@ for f in glob.glob(E["SESS"] + "/*.json"):
     if s.get("sessionId") in sids or n == old.lower() or n.startswith(old.lower() + " "):
         live.append(f"{s.get('name') or s.get('sessionId')} (pid {s.get('pid')}, {s.get('status') or '?'})")
 listen = []
+procs = []   # (pid, argv as bytes)
 for p in glob.glob("/proc/[0-9]*/cmdline"):
     try:
-        argv = open(p, "rb").read().split(b"\0")
+        procs.append((p.split("/")[2], open(p, "rb").read().split(b"\0")))
     except OSError:
         continue
+if not os.path.isdir("/proc") and os.name != "nt":   # macOS: the process list from ps (argv split on spaces)
+    try:
+        for ln in subprocess.run(["ps", "-axww", "-o", "pid=,command="], capture_output=True, timeout=5).stdout.split(b"\n"):
+            w = ln.split()
+            if len(w) > 1:
+                procs.append((w[0].decode(), w[1:] + [b""]))
+    except (OSError, subprocess.SubprocessError):
+        pass
+for pid, argv in procs:
     for i, a in enumerate(argv[:-1]):
         if a.endswith(b"inbox_wait.sh") and argv[i + 1].decode("utf-8", "replace") == old:
-            listen.append(p.split("/")[2])
+            listen.append(pid)
 for t in live:
     print(f"   ! live tab: {t}. After step 2 the hooks (work-guard, inbox_wait, the watchman) see the new folder, but the"
           f" tab's context still holds the old paths .../{old}/ - writing to them creates a ghost folder. Better restart the"

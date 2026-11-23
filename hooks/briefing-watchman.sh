@@ -75,8 +75,15 @@ if [[ -n "$hb_" && -f "$hb_" ]]; then
     hb_age_=$(( ( $(date +%s) - $(cat "$hb_" 2>/dev/null || echo 0) ) / 60 ))
     # the machine was just started: a pulse older than the boot and an uptime under 30 min means the supervisor
     # simply has not run yet — no alarm (otherwise every boot after a long shutdown warns "silent for days")
-    if [[ -r /proc/uptime ]]; then
-        up_=${WATCHMAN_UPTIME_S:-$(cut -d. -f1 /proc/uptime)}; boot_=$(( $(date +%s) - up_ ))   # WATCHMAN_UPTIME_S: tests
+    # uptime: /proc/uptime (Linux), kern.boottime (macOS: no /proc - without it every boot warned); WATCHMAN_UPTIME_S: tests
+    up_=${WATCHMAN_UPTIME_S:-}
+    if [[ -z "$up_" && -r /proc/uptime ]]; then up_=$(cut -d. -f1 /proc/uptime)
+    elif [[ -z "$up_" ]]; then
+        bt_=$(sysctl -n kern.boottime 2>/dev/null | sed -n 's/^{ sec = \([0-9]*\),.*/\1/p')   # "{ sec = 1700000000, usec = 0 } ..."
+        if [[ -n "$bt_" ]]; then up_=$(( $(date +%s) - bt_ )); fi
+    fi
+    if [[ "$up_" =~ ^[0-9]+$ ]]; then
+        boot_=$(( $(date +%s) - up_ ))
         if (( $(cat "$hb_" 2>/dev/null || echo 0) < boot_ && up_ < 1800 )); then hb_age_=0; fi
     fi
     if (( hb_age_ > 60 )); then
