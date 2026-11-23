@@ -27,7 +27,6 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 - [`docs/coding-standard.md`](docs/coding-standard.md) — the working standard every agent that writes code follows: a one-screen core (each rule marked with what guards it — a mechanism, an audit, or nobody) plus a reference by activity.
 - [`code-pitfalls/`](code-pitfalls/README.md) — 268 technical lessons already paid for, in 11 files by technology (shell, python, git, web, hooks, verification, concurrency, services, VM, Windows, Android); a hook shows the matching headings before an edit.
 - [`docs/hall-of-shame-docs.md`](docs/hall-of-shame-docs.md) — a real bad case kept as a model of what not to do: a document written for its author.
-- [`docs/rule-to-mechanism.md`](docs/rule-to-mechanism.md) — the gate ladder (note → detector → structural impossibility): the change cycle, independent review by another model, a supervisor that checks the work, and why written rules alone didn't hold.
 
 **Running a swarm** (many agents — a separate discipline; skip these if you run one agent):
 - [`docs/dev-methodology.md`](docs/dev-methodology.md) — starting a project: what to ask the human, the command, positions to propose, what the lead does first.
@@ -168,7 +167,7 @@ Mobile-bot addon adds two more (no-ops outside the bot):
 | `recap_extract.py` | Extract user/assistant messages since last compaction boundary. Called by `/recap`. |
 | `proof_report.py run --sid <id> -- <cmd>` | Run a check and append its exit code to the session's report, which `hooks/proof-guard.py` counts as a run. Used by `/verify`. |
 | `verify_prompt.py --note … <changed paths>` | The task for the checking subagent: the project gate from `release.toml`, the changed files, every command through `proof_report.py`. Used by `/verify`. |
-| `cross-review.sh --git <range>` | Independent review of a diff by a different model (fresh `claude -p`, read-only tools). See `docs/rule-to-mechanism.md`. |
+| `cross-review.sh --git <range>` | Independent review of a diff by a different model (fresh `claude -p`, read-only tools). See `docs/coding-standard.md` §2.1. |
 
 System deps: `poppler-utils`, `lynx`, `pandoc`, `ffmpeg` (for addon video).
 

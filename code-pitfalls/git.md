@@ -201,3 +201,9 @@
 - **Why:** the branch, rebased onto a fresh upstream, carries the AUTHOR's commits that changed `.github/workflows/*.yml` and are not in your fork yet. GitHub checks every commit new to the fork; a classic token with only `public_repo` does not let them through.
 - **Right way:** add the `workflow` scope to the classic token (Settings → Tokens → Edit; the token value does not change), once; or the owner presses "Sync fork" on the web. Check the scopes: `curl -sI -H "Authorization: token …" https://api.github.com/user | grep -i x-oauth-scopes`. Check before rebasing onto an upstream that changed its CI.
 - **Seen:** once.
+
+### A file lost outside git can be rebuilt from the Claude Code transcript
+- **Symptom:** a file that was never committed is overwritten or deleted; no backup holds the latest version.
+- **Why:** the session transcript (`~/.claude/projects/<project>/<session>.jsonl`) keeps the last full `Write` of the file and every `Edit` after it.
+- **Right way:** take the last `Write` content, replay the later `Edit`s in order (`old_string→new_string`, honouring `replace_all`), compare with any surviving copy. Do it soon: Claude Code deletes transcripts after 30 days (`cleanupPeriodDays`).
+- **Seen:** once; 7 files rebuilt byte-for-byte.

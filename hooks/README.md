@@ -11,7 +11,7 @@ Shell and Python hooks run by the Claude Code harness. Those that read other fil
 
 ## Hardening hooks
 
-These turn a discipline-dependent rule into a mechanical gate. Each exists because a rule that relied on the agent *remembering* something failed in practice. See [`docs/rule-to-mechanism.md`](../docs/rule-to-mechanism.md) for the "rule → mechanism" reasoning.
+These turn a discipline-dependent rule into a mechanical gate. Each exists because a rule that relied on the agent *remembering* something failed in practice.
 
 | File | Event | Action |
 |------|-------|--------|

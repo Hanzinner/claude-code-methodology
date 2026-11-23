@@ -5,7 +5,7 @@
 # author model found 5 defects in its own work; other models then found ~20 more,
 # and the overlap between what different models found was close to zero.
 # A fresh `claude -p` never saw the code being written, so it doesn't read bugs
-# charitably. See docs/rule-to-mechanism.md (step 3 of the change cycle).
+# charitably. See docs/coding-standard.md §2.1 (step 3 of the change cycle).
 #
 # Usage:
 #   cross-review.sh [--model M]... [--req FILE] [--why FILE] [--repo DIR] --git <range>
