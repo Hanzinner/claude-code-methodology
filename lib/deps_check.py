@@ -87,8 +87,10 @@ ALTERNATIVES["chromium"] = _CHROMES[1:]
 def _chrome():
     if any(shutil.which(c) for c in _CHROMES):
         return True
-    # a Mac has the browser as an app bundle, not on PATH
-    return sys.platform == "darwin" and any(os.path.isdir(f"/Applications/{a}.app") for a in ("Google Chrome", "Chromium"))
+    # a Mac has the browser as an app bundle, not on PATH. CCM_MAC_APPS: a test points it at an empty dir - a CI Mac
+    # has Google Chrome installed, and the test of "no browser" must not depend on the machine it runs on
+    apps = os.environ.get("CCM_MAC_APPS", "/Applications")
+    return sys.platform == "darwin" and any(os.path.isdir(f"{apps}/{a}.app") for a in ("Google Chrome", "Chromium"))
 
 
 def on_windows():

@@ -42,6 +42,8 @@ fakebin() {  # fakebin <dir> <names to leave out...> - a symlink to every other 
   done
 }
 fakebin "$T/bin" claude node nodejs npm chromium chromium-browser google-chrome google-chrome-stable systemctl loginctl
+# a CI Mac has Google Chrome.app: deps_check looks for app bundles here instead, so "no browser" holds on any machine
+mkdir -p "$T/noapps"; export CCM_MAC_APPS="$T/noapps"
 
 # stand-ins: every call goes to a log; $T/no-manager = no user manager; $T/linger-fails = enable-linger refused
 mkdir -p "$T/fake"
