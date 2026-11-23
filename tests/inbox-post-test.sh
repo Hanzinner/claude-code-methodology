@@ -59,7 +59,9 @@ ok "6b \"## Нові\" gets the item, no \"## New\" created, placeholder gone" '
 ok "7 no repair inserts" '[ ! -s "$LOG" ]'
 # 8. the repair path: the log is valid UTF-8 even when a non-ASCII line is cut
 f="$T/e/x.md"; mkdir -p "$T/e"; printf '# E\n\n## New\n\n## Processed\n' > "$f"
-( source <(sed -n '/^in_new()/p;/^mv_in()/,/^}/p;/^deliver()/,/^}/p;/^insert_into()/,/^}/p;/^heal_new()/,/^}/p' "$P"); inbox="$f"; text="- [ ] [2026-09-22] $(printf 'ж%.0s' $(seq 80))"; first_line="$text"; new_hdr='## New'; source "$(dirname "$P")/inbox_lib.sh"; deliver ) >/dev/null 2>&1
+# the functions go through a file: bash 3.2 (stock macOS) reads nothing from `source <(...)`
+sed -n '/^in_new()/p;/^mv_in()/,/^}/p;/^deliver()/,/^}/p;/^insert_into()/,/^}/p;/^heal_new()/,/^}/p' "$P" > "$T/fns.sh"
+( source "$T/fns.sh"; inbox="$f"; text="- [ ] [2026-09-22] $(printf 'ж%.0s' $(seq 80))"; first_line="$text"; new_hdr='## New'; source "$(dirname "$P")/inbox_lib.sh"; deliver ) >/dev/null 2>&1
 ok "8 repair log is valid UTF-8" '[ -s "$LOG" ] && python3 -c "open(\"$LOG\",encoding=\"utf-8\").read()"'
 
 # 9. who is the addressee: <name>-agent, group folders, .aliases, ambiguity
@@ -105,7 +107,7 @@ ok "13c backslashes in the first line -> found, no repair" '[ $rc = 0 ] && [ "$(
 f="$A/Foo/inbox.md"; printf '# t\n\n## New\n\n- [ ] [2026-10-23] cut in the mi\xd0\n\n- [ ] [2026-10-23] close-me-%s\n\n## Processed\n' "$$" > "$f"
 out=$("$D" Foo "close-me-$$" "ok" 2>&1); rc=$?
 ok "14 a broken byte in the neighbour -> closed, rc 0" '[ $rc = 0 ] && ! new | grep -q "close-me-$$"'
-ok "14b file not empty, the broken letter kept byte for byte" '[ -s "$f" ] && grep -q "cut in the mi$(printf "\xd0")$" "$f"'
+ok "14b file not empty, the broken letter kept byte for byte" '[ -s "$f" ] && LC_ALL=C grep -q "cut in the mi$(printf "\xd0")$" "$f"'
 # 15. a substring in two DIFFERENT letters
 printf '# t\n\n## New\n\n- [ ] [2026-10-23] HQ: I WITHDRAW the order about worktrees\n\n- [ ] [2026-10-23] HQ: announcing worktrees\n\n## Processed\n' > "$f"; m0=$(md5sum < "$f" 2>/dev/null || md5 -q "$f")
 out=$("$D" Foo "worktrees" "ok" 2>&1); rc=$?
@@ -130,6 +132,6 @@ f="$A/Baz/inbox.md"; printf '# t\n\n## New\n\n## Processed\n' > "$f"
 mkdir -p "$T/par"
 for i in $(seq 1 12); do ( "$P" Baz "par-$i-$$" >/dev/null 2>"$T/par/$i.err"; echo $? > "$T/par/$i.rc" ) & done; wait
 par_why() { for i in $(seq 1 12); do r=$(cat "$T/par/$i.rc" 2>/dev/null); [[ "$r" == 0 && ! -s "$T/par/$i.err" ]] || echo "   writer $i: rc=${r:-?} $(head -c 300 "$T/par/$i.err" 2>/dev/null)"; done
-          ls "$A/Baz" | grep -v '^inbox.md$\|^.aliases$' | sed 's/^/   left in the folder: /'; }
+          ls "$A/Baz" | grep -v -e '^inbox.md$' -e '^.aliases$' | sed 's/^/   left in the folder: /'; }
 ok "17 12 parallel posts -> 12 distinct items, structure intact, every writer rc 0, nothing left beside the inbox" '[ "$(grep -c "par-[0-9]*-$$" "$f")" = 12 ] && [ "$(grep -c "^## " "$f")" = 2 ] && [ -z "$(par_why | grep -v "inbox.md.lock$")" ] || { par_why; false; }'
 echo "inbox-post: $pass pass, $fail fail"; [ $fail = 0 ]

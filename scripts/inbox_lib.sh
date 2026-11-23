@@ -9,17 +9,19 @@ AGENTS_ROOT="${INBOX_AGENTS_ROOT:-${CCM_AGENTS_DIR:-$HOME/claude-projects/Agents
 
 # Section headers. The swarm template says "## New"; older inboxes may say "## Processed", "## Done" or Ukrainian
 # "## Нові" / "## Оброблено". Whatever the file already has wins; a "candidates" variant is used when present.
+# LC_ALL=C: BSD grep (macOS) in a UTF-8 locale fails on a broken byte anywhere in the file ("illegal byte sequence"),
+# and a header not found made inbox_post.sh create a second "## New". A whole-line byte match is the same match.
 find_new_hdr() {
     local h
     for h in "## New candidates" "## Нові кандидати" "## New" "## Нові"; do
-        grep -qxF -- "$h" "$1" 2>/dev/null && { printf '%s\n' "$h"; return; }
+        LC_ALL=C grep -qxF -- "$h" "$1" 2>/dev/null && { printf '%s\n' "$h"; return; }
     done
     printf '%s\n' "## New"
 }
 find_done_hdr() {
     local h
     for h in "## Processed" "## Done" "## Оброблено"; do
-        grep -qxF -- "$h" "$1" 2>/dev/null && { printf '%s\n' "$h"; return; }
+        LC_ALL=C grep -qxF -- "$h" "$1" 2>/dev/null && { printf '%s\n' "$h"; return; }
     done
     printf '%s\n' "## Processed"
 }

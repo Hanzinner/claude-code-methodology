@@ -53,7 +53,7 @@ tmp=$(mktemp "${inbox}.postXXXX")
 # became a backspace, the check never found "its own" text, the repair insert duplicated it and the watchman then
 # delivered it again on EVERY prompt (12+ copies once).
 insert_into() {   # insert_into <output file>: item right after the header; the first item evicts the placeholder
-    if grep -qxF -- "$new_hdr" "$inbox"; then
+    if LC_ALL=C grep -qxF -- "$new_hdr" "$inbox"; then   # LC_ALL=C: a broken byte stops BSD grep (inbox_lib.sh)
         ENTRY="$text" awk -v hdr="$new_hdr" '
             /^## /            { in_new = ($0 == hdr) }
             (/^_\(empty\)_$/ || /^_\(порожньо\)_$/) && in_new && injected { next }
@@ -72,7 +72,7 @@ fi
 insert_into "$tmp"
 
 # pre-check: the structure did not degrade (the number of "## " sections did not drop)
-if [[ $(grep -c '^## ' "$tmp") -lt $(grep -c '^## ' "$inbox") ]]; then
+if [[ $(LC_ALL=C grep -c '^## ' "$tmp") -lt $(LC_ALL=C grep -c '^## ' "$inbox") ]]; then
     rm -f "$tmp"; echo "inbox_post: validation FAILED (a section vanished) - file NOT changed" >&2; exit 4
 fi
 
@@ -111,7 +111,7 @@ deliver() {
     # every repair insert leaves a trace, so the next duplicate has evidence: who, where, when.
     mkdir -p "$HOME/.claude" 2>/dev/null
     printf '%s repair-insert pid=%s ppid=%s -> %s :: in file=%s in New=%s inode=%s size=%s :: %s\n' "$(date '+%F %T')" "$$" "$PPID" "$inbox" \
-        "$(grep -cF -- "$first_line" "$inbox" 2>/dev/null)" \
+        "$(LC_ALL=C grep -cF -- "$first_line" "$inbox" 2>/dev/null)" \
         "$(FL="$first_line" awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s && index($0,ENVIRON["FL"]){n++} END{print n+0}' "$inbox")" \
         "$(stat -c %i "$inbox" 2>/dev/null || stat -f %i "$inbox" 2>/dev/null)" "$(wc -c < "$inbox" 2>/dev/null | tr -d ' ')" \
         "$(printf '%s' "$first_line" | python3 -c 'import sys;print(sys.stdin.read()[:100])' 2>/dev/null)" >> "$HOME/.claude/inbox-post-repairs.log" 2>/dev/null || true

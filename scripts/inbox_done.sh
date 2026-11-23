@@ -24,7 +24,9 @@ inbox=$("$HERE/inbox_resolve.sh" "$target") || exit 2
 new_hdr=$(find_new_hdr "$inbox"); done_hdr=$(find_done_hdr "$inbox")
 # How many lines with the needle are in New BEFORE: the post-validation counts, it does not just look (two identical
 # items -> one closed, the other stays -> a false "something overwrote the file").
-count_needle() { awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s' "$inbox" | command grep -cF -- "$needle" || true; }
+# LC_ALL=C on the greps: BSD grep (macOS) in a UTF-8 locale stops with "illegal byte sequence" at a broken byte in a
+# neighbour's letter -> count "" -> a false POST-VALIDATION rc 5 for an item that was closed. Bytes match the same.
+count_needle() { awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s' "$inbox" | LC_ALL=C command grep -cF -- "$needle" || true; }
 before=$(count_needle)
 
 lock_inbox "$inbox" inbox_done
