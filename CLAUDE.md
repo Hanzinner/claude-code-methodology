@@ -73,6 +73,7 @@ To save: write the memory to its own file with frontmatter (`name`, `description
 - Multiple independent tool calls → parallel in one message.
 - Use the todo list for any task with 3+ distinct steps. Mark items complete as soon as done.
 - The person asks what this system does for them, or why agents: read `docs/getting-started.md` (sections 2, 4, 5) in the repo this was installed from (`.methodology-installed/source`) and answer in plain words, each thing as what it gives in practice, with an example from what they actually do. Not a list of features.
+- The person wants a project with a team (a lead agent, developers): run `scripts/new_project.sh --own-repo <Name>` for code (`--profile web|game|tool` sets the stands) or `--no-code <Name>` otherwise; then tell them to open a new chat whose first message is `<Name>-HQ` and describe the goal there. The team works by `PROJECT-WORK.md` in the workspace.
 - Before writing your own tool, use what Claude Code already has: the Word, Excel, PowerPoint and PDF skills for those files; `/deep-research` for research across many sources; `skill-creator` to write and test a new skill; `/code-review`, `/simplify`, `/security-review` to review a change. Keep this system's own where it adds something: `/verify` (proof the "done" gate counts), `scripts/remind.py` (a reminder that survives a closed chat).
 
 ## Output
