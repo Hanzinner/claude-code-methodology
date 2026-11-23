@@ -10,6 +10,6 @@ mkdir -p "$BACKUP_STATE"
 MAX_MIN=${BACKUP_CATCHUP_MIN:-90}
 last=$(cat "$BACKUP_STAMP" 2>/dev/null || echo 0); [[ "$last" =~ ^[0-9]+$ ]] || last=0
 if (( $(date +%s) - last > MAX_MIN*60 )); then
-    echo "$(date -Iseconds) BOOT-CATCHUP: last success $(( ($(date +%s)-last)/3600 )) h ago - catching up" >> "$BACKUP_LOG"
+    echo "$(ccm_now_iso) BOOT-CATCHUP: last success $(( ($(date +%s)-last)/3600 )) h ago - catching up" >> "$BACKUP_LOG"
     SKIP_PRUNE=1 "$HERE/backup-restic.sh" >> "$BACKUP_LOG" 2>&1
 fi

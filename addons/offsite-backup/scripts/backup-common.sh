@@ -9,6 +9,12 @@ _BC_CONF=""
 for _d in "$_BC_HERE/../../lib" "$_BC_HERE/../lib" "$HOME/.claude/lib"; do
     [[ -f "$_d/ccm_conf.py" ]] && { _BC_CONF="$_d/ccm_conf.py"; break; }
 done
+# The same lib folder has ccm_compat.sh (a stock macOS: no date -d / date -Iseconds) and ccm_lock.sh (no flock).
+# A copy without them (an old install) keeps the GNU commands, as before.
+_BC_LIB=${_BC_CONF%/ccm_conf.py}
+if [[ -n "$_BC_CONF" && -f "$_BC_LIB/ccm_compat.sh" ]]; then . "$_BC_LIB/ccm_compat.sh"; fi
+type ccm_now_iso >/dev/null 2>&1 || ccm_now_iso() { date -Iseconds; }
+type ccm_epoch >/dev/null 2>&1 || ccm_epoch() { date -d "$1" +%s; }
 
 # ccm_get KEY [DEFAULT]
 ccm_get() {

@@ -11,7 +11,7 @@ LOG=$BACKUP_LOG; MAX_MIN=${MAX_MIN:-150}
 # -a: restic's progress bar writes control characters; without -a grep says "binary file matches" and prints nothing.
 last=$(grep -a "=== restic backup done ===" "$LOG" | tail -1 | cut -d' ' -f1)
 [[ -n "$last" ]] || { echo "no successful backup in the log"; exit 1; }
-age=$(( ( $(date +%s) - $(date -d "$last" +%s) ) / 60 ))
+age=$(( ( $(date +%s) - $(ccm_epoch "$last") ) / 60 ))   # ccm_epoch (backup-common.sh): date -d, or Python on macOS
 # Look for the error only AFTER the last success: otherwise the alarm quotes an old one.
 n=$(grep -an "=== restic backup done ===" "$LOG" | tail -1 | cut -d: -f1)
 tailog=$(tail -n +"$n" "$LOG")
