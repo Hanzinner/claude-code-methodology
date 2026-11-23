@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: install smoke test (throwaway HOME)
         env:
           SMOKE_CRON: "1"
@@ -42,7 +42,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: repo tests (each file on its own; the list of failures is at the end)
         env:
           CCM_TEST: "1"
@@ -64,4 +64,6 @@ jobs:
           done
           set -- $fails
           echo "ran $n, failed $#:"; for f in "$@"; do echo "  $f"; done
+          # one annotation with every name: GitHub shows only 10 annotations per step and no logs without a login
+          [ $# = 0 ] || echo "::error::failed $# of $n:$(for f in "$@"; do printf ' %s' "${f#tests/}"; done)"
           [ $# = 0 ]

@@ -44,6 +44,7 @@ BASH4 = [
     (r"\bwait\s+-n\b", "wait -n (bash 4.3)"),
     (r"\$\{?(EPOCHSECONDS|EPOCHREALTIME|BASHPID)\b", "$EPOCHSECONDS / $BASHPID (bash 4+/5): $(date +%s)"),
     (r";;&|;&\s*$", "case fall-through ;& / ;;& (bash 4)"),
+    (r"\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]", "$VAR right before a non-ASCII char (bash 3.2 in UTF-8 reads its first byte as part of the name: 'MEMDIR\\xe2: unbound variable'): ${VAR}"),
 ]
 
 # (pattern, a fallback on the same line that makes it fine, what to use instead)

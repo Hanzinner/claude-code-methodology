@@ -539,7 +539,7 @@ fi
 # "the person's own folder" - and autoMemoryDirectory was never written
 read -r MEM_SET MEMDIR < <(py3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import ccm_conf
 d, own = ccm_conf.memory_dir_set(sys.argv[2]); print(int(own), d)' "$REPO_DIR/lib" "$TARGET")
-say "Copying memory template into $MEMDIR…"
+say "Copying memory template into ${MEMDIR}…"
 do_or_show mkdir -p "$MEMDIR"
 if [[ ! -f "$MEMDIR/MEMORY.md" ]]; then
   do_or_show cp -r "$REPO_DIR/memory-template/"* "$MEMDIR/"

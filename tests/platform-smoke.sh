@@ -13,6 +13,8 @@ T=$(mktemp -d "${TMPDIR:-/tmp}/ccm-smoke.XXXXXX") || exit 2
 mkdir -p "$T/home" "$T/ws"
 export HOME="$T/home" CCM_WORKSPACE="$T/ws"
 bad=0
+# in GitHub Actions each failure is also an annotation (visible without a login to the logs)
+ann() { [[ "${GITHUB_ACTIONS:-}" = true ]] && printf '::error::%s\n' "$(printf '%s' "$*" | tr '\n' ' ' | cut -c1-900)"; return 0; }
 echo "== env"
 uname -a; echo "bash on PATH: $(command -v bash) ($(bash -c 'echo $BASH_VERSION'))"; echo "/bin/bash: $(/bin/bash -c 'echo $BASH_VERSION')"
 for c in python3 git flock timeout gtimeout setsid crontab jq getent readlink stat date; do printf '  %-9s %s\n' "$c" "$(command -v "$c" || echo MISSING)"; done
@@ -22,15 +24,15 @@ echo "== install"
 CRON=(--no-cron); [[ "${SMOKE_CRON:-0}" = 1 ]] && CRON=()   # CI: the runner's own crontab; by hand: never touch yours
 # ${CRON[@]+...} below: on bash 3.2 (stock macOS) "${CRON[@]}" of an empty array under set -u is an error
 ( cd "$REPO" && ./install.sh --user --yes ${CRON[@]+"${CRON[@]}"} </dev/null ) > "$T/install.log" 2>&1; rc=$?
-echo "install exit=$rc"; tail -30 "$T/install.log"; [[ $rc = 0 ]] || bad=1
+echo "install exit=$rc"; tail -30 "$T/install.log"; [[ $rc = 0 ]] || { bad=1; ann "install.sh exit=$rc: $(tail -5 "$T/install.log")"; }
 
 echo "== check-install"
 ( cd "$REPO" && python3 check-install.py --user ) > "$T/check.log" 2>&1; rc=$?
-echo "check exit=$rc"; tail -20 "$T/check.log"; [[ $rc = 0 ]] || bad=1
+echo "check exit=$rc"; tail -20 "$T/check.log"; [[ $rc = 0 ]] || { bad=1; ann "check-install exit=$rc: $(grep -E '^  - ' "$T/check.log" | head -8)"; }
 
 echo "== hooks"
 S="$HOME/.claude/settings.json"
-if [[ ! -f "$S" ]]; then echo "no $S"; exit 1; fi
+if [[ ! -f "$S" ]]; then echo "no $S"; ann "no settings.json after install"; exit 1; fi
 python3 - "$S" > "$T/hooks.txt" <<'P'
 import json, sys
 s = json.load(open(sys.argv[1]))
@@ -51,11 +53,11 @@ while IFS=$'\t' read -r ev cmd; do
     esac
     # Claude Code runs a hook command through the user's shell; here: /bin/sh -c, the most basic case
     out=$(printf '%s' "$p" | /bin/sh -c "$cmd" 2>&1); rc=$?
-    if [[ $rc -ne 0 && $rc -ne 2 ]]; then f=$((f+1)); echo "FAIL rc=$rc $ev: ${cmd:0:120} :: ${out:0:300}"; fi
+    if [[ $rc -ne 0 && $rc -ne 2 ]]; then f=$((f+1)); echo "FAIL rc=$rc $ev: ${cmd:0:120} :: ${out:0:300}"; ann "hook rc=$rc $ev: ${cmd:0:160} :: ${out:0:400}"; fi
 done < "$T/hooks.txt"
 echo "$n hook commands ran, $f failed"; [[ $f = 0 ]] || bad=1
 
 echo "== hook-errors.log (a hook under hook-safe.sh that broke is logged here and exits 0)"
-if [[ -s "$HOME/.claude/hook-errors.log" ]]; then tail -40 "$HOME/.claude/hook-errors.log"; bad=1; else echo "(empty)"; fi
+if [[ -s "$HOME/.claude/hook-errors.log" ]]; then tail -40 "$HOME/.claude/hook-errors.log"; bad=1; ann "hook-errors.log: $(tail -6 "$HOME/.claude/hook-errors.log")"; else echo "(empty)"; fi
 echo "== result: $([[ $bad = 0 ]] && echo GREEN || echo RED)"
 exit $bad
