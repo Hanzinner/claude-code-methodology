@@ -42,7 +42,7 @@ gl reset -q; rm "$W/scripts/manual.sh"
 : > "$T/posted"; rm -f "$T"/.mech-alert-*
 rc=$(WLX="$WL"$'\nlib/*' run)
 ok "6a a pattern without files -> rc 3, the letter names exactly it" '[ "$rc" = 3 ] && grep -q "lib/\*" "$T/posted" && ! grep -q "scripts/\*.sh" "$T/posted"'
-n1=$(wc -l < "$T/posted"); rc=$(WLX="$WL"$'\nlib/*' run)
+n1=$(wc -l < "$T/posted" | tr -d " "); rc=$(WLX="$WL"$'\nlib/*' run)
 ok "6b the same letter is not sent twice a day" '[ "$(wc -l < "$T/posted" | tr -d " ")" = "$n1" ]'
 rc=$(WLX="scripts/*.sh" MECH_MIN_FILES=50 run)
 ok "6c fewer files than MECH_MIN_FILES -> rc 3 (broken instrument, no false green)" '[ "$rc" = 3 ]'
