@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     --images)      WANT_IMAGES=1 ;;
     --dpi=*)       DPI="${1#--dpi=}" ;;
     -h|--help)
-      grep '^#' "$0" | sed 's/^# \?//'
+      grep '^#' "$0" | sed 's/^# \{0,1\}//'   # \{0,1\}, not \?: BSD sed
       exit 0
       ;;
     --*)

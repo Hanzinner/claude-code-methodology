@@ -25,7 +25,8 @@ while [[ $p -gt 1 ]]; do
         sid=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['sessionId'])" "$HOME/.claude/sessions/$p.json" 2>/dev/null || true)
         break
     fi
-    p=$(awk '{print $4}' /proc/$p/stat 2>/dev/null || echo 1)
+    if [[ -r /proc/$p/stat ]]; then p=$(awk '{print $4}' /proc/$p/stat 2>/dev/null || echo 1)
+    else p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ' || true); p=${p:-1}; fi   # no /proc (macOS): the parent from ps
 done
 sid=${TAKE_TASK_SID:-$sid}
 [[ -n "$sid" ]] || { echo "⛔ could not find the session (run it from the agent's tab)"; exit 2; }

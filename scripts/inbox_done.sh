@@ -11,8 +11,9 @@
 # or an auto-made `- [x] [date] <first line> - done.` Post-validation FROM DISK: the item is gone from New.
 
 set -euo pipefail
-export LC_ALL=C.UTF-8
 HERE="$(dirname "$(readlink -f "$0")")"
+. "$HERE/../lib/ccm_compat.sh"   # ccm_utf8_locale: a stock macOS may have no C.UTF-8
+LC_ALL=$(ccm_utf8_locale); export LC_ALL
 source "$HERE/inbox_lib.sh"
 
 target="${1:-}"; needle="${2:-}"; done_text="${3:-}"
@@ -87,8 +88,8 @@ esac
 # last line of defence: the assembled file cannot be empty
 [[ -s "$tmp" ]] || { rm -f "$tmp"; echo "inbox_done: assembled an empty file - inbox NOT touched ($inbox)" >&2; exit 8; }
 
-chown --reference="$inbox" "$tmp" 2>/dev/null || true
-chmod --reference="$inbox" "$tmp" 2>/dev/null || true
+ib_same_owner "$inbox" "$tmp"
+ib_same_mode "$inbox" "$tmp"
 ib_mv_retry "$tmp" "$inbox" || { rm -f "$tmp"; echo "inbox_done: could not put the file in place (refused rename, see above) - inbox NOT touched ($inbox)" >&2; exit 9; }
 
 # post-validation FROM DISK: the needle occurs in New fewer times than before (duplicates are not an error)

@@ -87,12 +87,12 @@ to_pending() {
     mkdir -p "$pend_dir"
     pf="$pend_dir/$(date +%s)-$$.md"
     printf '%s\n' "$text" > "$pf"
-    chown --reference="$inbox" "$pf" 2>/dev/null || true
+    ib_same_owner "$inbox" "$pf"
     echo "inbox_post: 🟡 the item did not stay in \"$new_hdr\" under a parallel rewrite - queued in $pf. Count it as DEFERRED, not lost: move it into the inbox by hand if nothing delivers the queue." >&2
     exit 0
 }
-chown --reference="$inbox" "$tmp" 2>/dev/null || true
-chmod --reference="$inbox" "$tmp" 2>/dev/null || true
+ib_same_owner "$inbox" "$tmp"
+ib_same_mode "$inbox" "$tmp"
 mv_in "$tmp" || to_pending
 
 # ── post-validation AFTER mv, reading FROM DISK ──────────────────────────────────────────────────────────────────
@@ -117,8 +117,8 @@ deliver() {
         "$(printf '%s' "$first_line" | python3 -c 'import sys;print(sys.stdin.read()[:100])' 2>/dev/null)" >> "$HOME/.claude/inbox-post-repairs.log" 2>/dev/null || true
     tmp2=$(mktemp "${inbox}.postXXXX")
     insert_into "$tmp2"
-    chown --reference="$inbox" "$tmp2" 2>/dev/null || true
-    chmod --reference="$inbox" "$tmp2" 2>/dev/null || true
+    ib_same_owner "$inbox" "$tmp2"
+    ib_same_mode "$inbox" "$tmp2"
     mv_in "$tmp2" || return 1
     in_new
 }

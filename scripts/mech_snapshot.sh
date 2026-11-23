@@ -23,6 +23,7 @@
 set -euo pipefail
 HERE="$(dirname "$(readlink -f "$0")")"
 eval "$(python3 "$HERE/../lib/ccm_conf.py" --shell 2>/dev/null)" || true
+. "$HERE/../lib/ccm_compat.sh"   # ccm_md5, ccm_now_iso: no md5sum / date -Iseconds on a stock macOS
 CLAUDE_DIR="${CCM_CLAUDE_DIR:-$HERE/..}"
 GD="${MECH_GIT_DIR:-$HOME/.claude/mech.git}"
 WT="${MECH_WORK_TREE:-$CLAUDE_DIR}"; WT="${WT%/}"
@@ -34,9 +35,11 @@ MIN_FILES="${MECH_MIN_FILES:-10}"
 SCAN="${MECH_SECRET_SCAN:-}"
 [[ -n "$SCAN" ]] || { [[ -x "$CLAUDE_DIR/bin/secret-scan" ]] && SCAN="$CLAUDE_DIR/bin/secret-scan" || SCAN="$(command -v secret-scan || true)"; }
 WHITELIST=("scripts/*.sh" "scripts/*.py" "hooks/*" "lib/*.py")
-[[ -n "${MECH_WHITELIST:-}" ]] && mapfile -t WHITELIST <<< "$MECH_WHITELIST"
+if [[ -n "${MECH_WHITELIST:-}" ]]; then   # a read loop, not mapfile: bash 3.2 (stock macOS) has no mapfile
+    WHITELIST=(); while IFS= read -r l; do WHITELIST+=("$l"); done <<< "$MECH_WHITELIST"
+fi
 mkdir -p "$(dirname "$LOG")"
-log() { echo "$(date -Iseconds) $*" >> "$LOG"; }
+log() { echo "$(ccm_now_iso) $*" >> "$LOG"; }
 # a letter to the owner (if there is one); never fails the script
 tell() { [[ -n "$OWNER" ]] || return 0; "$POST" "$OWNER" "$1" >/dev/null 2>&1 || return 1; }
 trap 'log "FAIL rc=$? line $LINENO: $BASH_COMMAND"; tell "mech_snapshot failed (line $LINENO) - log $LOG" || true' ERR
@@ -45,7 +48,7 @@ trap 'log "FAIL rc=$? line $LINENO: $BASH_COMMAND"; tell "mech_snapshot failed (
 g() { /usr/bin/env git -C "$WT" --git-dir="$GD" --work-tree="$WT" "$@"; }
 # one letter per cause per day (the job runs every 10 minutes)
 alert() {
-    local key; key="$(dirname "$LOG")/.mech-alert-$(printf '%s' "$1" | md5sum | cut -c1-8)-$(date +%F)"
+    local key; key="$(dirname "$LOG")/.mech-alert-$(printf '%s' "$1" | ccm_md5 | cut -c1-8)-$(date +%F)"
     [[ -e "$key" ]] && return 0
     tell "$1" && : > "$key" || true
 }
@@ -107,11 +110,11 @@ if [[ ${#files[@]} -lt $MIN_FILES ]]; then
     alert "mech_snapshot: whitelist gave ${#files[@]} files - the instrument is broken, mechanism history is not written."
     exit 3
 fi
-g add -- "${files[@]}"
+g add -- ${files[@]+"${files[@]}"}
 # files that vanished from disk leave the index (a deletion is history too)
 while IFS= read -r gone; do [[ -e "$WT/$gone" ]] || g rm -q --cached -- "$gone"; done < <(g ls-files)
 # post-condition (the one that would have caught the bug above): EVERYTHING on the list must be in the index
-in_idx=$(g ls-files | wc -l)
+in_idx=$(( $(g ls-files | wc -l) ))
 if (( in_idx < ${#files[@]} )); then
     log "BROKEN: index has $in_idx files, whitelist gave ${#files[@]}"
     alert "mech_snapshot: the index has $in_idx files, the whitelist gave ${#files[@]} - part of the mechanism code is NOT reaching history."
@@ -128,9 +131,9 @@ if [[ $src == 1 && -n "$hits" ]]; then
         log "SECRET: \"$f\" taken out of the commit"
         tell "mech_snapshot: SECRET in \"$WT/$f\" ($(printf '%s\n' "$hits" | grep -F -- "$f:" | awk -F: '{print $NF}' | sort -u | tr '\n' ' ')) - not committed; move the secret out of the code into the secrets dir. The value was not printed." \
             || log "WARN: letter not delivered"
-    done < <(printf '%s\n' "$hits" | awk -F: '{NF-=2; print}' OFS=: | sort -u)
+    done < <(printf '%s\n' "$hits" | awk -F: '{ s = (NF > 2) ? $1 : ""; for (i = 2; i <= NF - 2; i++) s = s ":" $i; print s }' | sort -u)   # the path = all but the last 2 fields (NF-=2 is not portable awk)
 fi
 g diff --cached --quiet && { log "only secrets - nothing to commit"; exit 0; }
-n=$(g diff --cached --name-only | wc -l)
+n=$(( $(g diff --cached --name-only | wc -l) ))
 g commit -q -m "mech: snapshot $(date '+%F %H:%M') ($n files)"
 log "commit OK ($n)"

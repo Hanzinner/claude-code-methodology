@@ -6,6 +6,7 @@
 # Run: @reboot + from the supervisor (every 15 min). Settings: REPO (default CCM_WORKSPACE), STATE.
 set -uo pipefail
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # ccm_md5: a stock macOS has md5, not md5sum
 eval "$(python3 "$HERE/../lib/ccm_conf.py" --shell)"
 REPO=${REPO:-$CCM_WORKSPACE}; TO=${CCM_GIT_KEEPER:-}
 POST="${CCM_INBOX_POST:-$HERE/inbox_post.sh}"
@@ -13,7 +14,7 @@ STATE=${STATE:-$HOME/.claude/supervisor/git-empty-objects.last}
 [[ -d "$REPO/.git/objects" ]] || { echo "$REPO is not a git repo - nothing to check"; exit 0; }
 found=$(find "$REPO/.git/objects" -type f -empty 2>/dev/null | sed "s#^$REPO/##" | sort)
 if [[ -z "$found" ]]; then echo "no empty objects"; rm -f "$STATE"; exit 0; fi
-n=$(printf '%s\n' "$found" | wc -l); sig=$(printf '%s' "$found" | md5sum | cut -c1-12)
+n=$(( $(printf '%s\n' "$found" | wc -l) )); sig=$(printf '%s' "$found" | ccm_md5 | cut -c1-12)
 echo "empty objects: $n"
 if [[ -n "$TO" && "$(cat "$STATE" 2>/dev/null)" != "$sig" ]]; then
   mkdir -p "$(dirname "$STATE")"

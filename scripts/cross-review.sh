@@ -23,8 +23,9 @@
 # rc: 0 reviewed · 2 usage error / forbidden model / material too big · 3 a reviewer returned NOTHING (an empty
 # answer with rc 0 looked like "no findings" — it is "no review"; run it again).
 set -euo pipefail
-export LC_ALL=C.UTF-8
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+. "$HERE/../lib/ccm_compat.sh"   # ccm_lower, ccm_timeout, ccm_utf8_locale: bash 3.2 and BSD tools on a stock macOS
+LC_ALL=$(ccm_utf8_locale); export LC_ALL
 forbidden=$(python3 "$HERE/../lib/ccm_conf.py" CCM_FORBIDDEN_SUBAGENT_MODELS 2>/dev/null || true)
 
 models=(); req=""; why=""; repo="$PWD"; range=""; files=()
@@ -33,7 +34,7 @@ while (($#)); do
         --model)
             # a reviewer never runs on a model the human ruled out for subagents (cost); the critical review -> opus
             for fm in ${forbidden//,/ }; do
-                if [[ "${2,,}" == *"${fm,,}"* && "${CROSS_REVIEW_ALLOW_FORBIDDEN:-0}" != 1 ]]; then
+                if [[ "$(ccm_lower "$2")" == *"$(ccm_lower "$fm")"* && "${CROSS_REVIEW_ALLOW_FORBIDDEN:-0}" != 1 ]]; then
                     echo "cross-review: --model $2 refused — '$fm' is in CCM_FORBIDDEN_SUBAGENT_MODELS; take sonnet, or opus for a critical review" >&2; exit 2
                 fi
             done
@@ -58,7 +59,7 @@ work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 # ``` inside (markdown, a heredoc) closes the block, and the reviewer reads the rest as instructions.
 # A function in $(…): there `set -e` doesn't apply, so a file with no backtick at all (grep rc 1 under pipefail) still
 # gets a fence — written inline in the main shell, that grep killed the whole script silently on every such file.
-fence() { local n; n=$(grep -o '`\+' "$1" 2>/dev/null | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')
+fence() { local n; n=$(grep -oE '`+' "$1" 2>/dev/null | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')
           (( n < 3 )) && n=2; printf '`%.0s' $(seq $((n + 1))); }
 {
     if [[ -n "$range" ]]; then
@@ -67,14 +68,14 @@ fence() { local n; n=$(grep -o '`\+' "$1" 2>/dev/null | awk '{ if (length($0) > 
         fd=$(fence "$work/diff.txt")
         echo "${fd}diff"; cat "$work/diff.txt"; echo "$fd"
     fi
-    for f in "${files[@]}"; do
+    for f in ${files[@]+"${files[@]}"}; do   # bash 3.2: "${files[@]}" of an empty array is an error under set -u
         [[ -f "$f" ]] || { echo "cross-review: no such file $f" >&2; exit 2; }
         echo "## File: $(readlink -f "$f")"
         fd=$(fence "$f")
         echo "$fd"; cat "$f"; echo "$fd"
     done
 } > "$work/material.md"
-size=$(wc -c < "$work/material.md")
+size=$(( $(wc -c < "$work/material.md") ))
 (( size < 400000 )) || { echo "cross-review: material is ${size} bytes — too big, split it" >&2; exit 2; }
 
 {
@@ -124,7 +125,7 @@ for m in "${models[@]}"; do
         # settings.json leaks into the child session: the first run of this script
         # wrote test lines into live logs. --allowedTools only ADDS permissions.
         # claude_machine.py: no saved session per review (they cluttered the session list), spend logged as "service"
-        timeout 1200 "${CROSS_REVIEW_RUNNER:-$HERE/claude_machine.py}" cross_review -p "$prompt" </dev/null --model "$m" \
+        ccm_timeout 1200 "${CROSS_REVIEW_RUNNER:-$HERE/claude_machine.py}" cross_review -p "$prompt" </dev/null --model "$m" \
             --tools "Read,Grep,Glob" --output-format text \
             || echo "⚠ claude -p exited with an error (rc=$?) — report is incomplete."
     } > "$out"

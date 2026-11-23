@@ -8,11 +8,12 @@
 # BACKUP_DIR (default ~/.claude-backups, as in backup-chats.sh), MAX_H (default 26).
 # The log line format is what backup-chats.sh prints: "[YYYY-MM-DD HH:MM:SS] backup: ..." or "[...] FAIL ...".
 set -uo pipefail
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_compat.sh"   # ccm_epoch: BSD date (stock macOS) has no date -d
 L=${BACKUP_LOG:-${L:-$HOME/.claude/logs/chat-backup.log}}; B=${BACKUP_DIR:-${B:-$HOME/.claude-backups}}; MAX_H=${MAX_H:-26}
 last=$(grep -E '^\[[0-9-]+ [0-9:]+\] (backup:|Backup done|FAIL)' "$L" 2>/dev/null | tail -1)
 [[ -n $last ]] || { echo "no run in $L"; exit 3; }
-ts=${last:1:19}; age_h=$(( ($(date +%s) - $(date -d "$ts" +%s)) / 3600 ))
-day=$B/${ts:0:10}; n=$(find "$day" -name '*.jsonl' 2>/dev/null | head -1000 | wc -l)
+ts=${last:1:19}; age_h=$(( ($(date +%s) - $(ccm_epoch "$ts")) / 3600 ))
+day=$B/${ts:0:10}; n=$(( $(find "$day" -name '*.jsonl' 2>/dev/null | head -1000 | wc -l) ))
 echo "last run ${age_h} h ago: ${last#*] }; .jsonl in ${day##*/}: ${n}"
 [[ $last == *FAIL* ]] && exit 1
 (( age_h <= MAX_H && n > 0 ))

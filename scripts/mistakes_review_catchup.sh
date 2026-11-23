@@ -5,10 +5,11 @@
 # Cron: @reboot sleep 300 && <dir>/mistakes_review_catchup.sh
 set -uo pipefail
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # ccm_mtime, ccm_now_iso: BSD stat/date on a stock macOS
 LOG="${MISTAKES_REVIEW_LOG:-$HOME/.claude/logs/mistakes-review.log}"
 mkdir -p "$(dirname "$LOG")"
-last=$(stat -c %Y "$LOG" 2>/dev/null || echo 0)
+last=$(ccm_mtime "$LOG" 2>/dev/null || echo 0)
 if (( $(date +%s) - last > 7*86400 )); then
-    echo "$(date -Iseconds) CATCHUP: log older than 7 days - running the missed weekly review" >> "$LOG"
+    echo "$(ccm_now_iso) CATCHUP: log older than 7 days - running the missed weekly review" >> "$LOG"
     "${MISTAKES_REVIEW:-$HERE/mistakes_review.sh}" >> "$LOG" 2>&1
 fi

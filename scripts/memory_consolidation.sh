@@ -12,8 +12,9 @@
 # Cost: one `claude -p` run per day. Cron: 20 * * * * (see tests/memory-consolidation-test.sh).
 # Test overrides: CONSOLIDATION_STAMP, _TSDIR, _LOG, _RUNNER (command that replaces claude_machine.py), _DRY, _MODEL.
 set -uo pipefail
-export LC_ALL=C.UTF-8
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # what a stock macOS lacks: a C.UTF-8 locale, date -d/-Iseconds, md5sum, timeout
+LC_ALL=$(ccm_utf8_locale); export LC_ALL
 eval "$(python3 "$HERE/../lib/ccm_conf.py" --shell)"
 MEM="${CCM_MEMORY_DIR:-$HOME/.claude/memory}"   # ccm_conf: autoMemoryDirectory in settings.json, else <claude dir>/memory
 WS="$CCM_WORKSPACE"
@@ -27,7 +28,7 @@ KEEPER="${CCM_CONSOLIDATION_KEEPER:-}"
 POST="${CCM_INBOX_POST:-$HERE/inbox_post.sh}"
 RUNNER="${CONSOLIDATION_RUNNER:-$HERE/claude_machine.py consolidation}"
 mkdir -p "$(dirname "$STAMP")" "$OUTDIR" "$(dirname "$LOG")"
-log() { echo "$(date -Iseconds) $*" >> "$LOG"; }
+log() { echo "$(ccm_now_iso) $*" >> "$LOG"; }
 letter() { [[ -n "$KEEPER" ]] && "$POST" "$KEEPER" "$1" >/dev/null 2>&1; return 0; }
 
 force=0; [[ "${1:-}" == "--force" ]] && force=1
@@ -37,9 +38,13 @@ if (( ! force )); then
     last=$(cat "$STAMP" 2>/dev/null)
     [[ "$last" == "$today" ]] && exit 0
     newest=$(find "$TSDIR" -maxdepth 1 -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1)
+    # BSD find (macOS) has no -printf: the newest mtime from Python (empty folder -> empty, as above)
+    [[ -n "$newest" ]] || newest=$(python3 -c 'import os, sys
+d = sys.argv[1]; m = [os.path.getmtime(os.path.join(d, f)) for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))]
+print(max(m) if m else "")' "$TSDIR" 2>/dev/null)
     newest=${newest%.*}; gap_min=$(( ( $(date +%s) - ${newest:-0} ) / 60 ))
     (( gap_min >= QUIET_MIN )) && why="quiet for ${gap_min} min"
-    [[ -z "$why" && "$last" < "$(date -d yesterday +%F)" ]] && why="catch-up: last run ${last:-never}"
+    [[ -z "$why" && "$last" < "$(ccm_date_at "$(ccm_epoch yesterday)" +%F)" ]] && why="catch-up: last run ${last:-never}"
     [[ -z "$why" ]] && (( 10#$(date +%H) >= 23 )) && why="end of day"   # 10#: "08" is an octal error otherwise
     [[ -z "$why" ]] && exit 0
 fi
@@ -47,7 +52,14 @@ fi
 [[ -d "$MEM" ]] || { log "no memory dir ($MEM) - skipped"; exit 0; }
 
 work=$(mktemp -d) || exit 2; trap 'rm -rf "$work"' EXIT
-sum() { find "$MEM" -type f -name '*.md' -print0 | sort -z | xargs -0 -r md5sum | md5sum | cut -c1-32; }
+sum() {   # a fingerprint of every memory file; without md5sum (macOS) the same idea in Python - compared only on this machine
+    if command -v md5sum >/dev/null 2>&1; then find "$MEM" -type f -name '*.md' -print0 | sort -z | xargs -0 -r md5sum | md5sum | cut -c1-32
+    else python3 -c 'import hashlib, os, sys
+h = hashlib.md5()
+for p in sorted(os.path.join(r, f) for r, _, fs in os.walk(sys.argv[1]) for f in fs if f.endswith(".md")):
+    h.update(p.encode("utf-8", "surrogateescape") + b"\0" + hashlib.md5(open(p, "rb").read()).digest())
+print(h.hexdigest())' "$MEM"; fi
+}
 md5_before=$(sum)
 "$HERE/broken_links.py" > "$work/broken_links.txt" 2>&1 || true
 out="$OUTDIR/$today.md"
@@ -76,7 +88,7 @@ log "start (model $MODEL, force=$force${why:+, $why})"
     echo "> Read-only. Script: scripts/memory_consolidation.sh."
     echo
     # shellcheck disable=SC2086
-    timeout 1800 $RUNNER -p "$prompt" </dev/null --model "$MODEL" --tools "Read,Grep,Glob" --output-format text
+    ccm_timeout 1800 $RUNNER -p "$prompt" </dev/null --model "$MODEL" --tools "Read,Grep,Glob" --output-format text
     echo "$?" > "$work/rc"
 } > "$out.tmp" 2>&1
 rc=$(cat "$work/rc" 2>/dev/null || echo 99)

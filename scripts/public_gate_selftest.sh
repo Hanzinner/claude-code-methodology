@@ -7,12 +7,13 @@
 # Settings: GATE (default <dir>/public_gate.sh), LOG (default ~/.claude/logs/public-gate-selftest.log), MAX_H (26).
 # Cron: 25 5 * * *
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # ccm_epoch: BSD date (stock macOS) has no date -d
 GATE=${GATE:-$HERE/public_gate.sh}
 LOG=${LOG:-$HOME/.claude/logs/public-gate-selftest.log}; MAX_H=${MAX_H:-26}
 if [[ "${1:-}" == "--check" ]]; then
   last=$(grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]+ rc=' "$LOG" 2>/dev/null | tail -1)
   [[ -n "$last" ]] || { echo "no run in $LOG"; exit 3; }
-  age_h=$(( ( $(date +%s) - $(date -d "${last:0:19}" +%s) ) / 3600 ))
+  age_h=$(( ( $(date +%s) - $(ccm_epoch "${last:0:19}") ) / 3600 ))
   echo "last selftest ${age_h} h ago: ${last#* * }"
   (( age_h <= MAX_H )) || { echo "run is stale (limit ${MAX_H} h) - cron not running?"; exit 1; }
   [[ "$last" == *" rc=0 "* ]]

@@ -12,10 +12,13 @@
 # (a gate that cannot fail is worse than none). Every matrix case differs by ONE feature and checks WHICH check fired.
 # The locale is part of the tool, not of the environment: without UTF-8 `grep -P '\p{L}'` goes bytewise, and a cron run
 # under an empty environment failed the whole matrix.
+# BSD grep (a stock macOS) has neither -P nor (maybe) -z: then the same searches run through Python (rx below); there the
+# self-test matrix used to fail and the gate refused every run.
 # Test: tests/public-gate-test.sh. Nightly self-test: public_gate_selftest.sh.
 set -uo pipefail
-export LC_ALL=C.UTF-8 LANG=C.UTF-8
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # ccm_utf8_locale: C.UTF-8, or en_US.UTF-8 where there is no C.UTF-8 (macOS)
+LC_ALL=$(ccm_utf8_locale); LANG=$LC_ALL; export LC_ALL LANG
 eval "$(python3 "$HERE/../lib/ccm_conf.py" --shell)"
 CYR=${CCM_PUBLIC_GATE_CYRILLIC:-1}
 NAMES=${CCM_PUBLIC_GATE_NAMES:-}
@@ -23,6 +26,55 @@ INTERNAL=${CCM_PUBLIC_GATE_INTERNAL:-'AGENT-NOTES|TODO\.md|inbox|briefing|MISTAK
 # git through a wrapper: the repo may belong to another user, and without this git silently refuses and returns NOTHING -
 # and "nothing" counts as "clean" (this is how an earlier gate lied "green" on its first run)
 git() { command git -c safe.directory='*' "$@"; }
+
+# rx <mode> <PCRE> - the grep -P searches of this gate. Modes: l (files with a match), o (every match, one per line),
+# n (file:line:match) read a NUL-separated file list on stdin and skip binary files (-I); c (lines with a match) and
+# ac (the same, binary read as text) read text on stdin. With GNU grep: exactly the grep commands as before. Without
+# -P: Python, \p{Cyrillic} spelled as its code-point ranges and [\p{L}] as [^\W\d_] (a Unicode letter).
+if printf '\320\257\n' | grep -qP '[\p{Cyrillic}]' 2>/dev/null; then HAVE_PCRE=1; else HAVE_PCRE=0; fi
+PYRX='import re, sys
+mode, pat = sys.argv[1], sys.argv[2]
+pat = pat.replace(r"\p{Cyrillic}", "\u0400-\u052f\u1c80-\u1c8f\u2de0-\u2dff\ua640-\ua69f").replace(r"[\p{L}]", r"[^\W\d_]")
+rx = re.compile(pat)
+out = sys.stdout
+if mode in ("c", "ac"):
+    data = sys.stdin.buffer.read().decode("utf-8", "replace")
+    out.write("%d\n" % sum(1 for l in data.split("\n") if rx.search(l)))
+    sys.exit(0)
+files = [f for f in sys.stdin.buffer.read().decode("utf-8", "surrogateescape").split("\0") if f]
+for f in files:
+    try:
+        b = open(f, "rb").read()
+    except OSError:
+        continue
+    if b"\0" in b[:32768]:
+        continue
+    lines = b.decode("utf-8", "replace").split("\n")
+    if mode == "l":
+        if any(rx.search(l) for l in lines):
+            out.write(f + "\n")
+        continue
+    for i, l in enumerate(lines, 1):
+        for m in rx.finditer(l):
+            if not m.group(0):
+                continue
+            if mode == "o":
+                out.write(m.group(0) + "\n")
+            else:
+                out.write((f + ":" if len(files) > 1 else "") + "%d:%s\n" % (i, m.group(0)))'
+rx() {
+    if [ "$HAVE_PCRE" = 1 ]; then
+        case "$1" in
+            l) xargs -0 grep -lIP "$2" 2>/dev/null ;;
+            o) xargs -0 grep -hoIP "$2" 2>/dev/null ;;
+            n) xargs -0 grep -noIP "$2" 2>/dev/null ;;
+            c) grep -cP "$2" ;;
+            ac) grep -acP "$2" ;;
+        esac
+    else
+        python3 -c "$PYRX" "$1" "$2"
+    fi
+}
 
 if [ "${1:-}" != "--selftest" ] && [ -z "${GATE_SELFCHECK_DONE:-}" ]; then
     if ! GATE_SELFCHECK_DONE=1 "$0" --selftest >/dev/null 2>&1; then
@@ -73,7 +125,7 @@ cd "$TARGET" || exit 2
 fail=0
 say() { printf '%s\n' "$*"; }
 say "=== PUBLIC GATE: $TARGET ==="
-n_files=$(git ls-files 2>/dev/null | wc -l)
+n_files=$(( $(git ls-files 2>/dev/null | wc -l) ))
 if [ "$n_files" -lt 5 ]; then
     say "GATE BROKEN: I see only $n_files files - nothing to check."
     say "     Usually one cause: git cannot read the repo (permissions / not a repo / empty clone)."
@@ -82,19 +134,19 @@ fi
 say "checking $n_files files"
 
 if [ "$CYR" = 1 ]; then
-    cyr_files=$(git ls-files -z 2>/dev/null | xargs -0 grep -lIP "[\p{Cyrillic}]" 2>/dev/null | wc -l)
+    cyr_files=$(( $(git ls-files -z 2>/dev/null | rx l "[\p{Cyrillic}]" | wc -l) ))
     if [ "$cyr_files" -gt 0 ]; then
         say "CYRILLIC: found in $cyr_files files"
-        git ls-files -z | xargs -0 grep -lIP "[\p{Cyrillic}]" 2>/dev/null | head -10 | sed 's/^/     /'
+        git ls-files -z | rx l "[\p{Cyrillic}]" | head -10 | sed 's/^/     /'
         fail=1
     else say "ok: no Cyrillic"; fi
 fi
 
 if [ -n "$NAMES" ]; then
-    name_hits=$(git ls-files -z 2>/dev/null | xargs -0 grep -hoIP "(?<![\p{L}])($NAMES)(?![\p{L}])" 2>/dev/null | wc -l)
+    name_hits=$(( $(git ls-files -z 2>/dev/null | rx o "(?<![\p{L}])($NAMES)(?![\p{L}])" | wc -l) ))
     if [ "$name_hits" -gt 0 ]; then
         say "NAMES: $name_hits mentions"
-        git ls-files -z | xargs -0 grep -noIP "(?<![\p{L}])($NAMES)(?![\p{L}])" 2>/dev/null | head -10 | sed 's/^/     /'
+        git ls-files -z | rx n "(?<![\p{L}])($NAMES)(?![\p{L}])" | head -10 | sed 's/^/     /'
         fail=1
     else say "ok: no names"; fi
 fi
@@ -103,12 +155,12 @@ fi
 hist_cyr=0
 if [ "$CYR" = 1 ]; then
     hist_cyr=$(git rev-list --objects --all 2>/dev/null | awk '{print $1}' | sort -u \
-               | git cat-file --batch 2>/dev/null | grep -acP "[\p{Cyrillic}]" || true)
+               | git cat-file --batch 2>/dev/null | rx ac "[\p{Cyrillic}]" || true)
 fi
 hist_msg=0
 pat="[\p{Cyrillic}]"; [ "$CYR" = 1 ] || pat="(?!)"
 [ -n "$NAMES" ] && pat="$pat|(?<![\p{L}])($NAMES)(?![\p{L}])"
-hist_msg=$(git log --all --format='%an %ae%n%s%n%b' 2>/dev/null | grep -cP "$pat" || true)
+hist_msg=$(git log --all --format='%an %ae%n%s%n%b' 2>/dev/null | rx c "$pat" || true)
 if [ "${hist_cyr:-0}" -gt 0 ] || [ "${hist_msg:-0}" -gt 0 ]; then
     say "HISTORY: $hist_cyr file versions with Cyrillic, $hist_msg commit-message lines with Cyrillic/names"
     say "     (reminder: the safe way is a public repo from ONE fresh initial commit, without the old history)"
@@ -125,7 +177,12 @@ else say "ok: no internal files"; fi
 P1='gh''p_|github''_pat_|sk-''ant-'
 P2='BEGIN [A-Z ]*PRIVATE'' KEY'
 P3='AKIA[0-9A-Z]{16}|"type":[[:space:]]*"service''_account"|private''_key_id'
-sec=$(git ls-files -z 2>/dev/null | grep -zvE '(^|/)(secret-scan|public_gate\.sh|public-gate-test\.sh)$' \
+# the exclusion by name: grep -z where grep has it, else Python on the same NUL-separated list
+if printf 'a\0' | grep -qz a 2>/dev/null; then nozscan() { grep -zvE '(^|/)(secret-scan|public_gate\.sh|public-gate-test\.sh)$'; }
+else nozscan() { python3 -c 'import re, sys
+fs = sys.stdin.buffer.read().split(b"\0")
+sys.stdout.buffer.write(b"".join(f + b"\0" for f in fs if f and not re.search(rb"(^|/)(secret-scan|public_gate\.sh|public-gate-test\.sh)$", f)))'; }; fi
+sec=$(git ls-files -z 2>/dev/null | nozscan \
       | xargs -0 grep -lIE "($P1|$P2|$P3)" 2>/dev/null | head -5)
 if [ -n "$sec" ]; then say "SECRETS (possible):"; printf '%s\n' "$sec" | sed 's/^/     /'; fail=1
 else say "ok: no secrets seen"; fi

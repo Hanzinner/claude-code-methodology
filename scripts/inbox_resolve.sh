@@ -20,7 +20,8 @@ else
         [[ -f "$c/inbox.md" ]] && hits+=("$c/inbox.md")
     done
     if [[ ${#hits[@]} -eq 0 ]]; then
-        mapfile -t hits < <(R="$AGENTS_ROOT" L="$low" python3 -c '
+        # read loops, not mapfile: bash 3.2 (stock macOS) has no mapfile
+        while IFS= read -r l; do hits+=("$l"); done < <(R="$AGENTS_ROOT" L="$low" python3 -c '
 import glob, os
 R, L = os.environ["R"], os.environ["L"]
 for a in sorted(glob.glob(R + "/*/.aliases") + glob.glob(R + "/*/*/.aliases")):
@@ -31,7 +32,8 @@ for a in sorted(glob.glob(R + "/*/.aliases") + glob.glob(R + "/*/*/.aliases")):
         print(ib)')
     fi
     if [[ ${#hits[@]} -gt 0 ]]; then
-        mapfile -t hits < <(printf '%s\n' "${hits[@]}" | awk 'NF && !seen[$0]++')
+        uniq=(); while IFS= read -r l; do uniq+=("$l"); done < <(printf '%s\n' "${hits[@]}" | awk 'NF && !seen[$0]++')
+        hits=(${uniq[@]+"${uniq[@]}"})
     fi
     if [[ ${#hits[@]} -eq 0 ]]; then
         echo "inbox: no inbox found for '$target' (looked for a folder, <name>-agent and .aliases in $AGENTS_ROOT)" >&2; exit 2

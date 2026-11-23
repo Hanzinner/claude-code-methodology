@@ -13,7 +13,7 @@
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}
 F=${F:-$HOME/.claude/quota-status.json}; MAX_REAL_MIN=${MAX_REAL_MIN:-60}
 [[ -s $F ]] || { echo "no $F"; exit 3; }
-age=$(( ($(date +%s) - $(stat -c %Y "$F")) / 60 ))
+age=$(( ($(date +%s) - $(stat -c %Y "$F" 2>/dev/null || stat -f %m "$F")) / 60 ))   # stat -f %m: BSD stat (macOS)
 read -r src real_age pct < <(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('source','?'), d.get('real_age_min') if d.get('real_age_min') is not None else -1, d.get('pct'))" "$F" 2>/dev/null) || { echo "broken JSON $F"; exit 3; }
 echo "file ${age} min old; source ${src}; real reading ${real_age} min old; session ${pct}%"
 (( age < 10 )) || { echo "quota file is not updating - the cron job is stopped"; exit 1; }

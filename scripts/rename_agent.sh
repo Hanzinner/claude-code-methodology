@@ -26,8 +26,9 @@
 # Under CCM_TEST=1 (or HANZ_TEST=1) CCM_WORKSPACE must come from the environment: a test never touches the real workspace.
 # Test: tests/rename-agent-test.sh
 set -Eeuo pipefail
-export LC_ALL=C.UTF-8 PYTHONIOENCODING=utf-8
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # ccm_utf8_locale: a stock macOS may have no C.UTF-8
+LC_ALL=$(ccm_utf8_locale); export LC_ALL PYTHONIOENCODING=utf-8
 
 usage() { echo "rename_agent.sh <old> <new> [--apply] - without --apply only the plan (changes nothing)" >&2; exit 2; }
 apply=0; pos=()
@@ -89,7 +90,12 @@ trap 'rc=$?; echo "FAILED at step \"$step\" (rc=$rc). What was done is marked wi
 
 if (( apply )); then
     step="1. folder"
-    mv -T -- "$old_dir" "$new_dir"
+    # -T: never INTO a folder that appeared meanwhile. BSD mv (macOS) has no -T: there the same check by hand
+    if mv --version >/dev/null 2>&1; then mv -T -- "$old_dir" "$new_dir"
+    else
+        if [[ -e "$new_dir" ]]; then echo "$new_dir appeared meanwhile - not moving into it" >&2; false; fi
+        mv -- "$old_dir" "$new_dir"
+    fi
     echo "MODE --apply: $old -> $new"
 else
     echo "DRY RUN: nothing changed. To apply: rename_agent.sh '$old' '$new' --apply"
