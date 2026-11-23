@@ -102,7 +102,7 @@ area is big enough for a team (a lead, a developer, testing).
 The installer has
 already put the shared files into your working folder (`CCM_WORKSPACE`): `AGENTS.md` (the registry),
 `MISTAKES.md` (one mistakes journal for all agents), `LIBRARY.md` (the catalog of mechanisms),
-`CODING-STANDARD.md` (the rules for agents that write code) and `Agents/_example-agent/` (the template). Files you already had are not touched.
+`CODING-STANDARD.md` (the rules for agents that write code), `Agents/_example-agent/` (the template) and four briefings for the agents that keep the system itself running: `_coordinator-example` (your main chat), `_method-example` (the rules), `_technic-example` (the machine and the system's code), `_archivist-example` (registry, mistakes review). Ask your agent which to start with. Files you already had are not touched.
 
 1. **Create an agent:** in any chat, type **`/register-as <Name>`** (letters, digits, `-`, `_`). It copies the
    template to `Agents/<Name>/` (briefing, inbox, the agent's own todo, your todo for it) and adds a row to
