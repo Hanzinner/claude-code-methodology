@@ -17,10 +17,11 @@
 CLAUDE_DIR="${CLAUDE_METHODOLOGY_DIR:-$HOME/.claude}"
 TIMESTAMP_DIR="$CLAUDE_DIR/cache/prompt-timestamps"
 CONF="$(dirname "$(readlink -f "$0")")/../lib/ccm_conf.py"
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_compat.sh"   # ccm_json_str, ccm_date_at: no grep -P / date -d @N on BSD
 cv() { python3 "$CONF" "$1" 2>/dev/null; }
 
 input=$(cat)
-session_id=$(printf '%s' "$input" | grep -oP '"session_id"\s*:\s*"\K[^"]+' | head -1)
+session_id=$(printf '%s\n' "$input" | ccm_json_str session_id)
 [[ -z "$session_id" ]] && exit 0
 
 dir="$TIMESTAMP_DIR"
@@ -31,9 +32,9 @@ mkdir -p "$dir"
 TIMESTAMP_FILE="$dir/$session_id"
 
 tz=$(cv CCM_TIMEZONE)
-tdate() { if [[ -n "$tz" ]]; then TZ="$tz" date "$@"; else date "$@"; fi; }
+tdate() { ( if [[ -n "$tz" ]]; then export TZ="$tz"; fi; ccm_date_at "$@" ); }   # tdate <epoch> +format
 now=$(date +%s)
-now_human=$(tdate -d "@$now" '+%Y-%m-%d %H:%M %Z')
+now_human=$(tdate "$now" '+%Y-%m-%d %H:%M %Z')
 
 prev_line=""
 if [[ -f "$TIMESTAMP_FILE" ]]; then
@@ -45,7 +46,7 @@ if [[ -f "$TIMESTAMP_FILE" ]]; then
         elif (( diff < 86400 )); then ago="$(( (diff + 1800) / 3600 )) h ago"
         else ago="$(( (diff + 43200) / 86400 )) d ago"
         fi
-        prev_line="previous message: $(tdate -d "@$prev" '+%Y-%m-%d %H:%M') (${ago})"
+        prev_line="previous message: $(tdate "$prev" '+%Y-%m-%d %H:%M') (${ago})"
     fi
 fi
 

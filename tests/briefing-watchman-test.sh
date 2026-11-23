@@ -10,7 +10,7 @@ T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_AGENTS_DIR="$T/ws/Agents" CCM_TRASH_DIR="$T/trash"
 unset CCM_SUPERVISOR_HEARTBEAT
 mkdir -p "$HOME" "$T/ws/Agents" "$T/inst/hooks" "$T/inst/lib" "$T/inst/scripts"
-cp "$WM" "$T/inst/hooks/briefing-watchman.sh"; cp "$HERE/../lib/ccm_conf.py" "$T/inst/lib/"
+cp "$WM" "$T/inst/hooks/briefing-watchman.sh"; cp "$HERE/../lib/ccm_conf.py" "$HERE/../lib/ccm_compat.sh" "$T/inst/lib/"
 # stub inbox_post.sh: appends the item under "## New" of the inbox file given as the first argument
 cat > "$T/inst/scripts/inbox_post.sh" <<'STUB'
 #!/usr/bin/env bash

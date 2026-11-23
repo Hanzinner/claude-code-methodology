@@ -39,7 +39,7 @@ fi
 log="$HOME/.claude/hook-errors.log"
 seen="$HOME/.claude/cache/hook-errors.seen"
 if [[ -s "$log" ]]; then
-    cur=$(wc -c < "$log")
+    cur=$(( $(wc -c < "$log") ))        # $(( )): BSD wc pads the number with spaces, and the saved "   123" never matched
     prev=$(cat "$seen" 2>/dev/null)
     case "$prev" in ''|*[!0-9]*) prev=0 ;; esac
     (( cur < prev )) && prev=0          # log was rotated/truncated

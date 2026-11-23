@@ -27,7 +27,11 @@
 # agent copied into a letter and the inbox script choked on it.
 u8() { iconv -f utf-8 -t utf-8 -c 2>/dev/null || true; }
 set -eu   # no pipefail: `head -1` after grep sends SIGPIPE to the left side of a pipe on a big input — pipefail killed the WHOLE hook
-export LC_ALL=C.UTF-8   # so ${s,,} lowercases non-ASCII names (aliases) regardless of the hook's env
+# lib/ccm_compat.sh: what a stock macOS lacks (bash 3.2: no ${s,,}; BSD: no grep -P, sha256sum, date -d) - on Linux the
+# same GNU commands as before. Without it this hook died at the first ${s,,}, and hook-safe.sh hid that: no identity,
+# no briefing, no letters.
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_compat.sh"
+LC_ALL=$(ccm_utf8_locale); export LC_ALL   # so ccm_lower lowercases non-ASCII names (aliases) regardless of the hook's env
 
 eval "$(python3 "$(dirname "$(readlink -f "$0")")/../lib/ccm_conf.py" --shell 2>/dev/null)" || true
 WORKSPACE="${CCM_WORKSPACE:-$HOME/claude-projects}"
@@ -44,8 +48,8 @@ mkdir -p "$MARKER_DIR" "$IDENTITY_DIR"
 touch "$MARKER_DIR/heartbeat" 2>/dev/null || true   # the supervisor's "watchman is alive" check reads its age
 
 input=$(cat)
-session_id=$(echo "$input" | grep -oP '"session_id"\s*:\s*"\K[^"]+' | head -1)
-cwd=$(echo "$input" | grep -oP '"cwd"\s*:\s*"\K[^"]+' | head -1)
+session_id=$(printf '%s\n' "$input" | ccm_json_str session_id)
+cwd=$(printf '%s\n' "$input" | ccm_json_str cwd)
 
 [[ -z "$session_id" || -z "$cwd" ]] && exit 0
 
@@ -97,7 +101,7 @@ identity_file="$IDENTITY_DIR/$session_id"
 
 norm_name() {
     local s prev
-    s="${1,,}"                      # NOT tr: tr doesn't lowercase non-ASCII
+    s=$(ccm_lower "$1")             # NOT tr: tr doesn't lowercase non-ASCII
     s=$(printf '%s' "$s" | tr -d ' _-')
     # Strip suffixes in a LOOP, because the order varies: "foo-agent V2" -> v2 comes off first, THEN agent.
     # A fixed order (agent, then v<N>) gave fooagent != foo — a miss on the real name used for new generations.
@@ -178,7 +182,7 @@ has_todo() {  # has_todo <glob...> — at least one file exists (case ignored)
     for g in "$@"; do for f in "$agent_dir"/$g; do
         [[ -f "$f" ]] || continue
         # for the agent's own TODO the human's files don't count (*-todo.md would catch a fresh human-TODO.md)
-        [[ "${HAS_TODO_SKIP_HUMAN:-0}" == 1 && ( "${f,,}" == *human* ) ]] && continue
+        [[ "${HAS_TODO_SKIP_HUMAN:-0}" == 1 && ( "$(ccm_lower "$f")" == *human* ) ]] && continue
         shopt -u nullglob nocaseglob; return 0
     done; done
     shopt -u nullglob nocaseglob; return 1
@@ -231,7 +235,7 @@ check_and_inject() {
     local current_hash prev_hash=""
 
     [[ -f "$file" ]] || return 0
-    current_hash=$(sha256sum "$file" | awk '{print $1}')
+    current_hash=$(ccm_sha256 "$file")
     [[ -f "$marker" ]] && prev_hash=$(cat "$marker" 2>/dev/null || true)
     [[ "$current_hash" == "$prev_hash" ]] && return 0
 
@@ -270,7 +274,7 @@ if [[ -f "$inbox" ]]; then
         item && /^[[:space:]>]/ {print}
     ' "$inbox" 2>/dev/null | while IFS= read -r line; do
         if [[ "$line" =~ ^-\ \[\ \].*\[([0-9]{4}-[0-9]{2}-[0-9]{2})[]\ ] ]]; then
-            d_epoch=$(date -d "${BASH_REMATCH[1]}" +%s 2>/dev/null || echo "")
+            d_epoch=$(ccm_epoch "${BASH_REMATCH[1]}" 2>/dev/null || echo "")
             if [[ -n "$d_epoch" ]]; then
                 age_days=$(( (now_epoch - d_epoch) / 86400 ))
                 [[ "$age_days" -ge 2 ]] && line="$line ⏳(lying ${age_days} d)"
@@ -322,17 +326,17 @@ if [[ -f "$watchlist" ]]; then
             continue
         fi
 
-        key=$(echo -n "$wf" | sha256sum | cut -c1-8)
+        key=$(printf '%s' "$wf" | ccm_sha256 | cut -c1-8)
         snap="$MARKER_DIR/${session_id}-wl-${key}.snap"
 
-        cur_hash=$(sha256sum "$wf" | awk '{print $1}')
+        cur_hash=$(ccm_sha256 "$wf")
         prev_hash=""
-        [[ -f "$snap" ]] && prev_hash=$(sha256sum "$snap" | awk '{print $1}')
+        [[ -f "$snap" ]] && prev_hash=$(ccm_sha256 "$snap")
         [[ "$cur_hash" == "$prev_hash" ]] && continue
 
         if [[ -z "$prev_hash" ]]; then
             # First sight: do NOT dump — only record the base for future deltas.
-            echo "[watchman] 👁 Watching a shared file: $line ($(wc -l < "$wf") lines). Read it yourself if needed — from now on I show only changes."
+            echo "[watchman] 👁 Watching a shared file: $line ($(( $(wc -l < "$wf") )) lines). Read it yourself if needed — from now on I show only changes."
         else
             echo "[watchman] ⚠ A shared file CHANGED: $line — another agent wrote to it (maybe to you). Delta:"
             echo ""

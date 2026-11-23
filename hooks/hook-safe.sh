@@ -25,6 +25,13 @@ if [ -f "$pyenv" ]; then
     fi
 fi
 
+# lib/ccm_compat.sh: ccm_timeout (timeout, else gtimeout, else perl - a stock macOS has no timeout, and without the
+# fallback every hook here exited 127: all of them silently off) and ccm_now_iso (date -Iseconds is GNU)
+compat="$(dirname "$0")/../lib/ccm_compat.sh"
+if [ -f "$compat" ]; then . "$compat"; fi
+type ccm_timeout >/dev/null 2>&1 || ccm_timeout() { timeout "$@"; }
+type ccm_now_iso >/dev/null 2>&1 || ccm_now_iso() { date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S%z; }
+
 real="$1"; shift
 hook_name=$(basename "$real")   # for the log: after a shebang launch $real is the interpreter
 # "<dir>/hook-safe.sh" python "<dir>/x.py" (install.sh writes it so where python3 is not a working Python): name the script
@@ -37,10 +44,20 @@ t="${HOOK_TIMEOUT:-20}"
 # minute); restoring it (mknod) is a human decision, not the hook's.
 if [ ! -c /dev/null ]; then
     m="/tmp/devnull-alert-$(date +%H%M)"
-    [ -e "$m" ] || { : > "$m"; printf '%s /dev/null is NOT a device (%s) — restore: sudo sh -c "rm -f /dev/null; mknod -m 666 /dev/null c 1 3"\n' "$(date -Iseconds)" "$(stat -c %F /dev/null 2>&1)" >> "$ERRLOG"; }
+    [ -e "$m" ] || { : > "$m"; printf '%s /dev/null is NOT a device (%s) — restore: sudo sh -c "rm -f /dev/null; mknod -m 666 /dev/null c 1 3"\n' "$(ccm_now_iso)" "$(stat -c %F /dev/null 2>/dev/null || stat -f %HT /dev/null 2>&1)" >> "$ERRLOG"; }
 fi
 
 stderr_tmp=$(mktemp /tmp/hook-stderr.XXXXXX 2>/dev/null) || stderr_tmp=/dev/null
+
+# install.sh may start this wrapper with a bash 4+ by its full path (a Mac whose /bin/bash is 3.2 and that has a newer
+# one, e.g. Homebrew's). A bash hook started by its #! line would get the bash first in PATH again - the old one - so
+# then it runs under the same bash as this wrapper. Where the bash in PATH is 4+ (Linux, Git Bash) nothing changes.
+if [ "${BASH_VERSINFO:-0}" -ge 4 ] && [ -f "$real" ]; then
+    pb=$(command -v bash 2>/dev/null)
+    if [ -z "$pb" ] || { [ "$pb" != "$BASH" ] && [ "$("$pb" -c 'echo "${BASH_VERSINFO[0]}"' 2>/dev/null || echo 0)" -lt 4 ]; }; then
+        case "$(head -c 200 "$real" 2>/dev/null | head -1)" in '#!'*bash*) set -- "$real" "$@"; real="$BASH" ;; esac
+    fi
+fi
 
 # Target without +x (a file-writing tool doesn't set it; a hook was dead for a month
 # on exit 126): if it has a shebang, run it through that interpreter + a loud warning.
@@ -48,19 +65,19 @@ if [ -f "$real" ] && [ ! -x "$real" ]; then
     shebang=$(head -c 200 "$real" 2>/dev/null | head -1)
     if [ "${shebang#\#!}" != "$shebang" ]; then
         m="/tmp/hook-nox-$hook_name-$(date +%d%H)"
-        [ -e "$m" ] || { : > "$m"; printf '%s %s has no +x — ran via its shebang (%s). Fix: chmod +x %s\n' "$(date -Iseconds)" "$hook_name" "${shebang#\#!}" "$real" >> "$ERRLOG"; }
+        [ -e "$m" ] || { : > "$m"; printf '%s %s has no +x — ran via its shebang (%s). Fix: chmod +x %s\n' "$(ccm_now_iso)" "$hook_name" "${shebang#\#!}" "$real" >> "$ERRLOG"; }
         # shellcheck disable=SC2086 — "/usr/bin/env python3" must split into words
         set -- ${shebang#\#!} "$real" "$@"
         real="$1"; shift
     fi
 fi
 
-timeout -k 3 "$t" "$real" "$@" 2>"$stderr_tmp"
+ccm_timeout -k 3 "$t" "$real" "$@" 2>"$stderr_tmp"
 code=$?
 if [ "$code" -ne 0 ]; then
     # the line is built whole and written with ONE write: several printf in a row from hooks running in parallel
     # interleaved in the log into one line (three timeouts at the same second)
-    line="$(date -Iseconds) $hook_name failed (exit $code)"
+    line="$(ccm_now_iso) $hook_name failed (exit $code)"
     [ "$code" = 124 ] && line="$line [TIMEOUT ${t}s]"
     err=$(tail -c 300 "$stderr_tmp" 2>/dev/null | tr '\n' ' ')
     [ -n "$err" ] && line="$line :: $err"
