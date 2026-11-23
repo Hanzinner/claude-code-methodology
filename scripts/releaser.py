@@ -35,11 +35,12 @@ Settings (methodology.conf or env): CCM_WORKSPACE, CCM_PROJECTS_GLOB (default Pr
 tree; default: the owner of the workspace folder), CCM_RELEASER_LOG, CCM_RELEASER_APPROVED, CCM_INBOX_POST.
 Test: tests/releaser-test.sh
 """
-import fcntl, glob, hashlib, json, os, pwd, re, shutil, signal, subprocess, sys, tempfile, time, tomllib
+import fcntl, glob, hashlib, json, os, pwd, re, shutil, signal, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf
+import ccm_toml  # noqa: E402  (tomllib on 3.11+, a fallback parser on the 3.9 of a stock macOS)
 
 os.environ["PATH"] = "/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
 REPO = conf("CCM_WORKSPACE")
@@ -166,7 +167,7 @@ class Project:
         self.name = os.path.basename(self.dir)
         self.short = self.name[len(PREFIX):] if self.name.startswith(PREFIX) else self.name
         with open(toml_path, "rb") as f:
-            self.c = tomllib.load(f)
+            self.c = ccm_toml.load(f)
         if not os.path.exists(os.path.join(self.dir, ".git")):
             raise ValueError("no repo of its own: the releaser works only with <Project>/.git")
         self.queue = os.path.join(STATE, "queue", self.name)
