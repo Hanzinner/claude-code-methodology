@@ -9,7 +9,7 @@ ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $
 printf '## 2026-11-12 · X\ntext\n' | bash "$EA" 2026-11 >/dev/null 2>&1; ok "1 YYYY-MM -> appended to 2026-11.md" '[ $? = 0 ] && grep -q text "$T/2026-11.md"'
 for m in 2026-11-03 Gotten-Dev 2026-13 "2026-09-22…28 · some-agent"; do
   printf 'x\n' | bash "$EA" "$m" >/dev/null 2>&1; rc=$?
-  ok "2 «$m» -> rc 2, no file" '[ $rc = 2 ] && [ ! -e "$T/$m.md" ]'
+  ok "2 «${m}» -> rc 2, no file" '[ $rc = 2 ] && [ ! -e "$T/$m.md" ]'
 done
 ok "3 only 2026-11.md in the directory" '[ "$(ls "$T" | grep -v lock)" = 2026-11.md ]'
 # settings route: no EPISODIC_DIR override, CCM_EPISODIC_DIR from the environment. Skipped for a script that does not

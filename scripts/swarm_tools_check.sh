@@ -7,8 +7,9 @@
 # Catalog: CCM_SWARM_TOOLS (default <workspace>/SWARM-TOOLS.md); no catalog -> exit 0.
 # Cron: 50 12 * * * . Test overrides: SWARM_TOOLS_INBOX, SWARM_TOOLS_DIRS (colon-separated).
 set -uo pipefail
-export LC_ALL=C.UTF-8
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # ccm_utf8_locale: a stock macOS may have no C.UTF-8
+LC_ALL=$(ccm_utf8_locale); export LC_ALL
 eval "$(python3 "$HERE/../lib/ccm_conf.py" --shell)"
 CAT="${CCM_SWARM_TOOLS:-$CCM_WORKSPACE/SWARM-TOOLS.md}"
 OWNER="${CCM_SWARM_TOOLS_OWNER:-}"

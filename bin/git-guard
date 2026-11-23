@@ -35,7 +35,7 @@ HERE=$(dirname -- "$SELF")
 REAL_GIT=${CCM_REAL_GIT:-}
 if [[ -z "$REAL_GIT" ]]; then
     IFS=: read -ra _dirs <<< "${PATH:-}"
-    for _d in "${_dirs[@]}"; do
+    for _d in ${_dirs[@]+"${_dirs[@]}"}; do   # bash 3.2: an empty PATH gives an empty array, an error under set -u
         [[ -x "$_d/git" && "$(readlink -f -- "$_d/git")" != "$SELF" ]] && { REAL_GIT="$_d/git"; break; }
     done
 fi

@@ -22,13 +22,14 @@ mkdir -p "$EP"
 f="$EP/$month.md"
 [[ -f "$f" ]] || echo "# Episodic $month" > "$f"
 . "$(dirname "$(readlink -f "$0")")/../lib/ccm_lock.sh"   # flock, or a mkdir lock where there is none (macOS, Git Bash)
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_compat.sh"   # ccm_fsize, ccm_sha256: BSD stat and no sha256sum on a stock macOS
 ccm_lock 9 "$f.lock" 15 1 || { echo "episodic_append: could not get the lock" >&2; exit 3; }
-before_sz=$(stat -c%s "$f")
-before_sha=$(head -c "$before_sz" "$f" | sha256sum | cut -d' ' -f1)
+before_sz=$(ccm_fsize "$f")
+before_sha=$(head -c "$before_sz" "$f" | ccm_sha256)
 printf '\n%s\n' "$text" >> "$f"
-after_prefix_sha=$(head -c "$before_sz" "$f" | sha256sum | cut -d' ' -f1)
-if [[ "$before_sha" != "$after_prefix_sha" || $(stat -c%s "$f") -le $before_sz ]]; then
+after_prefix_sha=$(head -c "$before_sz" "$f" | ccm_sha256)
+if [[ "$before_sha" != "$after_prefix_sha" || $(ccm_fsize "$f") -le $before_sz ]]; then
     echo "episodic_append: POST-VALIDATION FAILED: the old content changed or the file did not grow - check $f by hand" >&2
     exit 5
 fi
-echo "OK: appended to $f (+$(( $(stat -c%s "$f") - before_sz )) bytes, other entries intact)"
+echo "OK: appended to $f (+$(( $(ccm_fsize "$f") - before_sz )) bytes, other entries intact)"

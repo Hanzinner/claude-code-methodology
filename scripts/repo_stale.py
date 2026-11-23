@@ -7,11 +7,12 @@ Settings: CCM_WORKSPACE, CCM_PROJECTS_GLOB (default Project-*), CCM_RELEASER_STA
 CCM_RELEASER_OWNER (who runs git on the shared tree; default: owner of the workspace), CCM_INBOX_POST, CCM_STALE_HOURS.
 Test: tests/repo-stale-test.sh
 """
-import glob, json, os, pwd, shutil, subprocess, sys, time, tomllib
+import glob, json, os, pwd, shutil, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 from ccm_conf import conf
+import ccm_toml  # noqa: E402  (tomllib on 3.11+, a fallback parser on the 3.9 of a stock macOS)
 
 REPO = conf("CCM_WORKSPACE")
 GLOB = conf("CCM_PROJECTS_GLOB", "Project-*")
@@ -70,7 +71,7 @@ def stale_files(d):
 def hq_of(d):
     try:
         with open(os.path.join(d, "release.toml"), "rb") as f:
-            hq = tomllib.load(f).get("hq")
+            hq = ccm_toml.load(f).get("hq")
         if hq:
             return hq
     except (OSError, ValueError):

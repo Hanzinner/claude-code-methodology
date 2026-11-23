@@ -37,8 +37,8 @@ fresh; run "restore --worktree --source=HEAD .";  must "restore --worktree --sou
 fresh; run "switch --discard-changes master";     must "switch --discard-changes -> intact"  'work_intact'
 fresh; run "reset --hard";               must "reset --hard -> intact"                       'work_intact'
 fresh; run "clean -fd";                  must "clean -fd -> the untracked file lives"        '[ -f "$M/untracked.txt" ]'
-fresh; run "stash clear";                must "stash clear -> the stash lives"               '[ "$(H "cd '"'$M'"' && '"$RG"' stash list" | wc -l)" = 1 ]'
-fresh; run "stash drop";                 must "stash drop -> the stash lives"                '[ "$(H "cd '"'$M'"' && '"$RG"' stash list" | wc -l)" = 1 ]'
+fresh; run "stash clear";                must "stash clear -> the stash lives"               '[ "$(H "cd '"'$M'"' && '"$RG"' stash list" | wc -l | tr -d " ")" = 1 ]'
+fresh; run "stash drop";                 must "stash drop -> the stash lives"                '[ "$(H "cd '"'$M'"' && '"$RG"' stash list" | wc -l | tr -d " ")" = 1 ]'
 fresh; run "tag -d rel-1";               must "tag -d -> the tag lives"                      'H "cd '"'$M'"' && '"$RG"' rev-parse -q --verify refs/tags/rel-1" >/dev/null'
 fresh; run "update-ref -d refs/heads/b1";must "update-ref -d -> the branch lives"            'branch_exists b1'
 fresh; n0=$(H "cd '$M' && '$RG' reflog | wc -l"); run "reflog expire --expire-unreachable=now --all"

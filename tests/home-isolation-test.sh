@@ -11,6 +11,7 @@ set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$HERE/..
 [[ -n "${CCM_REPO_DIR:-}" ]] && REPO=$CCM_REPO_DIR
+. "$REPO/lib/ccm_compat.sh"
 [[ -f "$REPO/lib/ccm_conf.py" ]] || { echo "home-isolation: SKIP (no lib/ccm_conf.py in $REPO - nothing was tested)"; exit 0; }
 T=$(mktemp -d) || exit 2; [[ -d "$T" ]] || exit 2; trap 'rm -rf "${T:?}"' EXIT
 TRAP="$T/real-home"; mkdir -p "$TRAP" "$T/sim"
@@ -55,8 +56,10 @@ one() {   # one <test file>
   local t=$1 b=${1##*/} r
   case $b in *.py) r=(python3 "$t") ;; *) r=(bash "$t") ;; esac
   mkdir -p "$TRAP/$b"
-  ( cd "$T" && env USERPROFILE="$TRAP/$b" PYTHONPATH="$T/sim${PYTHONPATH:+:$PYTHONPATH}" HOME_ISO_PYSHIM="$REPO/lib/pyshim" \
-      CCM_REPO_DIR="$REPO" CCM_TEST=1 timeout 600 "${r[@]}" >/dev/null 2>&1 )
+  # ccm_timeout (lib/ccm_compat.sh): a stock macOS has no `timeout` - with it the nested run was "command not found"
+  # and the test passed without running anything; a shell function can't follow env, so env goes after it
+  ( cd "$T" && ccm_timeout 600 env USERPROFILE="$TRAP/$b" PYTHONPATH="$T/sim${PYTHONPATH:+:$PYTHONPATH}" \
+      HOME_ISO_PYSHIM="$REPO/lib/pyshim" CCM_REPO_DIR="$REPO" CCM_TEST=1 "${r[@]}" >/dev/null 2>&1 )
 }
 n=0
 for t in "$REPO"/tests/*-test.sh "$REPO"/tests/*-test.py; do

@@ -51,7 +51,7 @@ CCM_FORBIDDEN_SUBAGENT_MODELS=fable CROSS_REVIEW_ALLOW_FORBIDDEN=1 bash "$XR" --
 ok "7 CROSS_REVIEW_ALLOW_FORBIDDEN=1 lets it run" '[[ $rc == 0 ]]' "rc=$rc"
 n0=$(ls "$HOME/.claude/cross-reviews" | wc -l)
 bash "$XR" --model sonnet --model opus "$T/plain.py" >/dev/null 2>&1
-ok "8 two models -> two reports" '[[ $(ls "$HOME/.claude/cross-reviews" | wc -l) == $((n0 + 2)) ]]' "$(ls "$HOME/.claude/cross-reviews")"
+ok "8 two models -> two reports" '[[ $(ls "$HOME/.claude/cross-reviews" | wc -l | tr -d " ") == $((n0 + 2)) ]]' "$(ls "$HOME/.claude/cross-reviews")"
 ok "9 every run is logged as a service spend (claude_machine.py)" '[[ $(grep -c cross_review "$MACHINE_USAGE") -ge 6 ]]' "$(cat "$MACHINE_USAGE" 2>&1 | head -3)"
 bash "$XR" "$T/missing.py" >/dev/null 2>&1; rc=$?
 ok "10 a missing file -> rc 2" '[[ $rc == 2 ]]' "rc=$rc"

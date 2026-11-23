@@ -16,7 +16,7 @@ mode=off
 [[ "${CCM_PRUNE_WATCHMAN_STATE:-0}" == 1 || "${1:-}" == --yes ]] && mode=delete
 [[ "${1:-}" == --dry-run ]] && mode=dry
 if [[ $mode == off ]]; then echo "prune_watchman_state: disabled (set CCM_PRUNE_WATCHMAN_STATE=1 or pass --yes); nothing deleted"; exit 0; fi
-n=$(find "$DIR" -type f -mtime +"$DAYS" | wc -l)
+n=$(( $(find "$DIR" -type f -mtime +"$DAYS" | wc -l) ))   # $(( )): BSD wc pads the number with spaces
 if [[ $mode == dry ]]; then find "$DIR" -type f -mtime +"$DAYS"; echo "prune_watchman_state: dry run, $n file(s) older than $DAYS days"; exit 0; fi
 find "$DIR" -type f -mtime +"$DAYS" -delete 2>/dev/null
 echo "$(date '+%F %T') prune_watchman_state: deleted $n file(s) older than $DAYS days from $DIR"

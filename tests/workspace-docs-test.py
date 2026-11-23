@@ -24,7 +24,7 @@ REPO = find_repo()
 if REPO is None:
     print("workspace-docs-test: SKIP (no clone of the repo found: set CCM_REPO_DIR=<clone> - nothing was tested)")
     sys.exit(0)
-T = Path(tempfile.mkdtemp(prefix="wsdocs-test-"))
+T = Path(tempfile.mkdtemp(prefix="wsdocs-test-")).resolve()   # ws_docs.py writes realpath(repo); a macOS temp dir is a link
 R, WS, ST = T / "repo", T / "ws", T / "stamp"
 for d in ("docs", "code-pitfalls", "swarm-template"):
     shutil.copytree(REPO / d, R / d)

@@ -46,7 +46,7 @@ if (( un )); then
 fi
 
 # the real git, looked for WITHOUT our directory in PATH
-clean_path=$(echo "$PATH" | tr ':' '\n' | grep -vxF "$dir" | paste -sd:)
+clean_path=$(echo "$PATH" | tr ':' '\n' | grep -vxF "$dir" | paste -sd: -)   # "-": BSD paste (macOS) reads no stdin without it
 real=$(PATH="$clean_path" command -v git || true)
 [[ -n "$real" ]] || { echo "no real git found in PATH (without $dir) - install git first" >&2; exit 2; }
 echo "real git: $real"

@@ -4,6 +4,7 @@
 # once a week only. MC=, CM= <path> test other copies. Sandbox: temp CLAUDE dir, no config file.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
+. "$HERE/../lib/ccm_compat.sh"   # ccm_touch_ago: BSD touch -d takes no "2 days ago"
 MC=${MC:-$HERE/../hooks/memory-curation-check.sh}
 CM=${CM:-$HERE/../scripts/curate_memory.py}
 T=$(mktemp -d) && [[ -d "$T" && "$T" != / ]] || { echo "no temp dir (mktemp missing?) - refusing to run: every path below would land in /" >&2; exit 2; }
@@ -38,15 +39,15 @@ o=$(run)
 ok "5 no frontmatter -> named" '[[ "$o" == *"no frontmatter: reference_x.md"* ]]' "$o"
 ok "6 unknown type -> named" '[[ "$o" == *"unknown type '"'"'rumor'"'"'"* ]]' "$o"
 mem feedback_old.md feedback inferred; printf -- '- [old](feedback_old.md)\n' >> "$M/MEMORY.md"
-touch -d '45 days ago' "$M/feedback_old.md"
+ccm_touch_ago 3888000 "$M/feedback_old.md"
 o=$(run)
 ok "7 inferred and unchanged for 45 days -> decay sweep names it" '[[ "$o" == *"Memory decay: 1 unverified"* && "$o" == *"feedback_old.md"* ]]' "$o"
 ok "8 45 days is under the stale threshold (60)" '[[ "$o" != *"untouched 45 days"* ]]' "$o"
-touch -d '90 days ago' "$M/project_acme.md"
+ccm_touch_ago 7776000 "$M/project_acme.md"
 o=$(run)
 ok "9 untouched 90 days -> 'still true?'" '[[ "$o" == *"untouched 90 days: project_acme.md"* ]]' "$o"
 mem feedback_new.md feedback unverified
-printf -- '---\nname: e\n  verified: inferred\n---\n' > "$M/episodic/2026-01.md"; touch -d '90 days ago' "$M/episodic/2026-01.md"
+printf -- '---\nname: e\n  verified: inferred\n---\n' > "$M/episodic/2026-01.md"; ccm_touch_ago 7776000 "$M/episodic/2026-01.md"
 o=$(run); d=${o#*Memory decay}
 ok "10 a fresh unverified file and episodic/ are not in the decay list" '[[ "$o" == *"Memory decay"* && "$d" != *"feedback_new.md"* && "$o" != *"2026-01.md"* ]]' "$d"
 o=$(bash "$MC" | ctx)

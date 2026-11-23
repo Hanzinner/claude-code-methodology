@@ -234,3 +234,9 @@
 - **Why:** `tr '\t' '\0'` replaces only the tab; the newline between records stays inside a field, so xargs sees "path\nnext_id" as ONE argument and the pairs shift.
 - **Right way:** `tr '\t\n' '\0\0'` (both separators to NUL) or `while IFS=$'\t' read -r id path`. Check: `printf 'a\tb\nc\td\n' | tr '\t\n' '\0\0' | xargs -0 -n2 echo` prints `a b` and `c d`.
 - **Seen:** once.
+
+### A script written on Linux dies on a stock macOS (bash 3.2, BSD tools) - and a hook dies without a word
+- **Symptom:** on a Mac the agent never gets its identity, briefing or letters; claims never hold; the publish gate refuses every run. Nothing in the chat: hook-safe.sh fails open.
+- **Why:** /bin/bash on macOS is 3.2: `${x,,}` is "bad substitution", `mapfile` does not exist, `"${a[@]}"` of an empty array under `set -u` is "unbound variable". BSD grep has no `-P`, BSD stat no `-c`, BSD date no `-d`/`-I`, BSD mv no `-T`, chmod/chown no `--reference`; no `timeout`, `flock`, `sha256sum`, `md5sum`; maybe no C.UTF-8 locale.
+- **Right way:** `. "<dir>/../lib/ccm_compat.sh"` and its functions (ccm_lower, ccm_mtime, ccm_epoch, ccm_now_iso, ccm_sha256, ccm_md5, ccm_timeout, ccm_utf8_locale, ccm_json_str), `${a[@]+"${a[@]}"}` for an array that may be empty, a `while read` loop for mapfile, `[[:space:]]` for `\s`, `\{0,1\}` for `\?` in sed. Check: `tests/bash3-compat-test.py` (on a Mac it also runs `/bin/bash -n` on every script).
+- **Seen:** once, across ~25 scripts (found by reading, before a Mac ran them).

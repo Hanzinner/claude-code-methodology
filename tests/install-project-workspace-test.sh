@@ -15,7 +15,7 @@ fi
 [[ -n "${INSTALL:-}" ]] || { echo "install-project-workspace-test: SKIP (no clone with install.sh: set CCM_REPO_DIR=<clone> - nothing was tested)"; exit 0; }
 REPO=$(cd "$(dirname "$INSTALL")" && pwd)
 T=$(mktemp -d) || exit 2; [[ -d "$T" && "$T" != / ]] || exit 2; trap 'rm -rf "$T"' EXIT
-for v in $(compgen -e | grep '^CCM_\|^CLAUDE_METHODOLOGY_'); do unset "$v"; done   # a setting from this machine would beat the test's
+for v in $(compgen -e | grep -e '^CCM_' -e '^CLAUDE_METHODOLOGY_'); do unset "$v"; done   # a setting from this machine would beat the test's
 unset TAVILY_API_KEY EXA_API_KEY
 export CCM_TEST=1
 pass=0; fail=0

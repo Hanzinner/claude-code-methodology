@@ -14,6 +14,7 @@ input=$(cat)
 ERRLOG="$HOME/.claude/hook-errors.log"
 mkdir -p "${ERRLOG%/*}" 2>/dev/null   # a failed 2>>"$ERRLOG" redirection skips the branch itself, block and all
 HOOK_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+. "$HOOK_DIR/../lib/ccm_compat.sh"   # ccm_timeout, ccm_now_iso: a stock macOS has no timeout and no date -Iseconds
 BUDGET=${STOP_DISPATCH_BUDGET:-17}     # below hook-safe.sh's 20 s, so this script still gets to write its log
 SLOW=5
 t0=$(date +%s)
@@ -25,7 +26,7 @@ BLOCKING=(pause-guard proof-guard status-guard work-guard)
 DETECTORS=(reply-guard strawman-guard abbr-guard source-guard link-guard input-guard cost-guard draft-guard remind-guard agent-status)
 
 left() { echo $(( BUDGET - ($(date +%s) - t0) )); }
-log() { echo "$(date -Iseconds) stop-dispatch/$*" >> "$ERRLOG" 2>/dev/null; }
+log() { echo "$(ccm_now_iso) stop-dispatch/$*" >> "$ERRLOG" 2>/dev/null; }
 
 blocking() {  # blocking <name> — its stdout ({"decision":"block"}) goes to the harness
     local name="$1" f="$HOOK_DIR/$1.py" out l s rc
@@ -33,7 +34,7 @@ blocking() {  # blocking <name> — its stdout ({"decision":"block"}) goes to th
     l=$(left); (( l > 10 )) && l=10
     if (( l < 2 )); then skipped+=("$name"); return 1; fi
     s=$(date +%s)
-    out=$(printf '%s' "$input" | timeout -k 1 "$l" python3 "$f" 2>>"$ERRLOG"); rc=$?
+    out=$(printf '%s' "$input" | ccm_timeout -k 1 "$l" python3 "$f" 2>>"$ERRLOG"); rc=$?
     (( rc == 124 || rc == 137 )) && log "$name did not finish in $l s — its block was not checked"
     (( $(date +%s) - s >= SLOW )) && log "$name slow: $(( $(date +%s) - s )) s"
     case "$out" in *'"decision"'*) printf '%s\n' "$out"; return 0 ;; esac
@@ -52,7 +53,7 @@ if (( l < 2 )); then skipped+=("${DETECTORS[@]}"); finish; fi
 tmp=$(mktemp -d) || finish
 for name in "${DETECTORS[@]}"; do
     [[ -f "$HOOK_DIR/$name.py" ]] || continue
-    ( s=$(date +%s); printf '%s' "$input" | timeout -k 1 "$l" python3 "$HOOK_DIR/$name.py" \
+    ( s=$(date +%s); printf '%s' "$input" | ccm_timeout -k 1 "$l" python3 "$HOOK_DIR/$name.py" \
           >/dev/null 2>"$tmp/$name.err"; echo "$? $(( $(date +%s) - s ))" > "$tmp/$name.rc" ) &
 done
 wait

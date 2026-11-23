@@ -8,11 +8,12 @@ Settings: CCM_WORKSPACE, CCM_PROJECTS_GLOB (default Project-*), CCM_RELEASER_STA
 CCM_PAUSED_PROJECTS (file, one project per line; default <agents dir>/paused-projects.txt), CCM_DRIFT_DAYS (default 7).
 Test: tests/project-drift-test.sh
 """
-import glob, json, os, sys, time, tomllib
+import glob, json, os, sys, time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
 from ccm_conf import conf
 import ccm_fs  # noqa: E402  (os.replace that waits out a file held open on Windows)
+import ccm_toml  # noqa: E402  (tomllib on 3.11+, a fallback parser on the 3.9 of a stock macOS)
 
 REPO = conf("CCM_WORKSPACE")
 GLOB = conf("CCM_PROJECTS_GLOB", "Project-*")
@@ -38,7 +39,7 @@ def problems(d):
         return ["no repo of its own: the releaser cannot attach"]
     try:
         with open(os.path.join(d, "release.toml"), "rb") as f:
-            c = tomllib.load(f)
+            c = ccm_toml.load(f)
     except FileNotFoundError:
         return ["no release.toml: the releaser does not know this project"]
     except (OSError, ValueError) as e:

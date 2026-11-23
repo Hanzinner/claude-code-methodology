@@ -2,6 +2,7 @@
 # swap-live: mode copied from the live file, syntax checked before the swap, live file intact on failure. SL=<path> tests another copy.
 set -u
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # ccm_mode: BSD stat has no -c
 SL=${SL:-$HERE/../bin/swap-live}
 H=$(mktemp -d) || exit 2; export HOME=$H CLAUDE_METHODOLOGY_CONF=/nonexistent
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T" "$HOME"' EXIT
@@ -11,7 +12,7 @@ ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $
 printf '#!/usr/bin/env python3\nprint(1)\n' > "$T/h.py"; chmod 755 "$T/h.py"
 printf 'print(2)\n' > "$T/h.py.new"; chmod 644 "$T/h.py.new"          # as after open(p+'.new','w')
 "$SL" "$T/h.py.new" >/dev/null 2>&1; rc=$?
-ok "py: 644 .new -> live file stays 755"        '[ $rc = 0 ] && [ "$(stat -c %a "$T/h.py")" = 755 ]'
+ok "py: 644 .new -> live file stays 755"        '[ $rc = 0 ] && [ "$(ccm_mode "$T/h.py")" = 755 ]'
 ok "py: content is new, .new is gone"              'grep -q "print(2)" "$T/h.py" && [ ! -e "$T/h.py.new" ]'
 
 printf 'print(\n' > "$T/h.py.new"; "$SL" "$T/h.py.new" >/dev/null 2>&1; rc=$?
@@ -21,7 +22,7 @@ printf '#!/bin/bash\necho a\n' > "$T/s.sh"; chmod 750 "$T/s.sh"
 printf '#!/bin/bash\nif then\n' > "$T/s.sh.new"; "$SL" "$T/s.sh.new" >/dev/null 2>&1; rc=$?
 ok "sh: bash -n failure -> rc 1, live file intact"   '[ $rc = 1 ] && grep -q "echo a" "$T/s.sh"'
 printf '#!/bin/bash\necho b\n' > "$T/s.sh.new"; "$SL" "$T/s.sh.new" >/dev/null 2>&1
-ok "sh: mode 750 carried over"                 '[ "$(stat -c %a "$T/s.sh")" = 750 ] && grep -q "echo b" "$T/s.sh"'
+ok "sh: mode 750 carried over"                 '[ "$(ccm_mode "$T/s.sh")" = 750 ] && grep -q "echo b" "$T/s.sh"'
 
 printf '#!/usr/bin/env bash\necho x\n' > "$T/tool"; chmod 755 "$T/tool"
 printf '#!/usr/bin/env bash\nfi\n' > "$T/tool.new"; "$SL" "$T/tool.new" >/dev/null 2>&1; rc=$?

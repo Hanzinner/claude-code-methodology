@@ -57,22 +57,42 @@ printf '# comment Foo-Ops\nFoo-HQ\nFoo-Ops\nFoo-OpsX\n' > "$T/wga"
 echo auto > "$T/mode/Foo-Ops"; echo off > "$T/mode/Foo-OpsX"
 I="$H/.claude/agent-identity"
 echo "$A/Foo-Ops" > "$I/s-live"; echo "$A/Foo-Ops/" > "$I/s-slash"; echo "$A/Foo-OpsX" > "$I/s-x"
-ps0=$(cut -d' ' -f22 /proc/$$/stat)
+ps0=$(cut -d' ' -f22 /proc/$$/stat 2>/dev/null)   # no /proc (macOS): empty; the script checks only that the pid exists there
 printf '{"pid": %s, "procStart": "%s", "sessionId": "s-live", "name": "workspace-7", "status": "idle"}\n' $$ "$ps0" > "$H/.claude/sessions/1.json"
 chmod 640 "$A/Other/briefing.md"
 if [[ $(id -u) == 0 ]]; then chown 65534:65534 "$A/Other/briefing.md"; fi
-own0=$(stat -c %u:%g:%a "$A/Other/briefing.md")
+# uid:gid:mode and the tree snapshot in Python: BSD stat has no -c, BSD find no -printf, macOS no sha256sum
+own() { python3 -c 'import os,sys; s=os.stat(sys.argv[1]); print("%d:%d:%o" % (s.st_uid, s.st_gid, s.st_mode & 0o7777))' "$1"; }
+own0=$(own "$A/Other/briefing.md")
+cat > "$T/snap.py" <<'PY'
+# One line per path (type, owner, mode, size, link, content hash). home/Library is left out: the system python3 of a
+# stock macOS can keep its bytecode cache there (sys.pycache_prefix under ~/Library/Caches), so a Python start under the
+# test's HOME adds files that are not the script's doing. A failed check lists what changed.
+import hashlib, os, stat, sys
+paths = []
+for top in sys.argv[1:]:
+    paths.append(top)
+    for root, dirs, files in os.walk(top):          # like find: links are listed, not followed
+        dirs[:] = [d for d in dirs if os.path.join(root, d) != os.path.join("home", "Library")]
+        paths += [os.path.join(root, n) for n in dirs + files]
+for p in sorted(paths):
+    st = os.lstat(p)
+    link = os.readlink(p) if stat.S_ISLNK(st.st_mode) else ""
+    sha = hashlib.sha256(open(p, "rb").read()).hexdigest() if stat.S_ISREG(st.st_mode) else ""
+    print(f"{p}|{stat.S_IFMT(st.st_mode)}|{st.st_uid}:{st.st_gid}|{st.st_mode & 0o7777:o}|{st.st_size}|{link}|{sha}")
+PY
 export HOME="$H" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_TEST=1 CCM_WORKSPACE="$R" CCM_AGENTS_DIR="$A" \
        CCM_ALARM_MODE_DIR="$T/mode" CCM_WORK_GUARD_AGENTS="$T/wga" CCM_PROJECTS_GLOB='Project-*' CCM_LANG_EXTRA=""
 run() { bash "$RA" "$@" > "$T/out" 2>&1; echo $?; }
-snap() { (cd "$T" && find repo home mode wga -printf '%p|%y|%U:%G|%m|%s|%l\n' | sort && find repo home mode wga -type f -exec sha256sum {} + | sort) | sha256sum; }
+snapls() { (cd "$T" && python3 "$T/snap.py" repo home mode wga); }
+snap() { snapls | cksum; }
 got() { grep -l "Agent $1 was renamed to $2" "$A"/*/inbox.md "$A"/*/*/inbox.md 2>/dev/null | sed "s|$A/||;s|/inbox.md||" | sort | tr '\n' ' '; }
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; sed 's/^/   /' "$T/out"; fi; }
 
-hist() { sha256sum "$R/decisions/0001-2026-11-22.md" "$R/MISTAKES.md" "$R/episodic/2026-11.md" "$A/Foo-HQ/logs/run.log" "$A/Foo-HQ/logs/x.jsonl" "$A/Other/inbox.md" "$A/_example-agent/briefing.md"; }
-hs0=$(hist); h0=$(snap); rc=$(run Foo-Ops Foo-DevOps)
-ok "1 dry run: rc 0, the tree (incl. identities, mode, the work-guard list, inboxes) byte for byte the same" '[ "$rc" = 0 ] && [ "$(snap)" = "$h0" ]'
+hist() { python3 -c 'import hashlib,sys; [print(hashlib.sha256(open(f,"rb").read()).hexdigest(), f) for f in sys.argv[1:]]' "$R/decisions/0001-2026-11-22.md" "$R/MISTAKES.md" "$R/episodic/2026-11.md" "$A/Foo-HQ/logs/run.log" "$A/Foo-HQ/logs/x.jsonl" "$A/Other/inbox.md" "$A/_example-agent/briefing.md"; }
+hs0=$(hist); h0=$(snap); snapls > "$T/snap0"; rc=$(run Foo-Ops Foo-DevOps)
+ok "1 dry run: rc 0, the tree (incl. identities, mode, the work-guard list, inboxes) byte for byte the same" '[ "$rc" = 0 ] && { [ "$(snap)" = "$h0" ] || { echo "   changed by the dry run:"; snapls | diff "$T/snap0" - | head -20; false; }; }'
 ok "1b the plan has steps 1-5" '( for s in "== 1." "== 2." "== 3." "== 4." "== 5."; do grep -qF "$s" "$T/out" || exit 1; done )'
 ok "1c plan: live mentions (Lead header, FILE-OWNERSHIP, OWNERS, briefing) before 4b, history ([D], ROADMAP outside the header, Done) in 4b, no substrings" '( L=$(sed -n "/^== 4\. /,/^== 4b/p" "$T/out"); Hs=$(sed -n "/^== 4b/,/^== 5/p" "$T/out"); echo "$L" | grep -q "Project-Foo/ROADMAP.md:3:" && echo "$L" | grep -q "Project-Foo/FILE-OWNERSHIP.md:1:" && echo "$L" | grep -q "Project-Foo/OWNERS:1:" && ! echo "$L" | grep -q "OWNERS:2:" && echo "$L" | grep -q "Agents/Other/briefing.md:2:" && ! echo "$L" | grep -q "ROADMAP.md:[4-7]:" && for n in 4 6 7; do echo "$Hs" | grep -q "Project-Foo/ROADMAP.md:$n:" || exit 1; done && echo "$Hs" | grep -q "FILE-OWNERSHIP.md:3:" && echo "$Hs" | grep -q "Foo-HQ/agent-TODO.md:4:" && ! grep -q "ROADMAP.md:5:" "$T/out" && ! grep -q "decisions\|MISTAKES\|episodic\|run.log\|x.jsonl\|inbox.md:\|_example-agent" "$T/out" )'
 ok "1d plan: who gets letters, 2 identities, the live tab named" 'grep -q "to: Bar-Dev, Foo-Dev, Foo-DevOps, Foo-HQ, Foo-OpsX, Keeper$" "$T/out" && grep -q "identity: 2 session" "$T/out" && grep -q "live tab: workspace-7" "$T/out"'
@@ -91,7 +111,7 @@ ok "5 ROADMAP: the Lead header replaced, the rest (history, [D], substrings) byt
 ok "5a whole word in a live briefing: with **, in a path, at the end of a sentence - yes; substring and dash continuation - no" 'grep -qxF "owner **Foo-DevOps**, a letter in Agents/Foo-DevOps/inbox.md; Foo-OpsX and xFoo-Ops and Foo-Ops-Legacy - leave alone" "$A/Other/briefing.md"'
 ok "5b FILE-OWNERSHIP, OWNERS, another briefing, a group briefing, its own briefing (path and todo name)" 'grep -qF "**Foo-DevOps** |" "$R/Project-Foo/FILE-OWNERSHIP.md" && grep -qxF -- "- [D] 2026-10-22 Foo-Ops took deploys" "$R/Project-Foo/FILE-OWNERSHIP.md" && grep -qF "| Other | Foo-OpsX |" "$R/Project-Foo/FILE-OWNERSHIP.md" && [ "$(cat "$R/Project-Foo/OWNERS")" = "$(printf "deploy/** Foo-DevOps\nweb/** Foo-OpsX")" ] && grep -qx "Deploy questions go to Foo-DevOps\." "$A/Other/briefing.md" && grep -q "Neighbour: Foo-DevOps " "$A/Grp/Grp-View/briefing.md" && grep -qxF "Briefing: Agents/Foo-DevOps/briefing.md · todo: Foo-DevOps-agent-TODO.md" "$N/briefing.md"'
 ok "5c the team todo replaced, a non-team todo (Solo) not" 'grep -q "waiting for Foo-DevOps" "$A/Foo-HQ/agent-TODO.md" && grep -q "Foo-Ops has not done it yet" "$A/Solo/agent-TODO.md"'
-ok "5d rewritten files: owner, group and mode kept, no temp files left" '[ "$(stat -c %u:%g:%a "$A/Other/briefing.md")" = "$own0" ] && [ -z "$(find "$T" -name ".rename-agent.*")" ]'
+ok "5d rewritten files: owner, group and mode kept, no temp files left" '[ "$(own "$A/Other/briefing.md")" = "$own0" ] && [ -z "$(find "$T" -name ".rename-agent.*")" ]'
 ok "5e history outside the list (decisions, MISTAKES, episodic, *.log, *.jsonl, a non-team inbox, the template folder) unchanged" '[ "$(hist)" = "$hs0" ]'
 ok "5f todo: the Done section kept, the live sections before and after replaced" '[ "$(cat "$A/Foo-HQ/agent-TODO.md")" = "$(printf "## Open\n- [ ] waiting for Foo-DevOps\n## Done\n- [x] letter from Foo-Ops closed\n## Next\n- [ ] ask Foo-DevOps")" ]'
 ok "6 letters through inbox_post.sh: exactly the team (Foo-HQ, Foo-Dev, Foo-OpsX by prefix, Bar-Dev, Keeper - Bar lead, Foo-DevOps itself), not Solo/Other" '[ "$(got Foo-Ops Foo-DevOps)" = "Bar-Dev Foo-Dev Foo-DevOps Foo-HQ Foo-OpsX Keeper " ] && grep -q "^- \[ \] \[" "$A/Foo-HQ/inbox.md"'

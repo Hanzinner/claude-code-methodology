@@ -83,8 +83,10 @@ fi
 # 4. cron
 if (( cron )); then
     R=$(command -v restic 2>/dev/null || true); rpath="/usr/local/bin:/usr/bin:/bin${R:+:$(dirname "$R")}"
-    T=$(command -v timeout 2>/dev/null || echo timeout)
-    run="PATH=$rpath $T -k 60 50m $dest/backup-restic.sh >> $STATE/cron.log 2>&1"
+    # timeout, else gtimeout (Homebrew coreutils on macOS); neither (a stock macOS) -> no time cap, said out loud
+    T=$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || true)
+    [[ -n "$T" ]] || echo "no timeout/gtimeout here: a hung backup run is not cut off after 50 min (brew install coreutils adds gtimeout; re-run this setup)" >&2
+    run="PATH=$rpath ${T:+$T -k 60 50m }$dest/backup-restic.sh >> $STATE/cron.log 2>&1"
     block="$BEGIN
 # written by setup-offsite-backup.sh - do not edit inside the block (re-run the script instead)"
     if [[ "$schedule" == hourly ]]; then

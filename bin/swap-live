@@ -9,6 +9,7 @@
 #   4. afterwards: was executable -> must still be executable, else rc 1.
 # rc: 0 replaced | 1 failed (live file untouched, except step 4) | 2 usage.
 set -uo pipefail
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_compat.sh"   # ccm_mode/ccm_owner/ccm_group: BSD chmod/chown (macOS) have no --reference
 new="${1:-}"
 [[ -n "$new" && "$new" == *.new && -f "$new" ]] || { echo "usage: swap-live <file.new> - an existing file with the .new suffix" >&2; exit 2; }
 live="${new%.new}"
@@ -17,7 +18,7 @@ kind=""
 case "$live" in
     *.sh|*.bash) kind=bash ;;
     *.py) kind=py ;;
-    *) head -c 64 "$new" | head -1 | grep -qE '^#!.*\b(bash|sh)\b' && kind=bash
+    *) head -c 64 "$new" | head -1 | grep -qE '^#!(.*[^[:alnum:]_])?(bash|sh)([^[:alnum:]_]|$)' && kind=bash   # no \b: BSD grep
        head -c 64 "$new" | head -1 | grep -qE '^#!.*python' && kind=py ;;
 esac
 case "$kind" in
@@ -32,14 +33,15 @@ esac
 was_x=0
 if [[ -e "$live" ]]; then
     [[ -x "$live" ]] && was_x=1
-    chmod --reference="$live" "$new" && chown --reference="$live" "$new" 2>/dev/null
+    if chmod --version >/dev/null 2>&1; then chmod --reference="$live" "$new" && chown --reference="$live" "$new" 2>/dev/null
+    else chmod "$(ccm_mode "$live")" "$new" && chown "$(ccm_owner "$live"):$(ccm_group "$live")" "$new" 2>/dev/null; fi
 else
     # a new script with a shebang must be executable: Write gives 644, and a hook invoked directly silently does nothing
     [[ "$(head -c 2 "$new")" == "#!" ]] && chmod 755 "$new"
-    echo "swap-live: no live $live - installing the new one ($(stat -c %A "$new"))" >&2
+    echo "swap-live: no live $live - installing the new one ($(stat -c %A "$new" 2>/dev/null || stat -f %Sp "$new"))" >&2
 fi
 mv -f "$new" "$live" || { echo "swap-live: mv failed" >&2; exit 1; }
 if [[ "$was_x" == 1 && ! -x "$live" ]]; then
     echo "swap-live: WARNING $live was executable and no longer is - the hook is dead; chmod +x by hand" >&2; exit 1
 fi
-echo "swap-live: replaced $live ($(stat -c '%A %U' "$live")${kind:+, syntax $kind ok})"
+echo "swap-live: replaced $live ($(stat -c '%A %U' "$live" 2>/dev/null || stat -f '%Sp %Su' "$live")${kind:+, syntax $kind ok})"

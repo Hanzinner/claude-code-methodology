@@ -11,11 +11,12 @@ export CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_CRON_STATE="$T/state" CCM_CRON_L
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; fi; }
 H=$((10#$(date +%H)))
+. "$HERE/../lib/ccm_compat.sh"   # ccm_timeout: a stock macOS has no timeout
 
 "$CR" job1 daily -- sh -c 'echo run >> "$0"' "$T/count" ; rc=$?
-ok "1 first run: rc 0, command ran, .ok written with today's key" '[ $rc = 0 ] && [ "$(wc -l < "$T/count")" = 1 ] && grep -q "$(date +%F)\$" "$T/state/job1.ok"'
+ok "1 first run: rc 0, command ran, .ok written with today's key" '[ $rc = 0 ] && [ "$(wc -l < "$T/count" | tr -d " ")" = 1 ] && grep -q "$(date +%F)\$" "$T/state/job1.ok"'
 "$CR" job1 daily -- sh -c 'echo run >> "$0"' "$T/count"
-ok "2 second run in the same period: skipped" '[ "$(wc -l < "$T/count")" = 1 ]'
+ok "2 second run in the same period: skipped" '[ "$(wc -l < "$T/count" | tr -d " ")" = 1 ]'
 ok "3 the command output went to the log" 'grep -q "start (daily" "$T/log/job1.log"'
 
 "$CR" job2 daily -- sh -c 'exit 7'; rc=$?
@@ -42,7 +43,7 @@ ok "10 usage errors (none / bad period / slash in name / bad --after): rc 2" '[ 
 # the command must not hold the lock: a background child that outlives the run must not block the next period's run
 "$CR" job6 daily -- sh -c '(sleep 3) & exit 0'
 rm -f "$T/state/job6.ok"
-timeout 2 "$CR" job6 daily -- sh -c 'echo x >> "$0"' "$T/lockchild"
+ccm_timeout 2 "$CR" job6 daily -- sh -c 'echo x >> "$0"' "$T/lockchild"
 ok "11 a lingering child of the command does not hold the lock" '[ -f "$T/lockchild" ]'
 
 # the state is usable by cron_state_check.py (the supervisor's age check)

@@ -10,7 +10,7 @@ T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_AGENTS_DIR="$T/ws/Agents" CCM_TRASH_DIR="$T/trash"
 unset CCM_SUPERVISOR_HEARTBEAT
 mkdir -p "$HOME" "$T/ws/Agents" "$T/inst/hooks" "$T/inst/lib" "$T/inst/scripts"
-cp "$WM" "$T/inst/hooks/briefing-watchman.sh"; cp "$HERE/../lib/ccm_conf.py" "$T/inst/lib/"
+cp "$WM" "$T/inst/hooks/briefing-watchman.sh"; cp "$HERE/../lib/ccm_conf.py" "$HERE/../lib/ccm_compat.sh" "$HERE/../lib/ccm_lock.sh" "$T/inst/lib/"   # inbox_lib.sh (copied below) sources ccm_lock.sh: the installed layout has it, the sandbox must too
 # stub inbox_post.sh: appends the item under "## New" of the inbox file given as the first argument
 cat > "$T/inst/scripts/inbox_post.sh" <<'STUB'
 #!/usr/bin/env bash
@@ -24,6 +24,7 @@ A="$T/ws/Agents"
 mkdir -p "$A/Helper" "$A/Docs" "$A/Team/Builder-agent" "$A/_example-agent" "$A/Twin1" "$A/Twin2"
 for d in Helper Docs Team/Builder-agent _example-agent Twin1 Twin2; do printf '# %s briefing\nline\n' "$d" > "$A/$d/briefing.md"; done
 printf 'documentation\nDoc Writer\n' > "$A/Docs/.aliases"; printf 'pair\n' > "$A/Twin1/.aliases"; printf 'pair\n' > "$A/Twin2/.aliases"
+sedi() { local f; for f; do :; done; sed -i.bak "$@" && rm -f "$f.bak"; }   # sed -i that BSD sed takes too
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; fi; }
 hook() {  # hook <sid> <prompt> [cwd]
@@ -107,6 +108,6 @@ printf '# Standard\n**Version: 2** (test)\n\n## Changelog\n\n- **v2** (2026-11) 
 mkdir -p "$A/Coder"; printf '# Coder briefing\nStandard: v1 read 2026-11-01\n' > "$A/Coder/briefing.md"; echo "CODING-STANDARD.md" > "$A/Coder/.watchlist"
 out=$(hook s9 "Coder")
 ok "coder behind the standard (v1 read, v2 out) -> the v2 changelog entry, not a diff" '[[ "$out" == *"NEW RULE TWO"* && "$out" != *"@@"* ]]'
-sed -i 's/Standard: v1 read/Standard: v2 read/' "$A/Coder/briefing.md"; hook s9 "go on" >/dev/null; out=$(hook s9 "go on")
+sedi 's/Standard: v1 read/Standard: v2 read/' "$A/Coder/briefing.md"; hook s9 "go on" >/dev/null; out=$(hook s9 "go on")
 ok "coder on the current version -> silent about the standard" '[[ "$out" != *"NEW RULE TWO"* ]]'
 echo "watchman: $pass pass, $fail fail"; [ $fail = 0 ]

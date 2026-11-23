@@ -8,6 +8,7 @@
 # Test overrides: MISTAKES_OVERRIDE. Test: tests/mistakes-review-test.sh
 set -euo pipefail
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # ccm_now_iso: no date -Iseconds on a stock macOS
 eval "$(python3 "$HERE/../lib/ccm_conf.py" --shell)"
 MISTAKES="${MISTAKES_OVERRIDE:-$CCM_MISTAKES}"
 KEEPER="${CCM_MISTAKES_KEEPER:-}"
@@ -25,7 +26,7 @@ if [[ -n "$KEEPER" ]]; then
     entry="- [ ] [$(date +%Y-%m-%d)] **Mistakes review: ${open_n} open** - look for REPEATS, not single cases. Headings:
 ${open_titles}"
     "$POST" "$KEEPER" "$entry" >/dev/null
-    echo "$(date -Iseconds) mistakes-review: ${open_n} OPEN -> letter to $KEEPER"
+    echo "$(ccm_now_iso) mistakes-review: ${open_n} OPEN -> letter to $KEEPER"
 else
-    echo "$(date -Iseconds) mistakes-review: ${open_n} OPEN (no keeper configured: CCM_MISTAKES_KEEPER)"
+    echo "$(ccm_now_iso) mistakes-review: ${open_n} OPEN (no keeper configured: CCM_MISTAKES_KEEPER)"
 fi

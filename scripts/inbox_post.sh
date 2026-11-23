@@ -49,12 +49,14 @@ heal_new() {
 }
 new_hdr=$(find_new_hdr "$inbox")
 tmp=$(mktemp "${inbox}.postXXXX")
+# Every awk here runs with LC_ALL=C: the macOS awk in a UTF-8 locale mishandles a broken byte in someone's letter
+# (inbox_lib.sh: grep does the same); headers, index() and the passthrough of the text are byte-exact anyway.
 # The item goes through ENVIRON, not `awk -v`: -v interprets escape sequences, so a `\b` from a regex in a letter
 # became a backspace, the check never found "its own" text, the repair insert duplicated it and the watchman then
 # delivered it again on EVERY prompt (12+ copies once).
 insert_into() {   # insert_into <output file>: item right after the header; the first item evicts the placeholder
-    if grep -qxF -- "$new_hdr" "$inbox"; then
-        ENTRY="$text" awk -v hdr="$new_hdr" '
+    if LC_ALL=C grep -qxF -- "$new_hdr" "$inbox"; then   # LC_ALL=C: a broken byte stops BSD grep (inbox_lib.sh)
+        ENTRY="$text" LC_ALL=C awk -v hdr="$new_hdr" '
             /^## /            { in_new = ($0 == hdr) }
             (/^_\(empty\)_$/ || /^_\(порожньо\)_$/) && in_new && injected { next }
             { print }
@@ -65,14 +67,14 @@ insert_into() {   # insert_into <output file>: item right after the header; the 
     fi
 }
 # Idempotent by the WHOLE text (not the first line: two different letters "From X:" can differ only in the body).
-_new=$(awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s' "$inbox")
+_new=$(LC_ALL=C awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s' "$inbox")
 if [[ "$_new" == *"$text"* ]]; then
     rm -f "$tmp"; echo "inbox_post: item already in \"$new_hdr\" - not duplicating"; exit 0
 fi
 insert_into "$tmp"
 
 # pre-check: the structure did not degrade (the number of "## " sections did not drop)
-if [[ $(grep -c '^## ' "$tmp") -lt $(grep -c '^## ' "$inbox") ]]; then
+if [[ $(LC_ALL=C grep -c '^## ' "$tmp") -lt $(LC_ALL=C grep -c '^## ' "$inbox") ]]; then
     rm -f "$tmp"; echo "inbox_post: validation FAILED (a section vanished) - file NOT changed" >&2; exit 4
 fi
 
@@ -87,12 +89,12 @@ to_pending() {
     mkdir -p "$pend_dir"
     pf="$pend_dir/$(date +%s)-$$.md"
     printf '%s\n' "$text" > "$pf"
-    chown --reference="$inbox" "$pf" 2>/dev/null || true
+    ib_same_owner "$inbox" "$pf"
     echo "inbox_post: 🟡 the item did not stay in \"$new_hdr\" under a parallel rewrite - queued in $pf. Count it as DEFERRED, not lost: move it into the inbox by hand if nothing delivers the queue." >&2
     exit 0
 }
-chown --reference="$inbox" "$tmp" 2>/dev/null || true
-chmod --reference="$inbox" "$tmp" 2>/dev/null || true
+ib_same_owner "$inbox" "$tmp"
+ib_same_mode "$inbox" "$tmp"
 mv_in "$tmp" || to_pending
 
 # ── post-validation AFTER mv, reading FROM DISK ──────────────────────────────────────────────────────────────────
@@ -102,7 +104,7 @@ mv_in "$tmp" || to_pending
 # letter over 64 KB gives SIGPIPE -> rc 141 AFTER delivery (the sender sees a failure and sends again); `awk | grep -q`
 # did the same to the section check -> "not found" for a present letter -> a repair insert -> a duplicate.
 first_line=${text%%$'\n'*}
-in_new() { FL="$first_line" awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s && index($0,ENVIRON["FL"]){f=1} END{exit !f}' "$inbox"; }
+in_new() { FL="$first_line" LC_ALL=C awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s && index($0,ENVIRON["FL"]){f=1} END{exit !f}' "$inbox"; }
 # Waiting does not help: a live session that owns the inbox may rewrite the file for longer than any check window.
 # The right move is to RE-INSERT if the item vanished: the insert is idempotent (presence is checked first), a lost
 # update is healed by writing again, not by watching.
@@ -111,14 +113,14 @@ deliver() {
     # every repair insert leaves a trace, so the next duplicate has evidence: who, where, when.
     mkdir -p "$HOME/.claude" 2>/dev/null
     printf '%s repair-insert pid=%s ppid=%s -> %s :: in file=%s in New=%s inode=%s size=%s :: %s\n' "$(date '+%F %T')" "$$" "$PPID" "$inbox" \
-        "$(grep -cF -- "$first_line" "$inbox" 2>/dev/null)" \
-        "$(FL="$first_line" awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s && index($0,ENVIRON["FL"]){n++} END{print n+0}' "$inbox")" \
+        "$(LC_ALL=C grep -cF -- "$first_line" "$inbox" 2>/dev/null)" \
+        "$(FL="$first_line" LC_ALL=C awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s && index($0,ENVIRON["FL"]){n++} END{print n+0}' "$inbox")" \
         "$(stat -c %i "$inbox" 2>/dev/null || stat -f %i "$inbox" 2>/dev/null)" "$(wc -c < "$inbox" 2>/dev/null | tr -d ' ')" \
         "$(printf '%s' "$first_line" | python3 -c 'import sys;print(sys.stdin.read()[:100])' 2>/dev/null)" >> "$HOME/.claude/inbox-post-repairs.log" 2>/dev/null || true
     tmp2=$(mktemp "${inbox}.postXXXX")
     insert_into "$tmp2"
-    chown --reference="$inbox" "$tmp2" 2>/dev/null || true
-    chmod --reference="$inbox" "$tmp2" 2>/dev/null || true
+    ib_same_owner "$inbox" "$tmp2"
+    ib_same_mode "$inbox" "$tmp2"
     mv_in "$tmp2" || return 1
     in_new
 }

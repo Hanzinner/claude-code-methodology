@@ -41,7 +41,7 @@ ffmpeg -i "$VIDEO" \
     -vf "select='gt(scene,$THRESHOLD)',showinfo" \
     -vsync vfr -q:v 3 \
     "$OUTDIR/frames/scene_%04d.jpg" 2>&1 \
-  | grep -oP "pts_time:\K[0-9.]+" > "$OUTDIR/timestamps.txt"
+  | grep -oE "pts_time:[0-9.]+" | sed 's/^pts_time://' > "$OUTDIR/timestamps.txt"   # no grep -P: BSD grep (macOS)
 
 paste <(ls "$OUTDIR/frames/" | sort) "$OUTDIR/timestamps.txt" \
   > "$OUTDIR/scenes.tsv"

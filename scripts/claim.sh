@@ -36,8 +36,9 @@ log(){ echo "$(date '+%Y-%m-%d %H:%M:%S') [$key] $*" >> "$LOG"; }
 read_claim(){ # -> C_OWNER, C_EXPIRY (empty if missing/broken)
     C_OWNER=""; C_EXPIRY=""
     [ -f "$f" ] || return 1
-    C_OWNER=$(grep -oP '^owner=\K.*' "$f" 2>/dev/null | head -1)
-    C_EXPIRY=$(grep -oP '^expiry=\K[0-9]+' "$f" 2>/dev/null | head -1)
+    # sed, not grep -oP: BSD grep (macOS) has no -P - there every claim read as "broken" = free, and nothing held
+    C_OWNER=$(sed -n 's/^owner=//p' "$f" 2>/dev/null | head -1)
+    C_EXPIRY=$(sed -n 's/^expiry=\([0-9][0-9]*\).*/\1/p' "$f" 2>/dev/null | head -1)
     [ -n "$C_EXPIRY" ] || { log "broken claim file (no expiry) — treating it as free"; return 1; }
     return 0
 }

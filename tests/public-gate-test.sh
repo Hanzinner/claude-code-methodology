@@ -2,6 +2,7 @@
 # public_gate.sh + public_gate_selftest.sh. PG=<path> tests another copy of the gate, PS=<path> of the nightly wrapper.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
+. "$HERE/../lib/ccm_compat.sh"   # ccm_date_at: BSD date has no relative dates
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CCM_TEST=1 CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_AGENTS_DIR="$T/Agents"; mkdir -p "$HOME" "$T/ws"
 printf "#!/bin/sh\necho \"\$1|\${2:-\$(cat)}\" >> %s/letters\n" "$T" > "$T/post"; chmod +x "$T/post"; : > "$T/letters"; export CCM_INBOX_POST="$T/post"
@@ -36,7 +37,7 @@ export LOG="$T/pg.log"
 out=$(GATE="$PG" bash "$PS" 2>&1); rc=$?
 ok "9 the nightly selftest run -> rc 0, a log line with rc=0" '[ $rc = 0 ] && grep -q " rc=0 " "$LOG"'
 out=$(GATE="$PG" bash "$PS" --check 2>&1); rc=$?; ok "9b --check on a fresh green run -> rc 0" '[ $rc = 0 ]'
-echo "$(date -d '40 hours ago' '+%F %T') rc=0 x" > "$LOG"; out=$(bash "$PS" --check 2>&1); rc=$?
+echo "$(ccm_date_at $(( $(date +%s) - 40 * 3600 )) '+%F %T') rc=0 x" > "$LOG"; out=$(bash "$PS" --check 2>&1); rc=$?
 ok "10 --check on a stale run -> rc 1" '[ $rc = 1 ] && echo "$out" | grep -q stale'
 echo "$(date '+%F %T') rc=1 selftest FAIL" > "$LOG"; out=$(bash "$PS" --check 2>&1); rc=$?
 ok "11 --check on a red run -> rc 1" '[ $rc != 0 ]'

@@ -6,7 +6,8 @@
 # English phrases always; Ukrainian ones when CCM_LANG_EXTRA contains "uk". Fail-open, silent when nothing matches.
 eval "$(python3 "$(dirname "$(readlink -f "$0")")/../lib/ccm_conf.py" --shell 2>/dev/null)" || true
 input=$(cat)
-sid=$(printf '%s' "$input" | grep -oP '"session_id"\s*:\s*"\K[^"]+' | head -n1 || true)
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_compat.sh"   # ccm_json_str: BSD grep (macOS) has no -P
+sid=$(printf '%s\n' "$input" | ccm_json_str session_id || true)
 export HOOK_INPUT="$input" CCM_LANG_EXTRA="${CCM_LANG_EXTRA:-}"
 python3 - <<'PY' || exit 0
 import json, os, re, sys

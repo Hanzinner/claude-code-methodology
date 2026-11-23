@@ -38,9 +38,9 @@ ok "8 a fresh human prompt -> presence 'present' (rc 0)" '[[ $rc == 0 ]]' "rc=$r
 printf '# a comment\n\nEnd with the next step; never offer a pause.\n' > "$T/rem.txt"
 o=$(ev s4 hi | CCM_PROMPT_REMINDERS=$T/rem.txt bash "$CPG")
 ok "9 reminders file -> its lines every prompt, comments and blanks skipped" \
-   '[[ "$o" == *"never offer a pause."* && "$o" != *"a comment"* && $(printf "%s\n" "$o" | wc -l) == 2 ]]' "$o"
+   '[[ "$o" == *"never offer a pause."* && "$o" != *"a comment"* && $(printf "%s\n" "$o" | wc -l | tr -d " ") == 2 ]]' "$o"
 o=$(ev s4 hi | CCM_PROMPT_REMINDERS=$T/missing.txt bash "$CPG")
-ok "10 a missing reminders file -> just the time line" '[[ $(printf "%s\n" "$o" | wc -l) == 1 ]]' "$o"
+ok "10 a missing reminders file -> just the time line" '[[ $(printf "%s\n" "$o" | wc -l | tr -d " ") == 1 ]]' "$o"
 o=$(printf '{"prompt":"x"}' | bash "$CPG"); rc=$?
 ok "11 no session id -> silent, rc 0" '[[ -z "$o" && $rc == 0 ]]' "$o"
 echo "check-prompt-gap: $pass pass, $fail fail"; (( fail == 0 ))

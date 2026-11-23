@@ -35,12 +35,15 @@ STAMP=$BACKUP_STAMP
 HOST=${BACKUP_HOST:-$(hostname 2>/dev/null || echo this-machine)}
 PRUNE=${BACKUP_PRUNE:-0}
 
-log() { echo "$(date -Iseconds) $*" | tee -a "$LOG"; }
+log() { echo "$(ccm_now_iso) $*" | tee -a "$LOG"; }
 
 # One run at a time: a slow upload must not overlap the next cron run (they fight over the repo lock).
 if command -v flock >/dev/null 2>&1; then
     exec 8>"$BACKUP_STATE/backup.lock"
-    flock -n 8 || { echo "$(date -Iseconds) SKIP: another run is still going" >> "$LOG"; exit 0; }
+    flock -n 8 || { echo "$(ccm_now_iso) SKIP: another run is still going" >> "$LOG"; exit 0; }
+elif [[ -n "${_BC_LIB:-}" && -f "$_BC_LIB/ccm_lock.sh" ]]; then   # no flock (macOS): the mkdir lock of lib/ccm_lock.sh
+    . "$_BC_LIB/ccm_lock.sh"
+    ccm_lock 8 "$BACKUP_STATE/backup.lock" 0 120 || { echo "$(ccm_now_iso) SKIP: another run is still going" >> "$LOG"; exit 0; }
 fi
 
 log "=== restic backup start ==="
@@ -52,7 +55,7 @@ dpkg --get-selections > "$MANIFEST_DIR/apt-packages.txt" 2>/dev/null || true
 pip freeze > "$MANIFEST_DIR/pip.txt" 2>/dev/null || true
 uname -a > "$MANIFEST_DIR/uname.txt"
 cp /etc/os-release "$MANIFEST_DIR/os-release.txt" 2>/dev/null || true
-date -Iseconds > "$MANIFEST_DIR/backup-timestamp.txt"
+ccm_now_iso > "$MANIFEST_DIR/backup-timestamp.txt"
 
 # The recovery instructions travel inside the snapshot: a fresh Claude on a new machine reads THIS file first.
 if [[ -f "$SCRIPT_DIR/RECOVERY.md" ]]; then
@@ -122,7 +125,7 @@ restic backup \
     ${BACKUP_COMPRESSION:+--compression "$BACKUP_COMPRESSION"} \
     --tag daily \
     --host "$HOST" \
-    "${paths[@]}" \
+    ${paths[@]+"${paths[@]}"} \
     "$MANIFEST_DIR" \
     2>&1 | tee -a "$LOG"
 

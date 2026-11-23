@@ -21,8 +21,10 @@
 # A lead agent created in advance is attached, not refused (its briefing and todo are not touched).
 # Test: tests/new-project-test.sh
 set -euo pipefail
-export LC_ALL=C.UTF-8
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # ccm_owner/ccm_group (BSD stat), ccm_utf8_locale: a stock macOS
+LC_ALL=$(ccm_utf8_locale); export LC_ALL
+# ${a[@]+"${a[@]}"} below: on bash 3.2 (stock macOS) "${a[@]}" of an EMPTY array is an error under set -u
 eval "$(python3 "$HERE/../lib/ccm_conf.py" --shell)"
 conf_get() { python3 "$HERE/../lib/ccm_conf.py" "$1"; }
 REPO=$CCM_WORKSPACE
@@ -34,7 +36,7 @@ DOCS=${CCM_PROJECT_WATCH_DOCS:-$(conf_get CCM_PROJECT_WATCH_DOCS)}
 # the team-work rules: a new project agent reads them first and gets told when they change (an empty .watchlist used to
 # leave a new lead not knowing it is the lead)
 TEAM_DOCS=(); for d in PROJECT-WORK.md CODING-STANDARD.md; do [[ -f "$REPO/$d" ]] && TEAM_DOCS+=("$d"); done
-if [[ -z "$DOCS" ]]; then DOCS="${TEAM_DOCS[*]}"; elif [[ "$DOCS" == none ]]; then DOCS=""; fi
+if [[ -z "$DOCS" ]]; then DOCS="${TEAM_DOCS[*]:-}"; elif [[ "$DOCS" == none ]]; then DOCS=""; fi
 DOCS_HQ=${CCM_PROJECT_WATCH_DOCS_HQ:-$(conf_get CCM_PROJECT_WATCH_DOCS_HQ)}
 WGA=${CCM_WORK_GUARD_AGENTS:-$(conf_get CCM_WORK_GUARD_AGENTS)}
 SITE=${CCM_PROJECTS_SITE:-$(conf_get CCM_PROJECTS_SITE)}
@@ -42,10 +44,10 @@ step="preparation"
 trap 'rc=$?; echo "FAILED at step \"$step\" (rc=$rc). What was created stays: ${P:-}; remove it or finish by hand." >&2; exit 4' ERR
 
 # whoever owns the workspace owns the new files; run as that user when we are root (a root-owned file in a user's repo breaks it)
-OWNER=$(stat -c %U "$REPO")
+OWNER=$(ccm_owner "$REPO")
 if [[ "$(id -u)" == 0 && "$OWNER" != root ]]; then AS=(runuser -u "$OWNER" --); else AS=(); fi
-ogit() { "${AS[@]}" git -c safe.directory='*' "$@"; }
-chown_owner() { [[ ${#AS[@]} -gt 0 ]] && chown -R "$OWNER:$(stat -c %G "$REPO")" "$@" || true; }
+ogit() { ${AS[@]+"${AS[@]}"} git -c safe.directory='*' "$@"; }
+chown_owner() { [[ ${#AS[@]} -gt 0 ]] && chown -R "$OWNER:$(ccm_group "$REPO")" "$@" || true; }
 
 own=0; nocode=0; stands=""
 while [[ "${1:-}" == --* ]]; do
@@ -117,7 +119,7 @@ if (( own )); then
     step="first commit"
     ogit -C "$D" add release.toml ROADMAP.md BLOCKERS.md
     if [[ -z "$(ogit -C "$D" config user.name || true)" ]]; then id_args=(-c user.name="Project Bot" -c user.email=bot@localhost); else id_args=(); fi
-    ogit -C "$D" "${id_args[@]}" commit -qm "$P: skeleton (new_project.sh)"
+    ogit -C "$D" ${id_args[@]+"${id_args[@]}"} commit -qm "$P: skeleton (new_project.sh)"
 fi
 
 # ---- agents: a registrar hook, or the built-in scaffold from swarm-template/Agents/_example-agent
@@ -130,7 +132,7 @@ scaffold() {   # scaffold <agent> <lead|member>
         role="works in project $name: takes tasks from the lead $hq; a story the operator judges by eye is shown to the operator directly, tests come after the yes"
     fi
     read="$D/ROADMAP.md"
-    for d in "${TEAM_DOCS[@]}"; do read+=", $REPO/$d (the CORE first)"; done
+    for d in ${TEAM_DOCS[@]+"${TEAM_DOCS[@]}"}; do read+=", $REPO/$d (the CORE first)"; done
     cat > "$ad/briefing.md" <<E
 # $a - briefing
 
@@ -166,7 +168,7 @@ for a in "${agents[@]}"; do
     if [[ -n "$DOCS$DOCS_HQ" ]]; then
         wl="$AGENTS_DIR/$a/.watchlist"
         list=($DOCS); [[ "$a" == "$hq" ]] && list+=($DOCS_HQ)
-        for doc in "${list[@]}"; do grep -qxF "$doc" "$wl" 2>/dev/null || echo "$doc" >> "$wl"; done
+        for doc in ${list[@]+"${list[@]}"}; do grep -qxF "$doc" "$wl" 2>/dev/null || echo "$doc" >> "$wl"; done
     fi
 done
 
@@ -175,14 +177,14 @@ if [[ -n "$WGA" ]]; then
     new=(); for a in "${agents[@]}"; do grep -qxF "$a" "$WGA" 2>/dev/null || new+=("$a"); done
     if [[ ${#new[@]} -gt 0 ]]; then
         printf '# %s (new_project.sh %s)\n' "$name" "$(date +%F)" >> "$WGA"
-        printf '%s\n' "${new[@]}" >> "$WGA"
+        printf '%s\n' ${new[@]+"${new[@]}"} >> "$WGA"
     fi
 fi
 
 step="commit of the top-level .gitignore"
 if (( own )) && [[ -d "$REPO/.git" || -f "$REPO/.git" ]] && ! ogit -C "$REPO" diff --quiet -- .gitignore; then
     if [[ -z "$(ogit -C "$REPO" config user.name || true)" ]]; then id_args=(-c user.name="Project Bot" -c user.email=bot@localhost); else id_args=(); fi
-    ogit -C "$REPO" "${id_args[@]}" commit -qm "$P - repo of its own (new_project.sh)" -- .gitignore
+    ogit -C "$REPO" ${id_args[@]+"${id_args[@]}"} commit -qm "$P - repo of its own (new_project.sh)" -- .gitignore
 fi
 
 echo "ok $P: $( (( own )) && echo "repo of its own" || echo "folder in the shared repo"), release.toml, ROADMAP, BLOCKERS; agents: ${agents[*]}"

@@ -11,8 +11,9 @@
 # or an auto-made `- [x] [date] <first line> - done.` Post-validation FROM DISK: the item is gone from New.
 
 set -euo pipefail
-export LC_ALL=C.UTF-8
 HERE="$(dirname "$(readlink -f "$0")")"
+. "$HERE/../lib/ccm_compat.sh"   # ccm_utf8_locale: a stock macOS may have no C.UTF-8
+LC_ALL=$(ccm_utf8_locale); export LC_ALL
 source "$HERE/inbox_lib.sh"
 
 target="${1:-}"; needle="${2:-}"; done_text="${3:-}"
@@ -23,7 +24,10 @@ inbox=$("$HERE/inbox_resolve.sh" "$target") || exit 2
 new_hdr=$(find_new_hdr "$inbox"); done_hdr=$(find_done_hdr "$inbox")
 # How many lines with the needle are in New BEFORE: the post-validation counts, it does not just look (two identical
 # items -> one closed, the other stays -> a false "something overwrote the file").
-count_needle() { awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s' "$inbox" | command grep -cF -- "$needle" || true; }
+# LC_ALL=C on awk and grep: in a UTF-8 locale BSD grep (macOS) stops with "illegal byte sequence" at a broken byte in a
+# neighbour's letter, and the macOS awk gave no lines either -> a count of 0 before and after -> a false POST-VALIDATION
+# rc 5 for an item that was closed. A header compare and a fixed-string count are the same on bytes.
+count_needle() { LC_ALL=C awk -v hdr="$new_hdr" '$0==hdr{s=1;next} /^## /{s=0} s' "$inbox" | LC_ALL=C command grep -cF -- "$needle" || true; }
 before=$(count_needle)
 
 lock_inbox "$inbox" inbox_done
@@ -87,8 +91,8 @@ esac
 # last line of defence: the assembled file cannot be empty
 [[ -s "$tmp" ]] || { rm -f "$tmp"; echo "inbox_done: assembled an empty file - inbox NOT touched ($inbox)" >&2; exit 8; }
 
-chown --reference="$inbox" "$tmp" 2>/dev/null || true
-chmod --reference="$inbox" "$tmp" 2>/dev/null || true
+ib_same_owner "$inbox" "$tmp"
+ib_same_mode "$inbox" "$tmp"
 ib_mv_retry "$tmp" "$inbox" || { rm -f "$tmp"; echo "inbox_done: could not put the file in place (refused rename, see above) - inbox NOT touched ($inbox)" >&2; exit 9; }
 
 # post-validation FROM DISK: the needle occurs in New fewer times than before (duplicates are not an error)

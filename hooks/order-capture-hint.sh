@@ -9,7 +9,8 @@
 # Config: CCM_COORDINATOR_PATTERN — NEW key, default "HQ|Coordinator|Orchestrator"; "*" = every session, even without
 # an identity file. CCM_LANG_EXTRA ("uk" adds the Ukrainian verbs). Set it in methodology.conf or the environment.
 input=$(cat)
-sid=$(printf '%s' "$input" | grep -oP '"session_id"\s*:\s*"\K[^"]+' | head -1)
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_compat.sh"   # ccm_json_str: BSD grep (macOS) has no -P
+sid=$(printf '%s\n' "$input" | ccm_json_str session_id)
 [ -n "$sid" ] || exit 0
 eval "$(python3 "$(dirname "$(readlink -f "$0")")/../lib/ccm_conf.py" --shell)"
 LIB="$(dirname "$(readlink -f "$0")")/../lib"

@@ -9,10 +9,14 @@ export HOME="$T/h" CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CC
 mkdir -p "$HOME" "$T/ws"
 pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; sed 's/^/   /' "$T/out" 2>/dev/null | tail -8; fi; }
-before=$(find /etc/sudoers.d /etc/cron.d -type f 2>/dev/null | sort | xargs -r md5sum; getent passwd | wc -l)
+# the system state a dry run must not touch: cksum (POSIX; macOS has no md5sum, xargs no -r), users from getent or,
+# where there is none (macOS), from the directory service
+sysstate() { find /etc/sudoers.d /etc/cron.d -type f 2>/dev/null | sort | while IFS= read -r f; do cksum "$f" 2>&1; done
+             if command -v getent >/dev/null 2>&1; then getent passwd; else dscl . -list /Users 2>/dev/null; fi | wc -l; }
+before=$(sysstate)
 bash "$SR" --dry-run --owner "$(id -un)" --sudo-cmd /usr/bin/systemctl --cron > "$T/out" 2>&1; rc=$?
 ok "1 releaser --dry-run -> rc 0, announces every change" '[ $rc = 0 ] && grep -q "dry run" "$T/out" && grep -q "useradd --system" "$T/out" && grep -q "NOPASSWD: /usr/bin/systemctl" "$T/out" && grep -q "/etc/cron.d/ccm-releaser" "$T/out"'
-after=$(find /etc/sudoers.d /etc/cron.d -type f 2>/dev/null | sort | xargs -r md5sum; getent passwd | wc -l)
+after=$(sysstate)
 ok "1b dry run changed nothing: no user, no state dir, no sudoers/cron files" '[ "$before" = "$after" ] && [ ! -e "$T/state" ] && ! id "$CCM_RELEASER_USER" >/dev/null 2>&1'
 bash "$SR" --dry-run --owner "$(id -un)" --cron > "$T/out" 2>&1; ok "1c the cron lines carry the three jobs" 'grep -q "releaser.py run" "$T/out" && grep -q "project_drift.py" "$T/out" && grep -q "repo_stale.py" "$T/out" && grep -q "\*/5 \* \* \* \*" "$T/out"'
 bash "$SR" --dry-run --owner "$(id -un)" > "$T/out" 2>&1; ok "1d without --cron: prints the lines to add, writes none" 'grep -q "cron not installed" "$T/out"'

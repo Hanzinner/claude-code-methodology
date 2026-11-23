@@ -89,10 +89,12 @@ into the installed `hooks/` are replaced). If you edited `CLAUDE.md`, it is kept
 written next to it as `CLAUDE.md.new`. Every replaced file is also backed up as `*.bak-<timestamp>`.
 
 **Platforms:** Linux, macOS and Windows (bash + Python 3.9 or newer). The mechanisms also call `timeout` and
-`crontab`, and `flock` / `setsid` where they exist (without them: a mkdir lock, a reader started without setsid). A
-stock macOS lacks `timeout` (`brew install coreutils`, then put `$(brew --prefix)/opt/coreutils/libexec/gnubin` first
-in PATH: brew names it `gtimeout`). `install.sh` and `check-install.py` name each missing command and what stops
-without it.
+`crontab`, and `flock` / `setsid` where they exist (without them: `gtimeout` or perl's alarm, a mkdir lock, a reader
+started without setsid). On a stock macOS (/bin/bash 3.2, BSD `grep`, `sed`, `stat`, `date`) the scripts take the
+portable branch of `lib/ccm_compat.sh` and keep to bash 3.2 syntax (`tests/bash3-compat-test.py` checks it); macOS 13
+or newer is needed for `readlink -f`. Recommended all the same: `brew install bash coreutils` - `install.sh` then starts
+the hooks and the scheduled `.sh` jobs through Homebrew's bash by its full path. `install.sh` and `check-install.py`
+name each missing command and what stops without it.
 
 On **Windows**, run `./install.sh` in Git Bash (Git for Windows; Claude Code on Windows runs its hooks there too).
 There `python3` is often the Microsoft Store stub, so the installer takes the first working one of `python3`,

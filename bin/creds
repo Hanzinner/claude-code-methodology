@@ -9,15 +9,17 @@
 # Store: $CCM_SECRETS_DIR (default ~/.config/claude-secrets). Never keep keys inside the workspace git repo.
 set -uo pipefail
 eval "$(python3 "$(dirname "$(readlink -f "$0")")/../lib/ccm_conf.py" --shell)"
+. "$(dirname "$(readlink -f "$0")")/../lib/ccm_compat.sh"   # ccm_lower: bash 3.2 (stock macOS) has no ${x,,}
 ROOTS=("${CREDS_ROOT:-$CCM_SECRETS_DIR}")
 
 all() { for r in "${ROOTS[@]}"; do [[ -d "$r" ]] && find "$r" -type f ! -name '*.bak*' ! -name '*.lock' 2>/dev/null; done | sort; }
 
 resolve() {
-    local q="${1,,}" hits=()
-    mapfile -t hits < <(all | while IFS= read -r f; do [[ "${f,,}" == *"$q"* ]] && echo "$f"; done)
+    local q f hits=()
+    q=$(ccm_lower "$1")
+    while IFS= read -r f; do [[ "$(ccm_lower "$f")" == *"$q"* ]] && hits+=("$f"); done < <(all)
     if [[ ${#hits[@]} -eq 0 ]]; then echo "creds: nothing found for '$1'. See: creds list" >&2; return 2; fi
-    if [[ ${#hits[@]} -gt 1 ]]; then echo "creds: '$1' is ambiguous, be more specific:" >&2; printf '  %s\n' "${hits[@]}" >&2; return 2; fi
+    if [[ ${#hits[@]} -gt 1 ]]; then echo "creds: '$1' is ambiguous, be more specific:" >&2; printf '  %s\n' ${hits[@]+"${hits[@]}"} >&2; return 2; fi
     printf '%s\n' "${hits[0]}"
 }
 

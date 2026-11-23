@@ -23,6 +23,7 @@
 # Test: tests/wt-deliver-test.sh
 set -uo pipefail
 HERE=$(dirname "$(readlink -f "$0")")
+. "$HERE/../lib/ccm_compat.sh"   # ccm_now_iso: no date -Iseconds on a stock macOS
 eval "$(python3 "$HERE/../lib/ccm_conf.py" --shell)"
 REPO=$CCM_WORKSPACE
 WTROOT=${CCM_WORKTREES_DIR:-$(python3 "$HERE/../lib/ccm_conf.py" CCM_WORKTREES_DIR)}; WTROOT=${WTROOT:-$CCM_WORKSPACE-wt}
@@ -32,7 +33,7 @@ agent=${1:-}
 [[ -n "$agent" && "$agent" != -* ]] || { echo "wt_deliver.sh <agent> - see the header"; exit 2; }
 WT="$WTROOT/$agent"
 u8cut() { head -c "$1" | iconv -f utf-8 -t utf-8 -c 2>/dev/null || true; }   # cut -c cuts by bytes -> a broken character in the letter
-say() { echo "$*"; mkdir -p "$(dirname "$LOG")" 2>/dev/null; echo "$(date -Iseconds) $agent: $*" >> "$LOG" 2>/dev/null || true; }
+say() { echo "$*"; mkdir -p "$(dirname "$LOG")" 2>/dev/null; echo "$(ccm_now_iso) $agent: $*" >> "$LOG" 2>/dev/null || true; }
 letter() { "$POST" "$agent" "- [ ] [$(date '+%F %H:%M')] wt_deliver · $1" >/dev/null 2>&1 || true; }
 refuse() { local rc=$1; shift; say "REFUSED: $*"; letter "delivery NOT accepted, master did not move: $*"; exit "$rc"; }
 
@@ -131,7 +132,7 @@ for try in 1 2 3; do
     if git -C "$REPO" merge --ff-only -q "$sha" > "$out_file" 2>&1; then ok=1; break; fi
     # master moved (a snapshot, another delivery) or local changes in the main tree are in the way
     if git -C "$REPO" merge-base --is-ancestor master "$sha"; then
-        clash=$(grep -A5 "overwritten" "$out_file" | grep -E '^\s' | head -5 | tr -s ' \n' ' ')
+        clash=$(grep -A5 "overwritten" "$out_file" | grep -E '^[[:space:]]' | head -5 | tr -s ' \n' ' ')
         [[ -z "$clash" ]] || refuse 7 "the main tree has uncommitted changes to the same files (${clash}) - ff is impossible; let the snapshot commit them, then retry"
     fi
     sleep 2; sync_and_check

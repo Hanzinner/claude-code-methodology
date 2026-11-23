@@ -43,7 +43,12 @@ def ok(n, c, o=""):
 
 
 have_proc = os.path.isdir("/proc")
-rc, o = run("Foo-Dev"); ok("1 one live tab by identity -> name and idle, the dead pid is dropped", (rc, o) == (0, "tab-2e\tidle"), (rc, o))
+rc, o = run("Foo-Dev")
+if have_proc:
+    ok("1 one live tab by identity -> name and idle, the dead pid is dropped", (rc, o) == (0, "tab-2e\tidle"), (rc, o))
+else:   # macOS: a reused pid is told apart by the /proc start time; without /proc only "the pid exists" is checked
+    ok("1 one live tab by identity -> name and idle", rc == 0 and "tab-2e\tidle" in o.splitlines(), (rc, o))
+    print("skip: 1 the reused-pid half (no /proc: agent_tab.py can only check that the pid exists)")
 rc, o = run("foo-dev"); ok("2 a name in any case", rc == 0 and o.startswith("tab-2e"), o)
 rc, o = run("New-HQ"); ok("3 an old identity via .aliases -> found, busy", (rc, o) == (0, "tab-7f\tbusy"), (rc, o))
 rc, o = run("Nobody"); ok("4 none -> rc 1, \"no live tab\"", (rc, o) == (1, "no live tab"), (rc, o))

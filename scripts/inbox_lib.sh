@@ -9,17 +9,19 @@ AGENTS_ROOT="${INBOX_AGENTS_ROOT:-${CCM_AGENTS_DIR:-$HOME/claude-projects/Agents
 
 # Section headers. The swarm template says "## New"; older inboxes may say "## Processed", "## Done" or Ukrainian
 # "## Нові" / "## Оброблено". Whatever the file already has wins; a "candidates" variant is used when present.
+# LC_ALL=C: BSD grep (macOS) in a UTF-8 locale fails on a broken byte anywhere in the file ("illegal byte sequence"),
+# and a header not found made inbox_post.sh create a second "## New". A whole-line byte match is the same match.
 find_new_hdr() {
     local h
     for h in "## New candidates" "## Нові кандидати" "## New" "## Нові"; do
-        grep -qxF -- "$h" "$1" 2>/dev/null && { printf '%s\n' "$h"; return; }
+        LC_ALL=C grep -qxF -- "$h" "$1" 2>/dev/null && { printf '%s\n' "$h"; return; }
     done
     printf '%s\n' "## New"
 }
 find_done_hdr() {
     local h
     for h in "## Processed" "## Done" "## Оброблено"; do
-        grep -qxF -- "$h" "$1" 2>/dev/null && { printf '%s\n' "$h"; return; }
+        LC_ALL=C grep -qxF -- "$h" "$1" 2>/dev/null && { printf '%s\n' "$h"; return; }
     done
     printf '%s\n' "## Processed"
 }
@@ -29,6 +31,18 @@ find_done_hdr() {
 # Bash) a mkdir lock that a dead writer does not keep (its pid is checked; older than 1 min = stale anyway).
 # 30 s: on Windows every command is a new process and costs tens of ms, so 12 writers at once queue for seconds.
 source "$_ib_here/../lib/ccm_lock.sh"
+source "$_ib_here/../lib/ccm_compat.sh"   # ccm_owner/ccm_group/ccm_mode for ib_same_* below
+
+# A rewritten inbox keeps the owner and mode of the old one (mktemp makes 0600): --reference where chmod/chown have it,
+# else the values read by BSD stat (macOS has no --reference; there the copy silently stayed 0600). Never fails.
+ib_same_owner() {   # ib_same_owner <reference> <file>
+    if chown --version >/dev/null 2>&1; then chown --reference="$1" "$2" 2>/dev/null || true
+    else chown "$(ccm_owner "$1"):$(ccm_group "$1")" "$2" 2>/dev/null || true; fi
+}
+ib_same_mode() {    # ib_same_mode <reference> <file>
+    if chmod --version >/dev/null 2>&1; then chmod --reference="$1" "$2" 2>/dev/null || true
+    else chmod "$(ccm_mode "$1")" "$2" 2>/dev/null || true; fi
+}
 lock_inbox() {   # lock_inbox <inbox> <tool name for messages>
     ccm_lock 9 "$1.lock" 30 1 || { echo "$2: lock timeout on $1" >&2; exit 3; }
 }

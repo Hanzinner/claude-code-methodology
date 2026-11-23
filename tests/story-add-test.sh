@@ -7,6 +7,7 @@ set -uo pipefail
 NAME=story-add-test
 HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 SA=${SA:-$HERE/../scripts/story_add.sh}
+own() { python3 -c 'import os,sys; s=os.stat(sys.argv[1]); print("%d:%d %o" % (s.st_uid, s.st_gid, s.st_mode & 0o7777))' "$1"; }   # stat -c "%u:%g %a"; BSD stat has no -c
 T=$(mktemp -d) && [[ -d "$T" && "$T" != / ]] || { echo "no temp dir" >&2; exit 2; }
 trap 'rm -rf -- "$T"' EXIT   # the test's own sandbox
 export CCM_TEST=1 HOME="$T/home" CLAUDE_METHODOLOGY_CONF=/nonexistent
@@ -51,14 +52,14 @@ mk Game <<'EOF'
 - ⏳ **[E8.S1] Button**
 EOF
 chmod 640 "$(rmf Game)"; (( ROOT )) && chown 65534:65534 "$(rmf Game)"
-OWN=$(stat -c "%u:%g %a" "$(rmf Game)")
+OWN=$(own "$(rmf Game)")
 run Game "Map: holes in the forest" --epic E7
 check "epic with gaps: E7 -> E7.S10 (max 9 + 1)" '[[ $RC == 0 && $LAST == E7.S10 ]]'
 check "the line is at the end of EPIC 7, before EPIC 8" \
   '[[ $(grep -n "E7.S10" "$(rmf Game)" | cut -d: -f1) == $(( $(grep -n "^## EPIC 8" "$(rmf Game)" | cut -d: -f1) - 2 )) ]]'
 check "line format \"- ⏳ **[E7.S10] summary**\"" 'grep -qxF -- "- ⏳ **[E7.S10] Map: holes in the forest**" "$(rmf Game)"'
 if (( WIN )); then skip "owner and mode kept - chmod 640 is not kept on NTFS (Git Bash shows 644), files have no Unix owner"
-else check "owner and mode kept ($OWN)" '[[ $(stat -c "%u:%g %a" "$(rmf Game)") == "$OWN" && $OWN == *" 640" ]]'; fi
+else check "owner and mode kept ($OWN)" '[[ $(own "$(rmf Game)") == "$OWN" && $OWN == *" 640" ]]'; fi
 run Game "New button" --epic 1
 check "another epic: --epic 1 -> E1.S3" '[[ $RC == 0 && $LAST == E1.S3 ]]'
 
@@ -79,18 +80,18 @@ else   # Windows Python without the tzdata package: the system's zone is used (l
 check "--from-human with a message -> E7.S11 with a message time and the fragment (no zone database: system zone)" \
   '[[ $RC == 0 && $LAST == E7.S11 ]] && grep -qE -- "^- ⏳ \*\*\[E7.S11\] Tree: back\*\* · from Alex 2026-11-2[123] [0-9]{2}:[0-9]{2} \"the \"BACK\" button in the tree does nothing\"" "$(rmf Game)"'
 fi
-H=$(md5sum < "$(rmf Game)")
+H=$(cksum < "$(rmf Game)")
 run Game "Made up" --epic E7 --from-human "nobody ever typed this here"
-check "--from-human with no such message -> rc 2, nothing added" '[[ $RC == 2 && $(md5sum < "$(rmf Game)") == "$H" ]]'
+check "--from-human with no such message -> rc 2, nothing added" '[[ $RC == 2 && $(cksum < "$(rmf Game)") == "$H" ]]'
 run Game "Made up" --epic E7 --from-human "a phrase only the assistant said"
-check "--from-human with the assistant's text -> rc 2, nothing added" '[[ $RC == 2 && $(md5sum < "$(rmf Game)") == "$H" ]]'
+check "--from-human with the assistant's text -> rc 2, nothing added" '[[ $RC == 2 && $(cksum < "$(rmf Game)") == "$H" ]]'
 run Game "Made up" --epic E7 --from-human "ok yes"
-check "--from-human with a fragment under 8 chars -> rc 1, nothing added" '[[ $RC == 1 && $(md5sum < "$(rmf Game)") == "$H" ]]'
+check "--from-human with a fragment under 8 chars -> rc 1, nothing added" '[[ $RC == 1 && $(cksum < "$(rmf Game)") == "$H" ]]'
 
 # --- 4. --epic E99 -> a clear refusal
 run Game "Where?" --epic E99
 check "--epic E99 -> rc 3 \"no section ... EPIC 99\", file unchanged" \
-  '[[ $RC == 3 && $OUT == *"no section \"## EPIC 99"* && $(md5sum < "$(rmf Game)") == "$H" ]]'
+  '[[ $RC == 3 && $OUT == *"no section \"## EPIC 99"* && $(cksum < "$(rmf Game)") == "$H" ]]'
 
 # --- 5. project-wide numbering (E5.S99, E4.S100)
 mk Shop <<'EOF'
@@ -142,7 +143,7 @@ codes=$(for i in 1 2 3 4 5; do tail -n1 "$T/par.$i"; done | sort -u | tr '\n' ' 
 check "5 parallel -> 5 different codes E8.S2-S6 ($codes)" '[[ $codes == "E8.S2 E8.S3 E8.S4 E8.S5 E8.S6 " ]]'
 check "5 parallel -> 5 \"Parallel\" lines in the file" '[[ $(grep -c "Parallel" "$(rmf Game)") == 5 ]]'
 check "after all writes owner/mode the same, no tmp left" \
-  '[[ $(stat -c "%u:%g %a" "$(rmf Game)") == "$OWN" && -z $(find "$STORY_ADD_REPO" -name "*.tmp") ]]'
+  '[[ $(own "$(rmf Game)") == "$OWN" && -z $(find "$STORY_ADD_REPO" -name "*.tmp") ]]'
 
 # --- 9. no ROADMAP -> rc 4 with a hint; CCM_PROJECTS_GLOB picks other folders
 mkdir -p "$STORY_ADD_REPO/Project-Empty"
