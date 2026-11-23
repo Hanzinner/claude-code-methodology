@@ -2,6 +2,7 @@
 # memory_consolidation.sh: the run gate, a failed claude run, a clean run, the md5 read-only alarm. MC=<path> tests another copy.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
+. "$HERE/../lib/ccm_compat.sh"   # ccm_touch_ago, ccm_date_at: BSD touch/date take no "2 days ago"
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CCM_TEST=1 CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_AGENTS_DIR="$T/Agents"; mkdir -p "$HOME" "$T/ws"
 printf "#!/bin/sh\necho \"\$1|\${2:-\$(cat)}\" >> %s/letters\n" "$T" > "$T/post"; chmod +x "$T/post"; : > "$T/letters"; export CCM_INBOX_POST="$T/post"
@@ -10,17 +11,17 @@ ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $
 MC=${MC:-$HERE/../scripts/memory_consolidation.sh}
 export CONSOLIDATION_STAMP="$T/last-run" CONSOLIDATION_TSDIR="$T/ts" CONSOLIDATION_LOG="$T/log" CCM_MEMORY_DIR="$T/mem" CCM_CONSOLIDATION_DIR="$T/out"
 mkdir -p "$T/ts" "$T/mem"; echo "# idx" > "$T/mem/MEMORY.md"
-prompt_ago() { touch -d "-$1 min" "$T/ts/p"; }
+prompt_ago() { ccm_touch_ago $(($1 * 60)) "$T/ts/p"; }
 g() { CONSOLIDATION_DRY=1 bash "$MC" 2>&1; }
 H=$(date +%H)
 date +%F > "$T/last-run"; prompt_ago 300; out=$(g)
 ok "1 already ran today -> nothing" '[[ -z "$out" ]]'
-date -d yesterday +%F > "$T/last-run"; prompt_ago 50; out=$(g)
+ccm_date_at $(( $(date +%s) - 86400 )) +%F > "$T/last-run"; prompt_ago 50; out=$(g)
 ok "2 ran yesterday, quiet 50 min -> RUN (quiet)" '[[ "$out" == "RUN: quiet"* ]]'
 prompt_ago 5; out=$(g)
 if (( 10#$H >= 23 )); then ok "3 5 min quiet, after 23:00 -> RUN (end of day)" '[[ "$out" == *"end of day"* ]]'
 else ok "3 5 min quiet, before 23:00 -> nothing" '[[ -z "$out" ]]'; fi
-date -d '3 days ago' +%F > "$T/last-run"; prompt_ago 5; out=$(g)
+ccm_date_at $(( $(date +%s) - 3 * 86400 )) +%F > "$T/last-run"; prompt_ago 5; out=$(g)
 ok "4 a day was missed, no quiet -> RUN (catch-up)" '[[ "$out" == *"catch-up"* ]]'
 rm -f "$T/last-run"; out=$(g)
 ok "5 never ran -> RUN (catch-up)" '[[ "$out" == *"catch-up"* ]]'

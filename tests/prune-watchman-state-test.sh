@@ -2,6 +2,7 @@
 # prune_watchman_state.sh: deletes ONLY when switched on. PW=<path> tests another copy.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
+. "$HERE/../lib/ccm_compat.sh"   # ccm_touch_ago: BSD touch -d takes no "2 days ago"
 T=$(mktemp -d) || exit 2; trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" CCM_TEST=1 CLAUDE_METHODOLOGY_CONF=/nonexistent CCM_WORKSPACE="$T/ws" CCM_AGENTS_DIR="$T/Agents"; mkdir -p "$HOME" "$T/ws"
 printf "#!/bin/sh\necho \"\$1|\${2:-\$(cat)}\" >> %s/letters\n" "$T" > "$T/post"; chmod +x "$T/post"; : > "$T/letters"; export CCM_INBOX_POST="$T/post"
@@ -9,7 +10,7 @@ pass=0; fail=0
 ok() { if eval "$2"; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: $1"; echo "${out:-}" | sed "s/^/   /"; fi; }
 PW=${PW:-$HERE/../scripts/prune_watchman_state.sh}
 export WATCHMAN_STATE_DIR="$T/wm"; mkdir -p "$WATCHMAN_STATE_DIR/sub"
-reset() { echo x > "$WATCHMAN_STATE_DIR/old1"; echo x > "$WATCHMAN_STATE_DIR/sub/old2"; echo x > "$WATCHMAN_STATE_DIR/new1"; touch -d '40 days ago' "$WATCHMAN_STATE_DIR/old1" "$WATCHMAN_STATE_DIR/sub/old2"; }
+reset() { echo x > "$WATCHMAN_STATE_DIR/old1"; echo x > "$WATCHMAN_STATE_DIR/sub/old2"; echo x > "$WATCHMAN_STATE_DIR/new1"; ccm_touch_ago 3456000 "$WATCHMAN_STATE_DIR/old1" "$WATCHMAN_STATE_DIR/sub/old2"; }
 reset; out=$(bash "$PW" 2>&1)
 ok "1 default (flag off) -> NOTHING deleted, says disabled" '[ -f "$WATCHMAN_STATE_DIR/old1" ] && echo "$out" | grep -q disabled'
 out=$(bash "$PW" --dry-run 2>&1)

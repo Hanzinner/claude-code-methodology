@@ -64,6 +64,8 @@ GNU = [
     (r"\bgrep\s[^|]*'[^']*\\[swSW]", r"$^", "\\s \\w in grep: [[:space:]] [[:alnum:]_]"),
     (r"LC_ALL=C\.UTF-8|LANG=C\.UTF-8", r"$^", "a hard C.UTF-8: ccm_utf8_locale (a Mac may lack it)"),
     (r"\bgetent\b", r"command -v getent", "getent: none on macOS"),
+    (r"\btouch\s[^|;]*-d\s", r"$^", "touch -d '2 days ago': BSD touch takes only an ISO date - ccm_touch_ago"),
+    (r"\bpaste\s+-[a-z]*s[a-z]*(\S*|\s+-d\s*\S+)\s*($|[|;)])", r"$^", "paste -s without a file: BSD paste needs \"-\" for stdin"),
     (r"(^|[;&|(]\s*|\s)setsid\s", r"command -v setsid", "setsid: none on macOS"),
     (r"(^|[;&|(]\s*|\s)flock\s+-", r"command -v flock", "flock: lib/ccm_lock.sh"),
 ]
@@ -176,7 +178,7 @@ for f in files:
 ok("3 no GNU-only command form without a fallback", not hits, "\n".join(hits))
 
 # 5. a script that calls a lib/ccm_compat.sh function loads it (itself, or through a file that does)
-COMPAT_FN = r"\bccm_(lower|mtime|fsize|owner|group|mode|epoch|date_at|now_iso|sha256|md5|timeout|utf8_locale|json_str)\b"
+COMPAT_FN = r"\bccm_(lower|mtime|fsize|owner|group|mode|epoch|date_at|now_iso|touch_ago|sha256|md5|timeout|utf8_locale|json_str)\b"
 LOADS = r"ccm_compat\.sh|inbox_lib\.sh|backup-common\.sh|restic-env\.sh"
 hits = [rel(f) for f in files if rel(f) != "lib/ccm_compat.sh"
         and re.search(COMPAT_FN, "\n".join(c for _, _, c in code_lines(f))) and not re.search(LOADS, open(f, encoding="utf-8", errors="replace").read())]

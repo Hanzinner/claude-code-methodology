@@ -15,6 +15,7 @@
 #                                    "@1700000000", "yesterday" (date -d | python3); local time when no offset
 #   ccm_date_at <epoch> [+fmt]    -> that moment formatted                    (date -d @N | date -r N)
 #   ccm_now_iso                   -> 2026-11-24T10:00:00+02:00                (date -Iseconds | date +%Y-%m-%dT%H:%M:%S%z)
+#   ccm_touch_ago <sec> <file>... -> mtime set <sec> seconds back             (touch -d '2 days ago' | touch -t)
 #   ccm_sha256 [file]             -> hex digest of the file or of stdin       (sha256sum | shasum -a 256 | python3)
 #   ccm_md5 [file]                -> hex digest of the file or of stdin       (md5sum | md5 -q | python3)
 #   ccm_timeout [-k K] <s> cmd... -> runs cmd with a time limit, 124 on timeout (timeout | gtimeout | perl | no limit)
@@ -66,6 +67,11 @@ ccm_now_iso() {
     if _ccm_gnu_date; then date -Iseconds; return; fi
     local t; t=$(date +%Y-%m-%dT%H:%M:%S%z)
     printf '%s:%s\n' "${t%??}" "${t#"${t%??}"}"   # +0200 -> +02:00, the form date -Iseconds prints
+}
+
+ccm_touch_ago() {   # ccm_touch_ago <seconds> <file>... ; touch -t is POSIX, BSD touch -d takes no "2 days ago"
+    local s="$1"; shift
+    touch -t "$(ccm_date_at "$(( $(date +%s) - s ))" +%Y%m%d%H%M.%S)" "$@"
 }
 
 ccm_sha256() {
