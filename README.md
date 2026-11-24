@@ -20,7 +20,6 @@ Each component addresses a specific failure mode, not a convenience. Worth knowi
 **Start here** (a single agent — most readers):
 - [`docs/accounts.md`](docs/accounts.md) — the outside accounts (all optional except Claude Code): where to sign up, what is free, which file each key goes into.
 - [`docs/getting-started.md`](docs/getting-started.md) — after the install: the first day, day-to-day use, what the mechanisms will do in front of you, and how to add more agents.
-- [`docs/examples.md`](docs/examples.md) — before/after dialogues showing what the rules do to agent behavior.
 
 **Going deeper** (long sessions, verification, self-correction):
 - [`docs/mistakes-journal.md`](docs/mistakes-journal.md) — one file for postmortems, so three of the same mistake become a mechanism instead of a habit.
