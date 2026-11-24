@@ -240,3 +240,9 @@
 - **Why:** /bin/bash on macOS is 3.2: `${x,,}` is "bad substitution", `mapfile` does not exist, `"${a[@]}"` of an empty array under `set -u` is "unbound variable". BSD grep has no `-P`, BSD stat no `-c`, BSD date no `-d`/`-I`, BSD mv no `-T`, chmod/chown no `--reference`; no `timeout`, `flock`, `sha256sum`, `md5sum`; maybe no C.UTF-8 locale.
 - **Right way:** `. "<dir>/../lib/ccm_compat.sh"` and its functions (ccm_lower, ccm_mtime, ccm_epoch, ccm_now_iso, ccm_sha256, ccm_md5, ccm_timeout, ccm_utf8_locale, ccm_json_str), `${a[@]+"${a[@]}"}` for an array that may be empty, a `while read` loop for mapfile, `[[:space:]]` for `\s`, `\{0,1\}` for `\?` in sed. Check: `tests/bash3-compat-test.py` (on a Mac it also runs `/bin/bash -n` on every script).
 - **Seen:** once, across ~25 scripts (found by reading, before a Mac ran them).
+
+### `sort` under `LC_ALL=C` but `comm` without it: the list difference lies
+- **Symptom:** `find … | LC_ALL=C sort | comm -23 - <(LC_ALL=C sort list)` prints "comm: file 1 is not in sorted order" and reports as extra files that are in both lists; a cleanup script moved 99 real code files away as "stale".
+- **Why:** `comm` compares by the collation of its own locale; a list sorted in C looks unsorted under a UTF-8 locale and the merge breaks. The warning goes to stderr only, the exit code is 0.
+- **Right way:** one locale for all of them: `LC_ALL=C comm -23 <(LC_ALL=C sort a) <(LC_ALL=C sort b)`; or no `comm` at all: `grep -vxFf b a`. Check: a list compared with itself must give an empty difference.
+- **Seen:** once.
