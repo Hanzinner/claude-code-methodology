@@ -17,6 +17,19 @@ Additions and refinements welcome. Read `CLAUDE.md` first — that's the spine e
 - Features that duplicate what Claude Code already ships.
 - Anything that requires paid third-party services without a free tier or clearly-marked opt-in.
 
+## Where to add things
+
+| Adding... | Goes in |
+|-----------|---------|
+| A rule that should always apply | `CLAUDE.md` |
+| Enforcement that can't depend on agent memory | `hooks/` (and its line in `settings.template.json`) |
+| A reusable utility | `scripts/` |
+| A multi-step workflow invoked on demand | `skills/` |
+| A technical lesson another agent would step on | `code-pitfalls/<technology>.md` |
+| An optional extension with its own setup | `addons/<name>/` |
+| A fact about the user / project / external system | the person's memory, never the repo (format: `memory-template/`) |
+| A fact about the codebase | nowhere: read the code |
+
 ## Style
 
 - Dry documentation. Tables over prose. No pitch language ("elegant", "powerful", "revolutionary").

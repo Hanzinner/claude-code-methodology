@@ -133,7 +133,7 @@ WSL (`wsl --install`, then everything inside it) is the Linux route and needs no
 | `addons/dashboard/` | Read-only local status page of the agents |
 | `addons/reader/` | A reader in the browser for the documents agents hand to a human (`--with-reader`) |
 | `addons/session-hygiene/` | Trims old tool outputs from large inactive chats, on top of the nightly chat copy (`--with-session-hygiene`) |
-| `docs/` | Getting started, accounts, architecture, memory system, hooks guide, coding standard, project work, and the rest of the rules |
+| `docs/` | Getting started, accounts, memory system, hooks guide, coding standard, project work, and the rest of the rules |
 | `settings.template.json` | Settings template with `__CLAUDE_DIR__` placeholders |
 | `install.sh` | Bootstrap |
 
