@@ -54,6 +54,12 @@ Each line: the problem you would otherwise have, what changed, how to use it.
 - **`/edit`** — break a video down by scenes and editing choices.
 - **`/verify`** (or "check it with a subagent") — after your agent changed code: a cheaper model runs the tests, and
   the agent may say "done" only with that proof. Running tests no longer eats the quota of the expensive model.
+- **`/quality-loop`** (or "loop until clean") — before merging a branch: tests, linters, two independent reviews,
+  then every finding fixed, each with a test that fails without the fix, round after round until a review comes back
+  clean. **`/fix-findings`** is its fixing half, for findings you already have.
+- **`/decision-log`** — every call the agent makes on its own during a task lands in a table at the end, with what
+  else it considered; quote a row back to flip it.
+- **`/tldr`** — the shortest possible replies for the rest of the chat (`/tldr off` to stop).
 - **`/update`** (or just "update the system") — gets the new version, tells you in plain words what is new, installs it
   and checks it.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""skills-check: validates every skills/*/SKILL.md in the repo.
+"""skills-check: validates every skills/*/SKILL.md (and agents/*.md) in the repo.
 Checks: frontmatter parses, has name (= folder) + description, referenced repo files exist
 (scripts/, hooks/, lib/, bin/ paths, also via $CLAUDE_METHODOLOGY_DIR), no Cyrillic, none of the names listed in CCM_PUBLIC_GATE_NAMES (machine settings).
 SKILLS_DIR=<path> overrides the skills directory. Read-only."""
@@ -31,8 +31,10 @@ def check(name, cond, msg=""):
 
 files = sorted(glob.glob(os.path.join(SKILLS, "*", "SKILL.md")))
 check("any-skills", bool(files), "no SKILL.md found in %s" % SKILLS)
-for f in files:
-    folder = os.path.basename(os.path.dirname(f))
+# subagent definitions (agents/<name>.md) follow the same rules: name = file name
+agents = [] if os.environ.get("SKILLS_DIR") else sorted(glob.glob(os.path.join(ROOT, "agents", "*.md")))
+for f in files + agents:
+    folder = os.path.basename(os.path.dirname(f)) if f.endswith("SKILL.md") else "agents/" + os.path.basename(f)[:-3]
     text = open(f, encoding="utf-8").read()
     m = re.match(r"---\n(.*?)\n---\n", text, re.S)
     check(folder + ":frontmatter", bool(m), "no frontmatter block")
@@ -41,7 +43,7 @@ for f in files:
         for line in m.group(1).splitlines():
             if ":" in line and not line.startswith(" "):
                 k, v = line.split(":", 1); fm[k.strip()] = v.strip()
-    check(folder + ":name", fm.get("name") == folder, "name %r != folder" % fm.get("name"))
+    check(folder + ":name", fm.get("name") == folder.split("/")[-1], "name %r != folder" % fm.get("name"))
     check(folder + ":description", len(fm.get("description", "")) > 40, "missing/short description")
     check(folder + ":cyrillic", not CYR.search(text), "Cyrillic text: %s" % (CYR.search(text) or [""])[0])
     for w in FORBIDDEN:
@@ -49,5 +51,5 @@ for f in files:
     for rel in sorted(set(PATH.findall(text))):
         check(folder + ":ref-" + rel, os.path.exists(os.path.join(ROOT, rel)), "%s not in repo" % rel)
 
-print("skills-check: %d pass, %d fail (%d skills)" % (ok, fail, len(files)))
+print("skills-check: %d pass, %d fail (%d skills, %d agents)" % (ok, fail, len(files), len(agents)))
 sys.exit(1 if fail else 0)

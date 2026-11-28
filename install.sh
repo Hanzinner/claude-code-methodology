@@ -506,6 +506,21 @@ for d in "$REPO_DIR"/skills/*/; do
   do_or_show cp -r "$d." "$TARGET/skills/$name/"   # "$d." — copy the contents; "$d" into an existing dir nests it
 done
 
+say "Copying subagents…"
+# only our own files in agents/; yours are not touched. A backup goes outside agents/ for the same reason as skills
+do_or_show mkdir -p "$TARGET/agents"
+for f in "$REPO_DIR"/agents/*.md; do
+  [[ -f "$f" ]] || continue
+  name=$(basename "$f")
+  if [[ -f "$TARGET/agents/$name" ]] && ! cmp -s "$f" "$TARGET/agents/$name"; then
+    bk="$TARGET/.methodology-installed/backups/$TIMESTAMP/agents"
+    do_or_show mkdir -p "$bk"
+    do_or_show cp -p "$TARGET/agents/$name" "$bk/$name"
+    warn "backed up your changed agents/$name → $bk/$name"
+  fi
+  do_or_show cp "$f" "$TARGET/agents/$name"
+done
+
 say "Copying code pitfalls…"
 do_or_show mkdir -p "$TARGET/code-pitfalls"
 for f in "$REPO_DIR"/code-pitfalls/*.md; do
@@ -1004,7 +1019,7 @@ echo "  2) Later, to update: tell your agent \"update the system\" (/update)"
 echo "  3) Read $REPO_DIR/docs/getting-started.md (first day) and docs/accounts.md (optional accounts: search, backup, phone bot)"
 echo
 echo "To undo: in $TARGET, restore the *.bak-${TIMESTAMP} copies over the files they back up, and remove"
-echo "what this repo added (hooks/, scripts/, skills/, code-pitfalls/, lib/, bin/, mcp/, tests/, methodology.conf, addons/, mobile-bot/,"
+echo "what this repo added (hooks/, scripts/, skills/, agents/deep-code-reviewer.md, code-pitfalls/, lib/, bin/, mcp/, tests/, methodology.conf, addons/, mobile-bot/,"
 echo "(add-ons: each has setup-<name>.sh --uninstall; with --with-git-guard: scripts/setup-git-guard.sh --uninstall; with --with-releaser: /etc/cron.d/ccm-releaser and the releaser user)"
 echo ".methodology-installed/), the ~/.local/bin links to bin/ and the marked block in crontab -l."
 echo "Do NOT delete $TARGET as a whole: it also holds your own Claude Code settings, memory and history."

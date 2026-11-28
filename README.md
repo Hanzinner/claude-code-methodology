@@ -41,7 +41,7 @@ cd claude-code-methodology
 ./install.sh
 ```
 
-`install.sh` detects `claude`, asks for scope (user `~/.claude/` or project `<dir>/.claude/`), copies `hooks/`, `scripts/`, `skills/`, `code-pitfalls/` (your own lessons are kept), `CLAUDE.md`, `memory-template/`, generates `settings.json` with hook paths, offers system deps and the mobile-bot addon. Existing files are backed up to `*.bak-<timestamp>`.
+`install.sh` detects `claude`, asks for scope (user `~/.claude/` or project `<dir>/.claude/`), copies `hooks/`, `scripts/`, `skills/`, `agents/` (one subagent), `code-pitfalls/` (your own lessons are kept), `CLAUDE.md`, `memory-template/`, generates `settings.json` with hook paths, offers system deps and the mobile-bot addon. Existing files are backed up to `*.bak-<timestamp>`.
 
 You can hand the repo to your own agent and say "install this": it runs `./install.sh` like a person would.
 
@@ -64,7 +64,7 @@ You can hand the repo to your own agent and say "install this": it runs `./insta
 > just its name. Short, no file paths unless I ask. Finally tell me to restart Claude Code.
 
 **What it never touches:** your chats and session history (`~/.claude/projects/`, `history.jsonl`),
-`~/.claude.json`, your own commands, agents and MCP servers. It writes only its own folders and merges
+`~/.claude.json`, your own commands, agents and MCP servers (in `agents/` it writes only its own `deep-code-reviewer.md`, after backing up your edited copy of it, if any). It writes only its own folders and merges
 `settings.json`. This is tested on a clean machine: fingerprints of those files before and after two
 installs and a run of every hook are compared.
 
@@ -109,7 +109,7 @@ WSL (`wsl --install`, then everything inside it) is the Linux route and needs no
 
 | Layer | Installed by `install.sh` today | In the repo, set up by hand | Not in the repo yet |
 |---|---|---|---|
-| One agent | `CLAUDE.md`, 30 hooks and gates, scripts and `bin/` tools (linked into `~/.local/bin`), 9 skills, memory template, code lessons, `methodology.conf` (your name, folder, time zone), a marked block in your crontab; a quick check at the end (seconds: every file in place, the supervisor green); `--verify-all` also runs every installed test; the web-search server (asks for Tavily/Exa keys, registers itself) | — | Telegram alerts from the input guard; cleanup of the trash folder is off unless `--enable-cleanup` |
+| One agent | `CLAUDE.md`, 30 hooks and gates, scripts and `bin/` tools (linked into `~/.local/bin`), 13 skills, 1 subagent (`deep-code-reviewer`), memory template, code lessons, `methodology.conf` (your name, folder, time zone), a marked block in your crontab; a quick check at the end (seconds: every file in place, the supervisor green); `--verify-all` also runs every installed test; the web-search server (asks for Tavily/Exa keys, registers itself) | — | Telegram alerts from the input guard; cleanup of the trash folder is off unless `--enable-cleanup` |
 | A swarm of agents | 9 more hooks (briefing watchman: an agent recognised by its name in the first message, briefing re-shown when it changes, unread letters every turn; inbox gate; reminders), inbox tools, `/register-as <Name>`, blocker register and story status, project bootstrap (`new_project.sh`), the shared files from `swarm-template/` copied into your workspace. Off until you list agents in `methodology.conf`: the two Stop gates (open work, unproven status). Only with a flag: the releaser (`--with-releaser`, root) and the git wrapper (`--with-git-guard`) | — | — |
 | Upkeep | a supervisor every 15 min with 20 checks (are the hooks, the watchman, reminders, the release queue, the chat copy still doing their job; is an agent stuck on an API error), quota and a daily token report as files, the weekly mistakes-journal review, catalog and broken-link checks, a git history of the mechanisms' own code, a public-repo gate, stats as plain JSON in `~/.claude/stats/`. Findings go to `~/.claude/supervisor/summary.json`, and to an agent's inbox only if you name one in `methodology.conf` | — | — |
 | Add-ons, one flag each | `--with-mobile-bot` (Telegram bridge to Claude Code: PIN, an allowlist of users, a gate on what it may run), `--with-offsite-backup` (encrypted restic backup to B2 or S3; nothing is ever deleted from it unless you say so), `--with-agent-browser` (a headless browser agents drive; fetches its engine with npm), `--with-net-change` (change the machine's network with an automatic roll-back unless you confirm), `--with-dashboard` (read-only status page of the agents on 127.0.0.1:8765), `--with-session-hygiene` (long chats slow down and bloat: trims old tool outputs from large inactive chats, never the conversation, and only when last night's chat copy is newer), `--with-reader` (read the agents' documents in a browser, phone included; 127.0.0.1:8001 unless you open it to the network; interface in Ukrainian). Parts that need root are done by each add-on's `setup-*.sh`; without root the installer prints the `sudo` line. Accounts they need: [`docs/accounts.md`](docs/accounts.md) | — | — |
@@ -121,7 +121,8 @@ WSL (`wsl --install`, then everything inside it) is the Linux route and needs no
 | `CLAUDE.md` | Operating core — behavioral rules loaded into every conversation |
 | `hooks/` | Shell/Python hooks on `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PreCompact`, `PostCompact`, `PermissionDenied`, `Stop` |
 | `scripts/` | Utilities called from hooks, skills, or directly |
-| `skills/` | Slash commands (`/recap`, `/audit`, `/register-as`, `/grill`, `/pulse`, `/dossier`, `/edit`, `/update`, `/verify`) |
+| `skills/` | Slash commands (`/recap`, `/audit`, `/register-as`, `/grill`, `/pulse`, `/dossier`, `/edit`, `/update`, `/verify`, `/quality-loop`, `/fix-findings`, `/decision-log`, `/tldr`) |
+| `agents/` | Subagent definitions: `deep-code-reviewer` (read-only reviewer on opus; half of the dual review in `/quality-loop`) |
 | `memory-template/` | Seed for `memory/` (trigger index + 4 type examples) |
 | `swarm-template/` | Empty shared files for a swarm: mistakes journal with the classes that repeated, agent registry, mechanism catalog, one agent's folder |
 | `code-pitfalls/` | Technical lessons already paid for, one file per technology — shown to the agent before it edits that kind of code |
@@ -196,7 +197,7 @@ See `memory-template/README.md` and `memory-template/examples/`.
 ## After install
 
 - Hooks run automatically in new sessions.
-- Slash skills are available: `/recap`, `/audit`, `/register-as`, `/grill`, `/pulse`, `/dossier`, `/edit`, `/update`, `/verify`.
+- Slash skills are available: `/recap`, `/audit`, `/register-as`, `/grill`, `/pulse`, `/dossier`, `/edit`, `/update`, `/verify`, `/quality-loop`, `/fix-findings`, `/decision-log`, `/tldr`.
 - Edit `~/.claude/CLAUDE.md` to change the operating core.
 - Edit `~/.claude/memory/MEMORY.md` to add trigger pointers.
 
