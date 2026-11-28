@@ -160,3 +160,39 @@ Setup these come from: a Linux VM on a Windows Hyper-V host, driven over SSH (Po
 - **Symptom:** the process name from `/proc/<pid>/comm` is empty (two agent tabs merged into one); `ps -o comm=` errors; a test calling `/usr/bin/git` failed 18 of 20.
 - **Right way:** take the name from field 2 of `/proc/<pid>/stat` (strip `.exe`); find git on PATH (`command -v git`, it is in `/mingw64/bin` or `/ucrt64/bin`); `ps -o` only as a fallback.
 - **Seen:** once.
+
+### Tuning tool (ThrottleStop-style): unticking a box ≠ restoring the factory value
+- **Symptom:** a power-balance setting was changed (7/16), the box was unticked, and the cores stayed at 1.35–1.39 GHz, 100% in PL1 for another 6 minutes until 16/7 was written.
+- **Why:** a ticked box means "this tool manages this register". Unticked, the tool just stops writing; the last written value stays in the CPU until reboot.
+- **Right way:** to roll back, WRITE the factory value with the box ticked (Apply), then untick. Factory values here: power balance 16/7, FIVR offset 0. Verify from the tool's log.
+- **Seen:** once.
+
+### `cmd /c "… & exit 0"` hides a failure; `%errorlevel%` in a one-liner is the value from BEFORE the command
+- **Symptom:** `cmd /c "(if exist X move /y X Y) & exit 0"` always returns rc 0, even when `move` failed (locked folder) — an ssh call "succeeds". A check `tar … & echo rc=%errorlevel%` prints 0 on error.
+- **Why:** `&` runs unconditionally and the chain's rc is the last command's; `%errorlevel%` on the same line is substituted when the line is parsed, before execution.
+- **Right way:** "no source is not an error" as `if exist X (move /y X Y) else (exit 0)` — rc stays from `move`; check rc with `&& echo OK || echo FAILED`, not `%errorlevel%` in one line.
+- **Seen:** once.
+
+### `query user`: the console session always shows "none" for IDLE TIME — and that rule isn't entirely true either
+- **Symptom:** for the `console` session the IDLE TIME column was "none" even when nobody had been there for hours; real numbers appear only for remote/disconnected sessions. A parser that read "none" as 0 said "the user is at the computer" every minute and a gate kept deferring.
+- **Right way:** for the console "none" = unknown; real idle time comes from `GetLastInputInfo` from INSIDE the user's session (an Interactive task at logon writes it to a file). From ssh / SYSTEM (session 0) another session's input can't be seen. Caveat: the same evening `quser` showed 18 min for the console while `GetLastInputInfo` showed 0–24 s with nobody present — some non-human input (remote-control software) resets it. Use the LARGER of the two sources and record both.
+- **Seen:** once.
+
+### An empty mobile hotspot + a "watchdog" that re-enables it → the Windows firewall burns CPU
+- **Symptom:** ~1 core spikes every ~5.5 minutes in `svchost` (BFE/mpssvc).
+- **Why:** Windows turns off a hotspot with no clients after ~5 minutes (PeerlessTimeout); a scheduled watchdog turns it back on. Each enable makes ICS (Internet Connection Sharing) add ~8 of its own firewall rules again (event 2097), the interface profile jumps (2010), ALG restarts (2011) → the firewall recompiles its filters. 917 such events in 6 hours.
+- **Right way:** see it in the "Windows Firewall With Advanced Security/Firewall" log (group 2097 by RuleName/ModifyingApplication, 2010 by InterfaceName). Fix: disable the empty-hotspot timeout (`icssvc\Settings PeerlessTimeoutEnabled=0` in the registry, with the owner's consent) or let the watchdog raise the hotspot only when it is needed.
+- **Seen:** once.
+
+### PowerShell: `$script:` in a function called from a NESTED script is that script's scope, not yours
+- **Symptom:** proxy functions (a wrapped `Remove-Item` etc.) read state via `$script:__state`; the agent body ran as a separate `.ps1` via `& $file` → "The variable '$script:__state' cannot be retrieved because it has not been set" (StrictMode); without StrictMode a silent `$null` and a wrong check.
+- **Why:** `$script:` comes from the current script scope on the call stack, and a nested `& file.ps1` opens a new script scope, so a function from the parent file sees the nested one.
+- **Right way:** state that functions must see when a foreign script calls them lives in `$global:` (or in a module via `New-Module`). Test with the function called from a nested script, not from the same file.
+- **Related:** `exit N` in a body run as `& file.ps1` leaves only the body and sets `$LASTEXITCODE = N`. If the body runs as `& ([scriptblock]::Create(...))`, `exit` leaves the WHOLE script and the lines after it (the log) never run.
+- **Seen:** once.
+
+### Windows OpenSSH: a big stream into PowerShell's stdin stalls; an ssh timeout on the Linux side does not kill the Windows process
+- **Symptom:** `git bundle … | ssh winhost "powershell … [Console]::OpenStandardInput().CopyTo(file)"`: 2 MB of 2.8 GB in 45 minutes; with `-File` instead of `-EncodedCommand` the same (5 MB not done in 120 s). Small inputs (kilobytes) pass. `scp` over the same ssh: 50 MB in 54 s, sha256 matched.
+- **Second:** when `timeout`/kill cuts the ssh on the Linux side, `powershell.exe` on Windows lives on and keeps the file open ("being used by another process", scp "dest open … Failure").
+- **Right way:** big data to Windows via `scp` (in parts, with `Get-FileHash` after each); through stdin only kilobytes. After an interrupted ssh look for orphans: `Get-CimInstance Win32_Process -Filter "Name='powershell.exe'"` by CommandLine and `Stop-Process` your own.
+- **Seen:** once.

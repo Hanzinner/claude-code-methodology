@@ -16,7 +16,7 @@
 - **Symptom:** your commit about a document swallowed someone else's release; the snapshot cron picked up another agent's unfinished WIP and it shipped inside a third party's release.
 - **Why:** `add` puts into the index, `commit` takes the whole index, including what another writer staged (a runner doing `merge --no-commit`, another agent). An exception in your `add` doesn't help when you weren't the one who staged.
 - **Right way:** every agent works in its own worktree on its own branch; commit nothing in the master tree (not even docs). Automation merges in its own worktree and only fast-forwards master. The snapshot cron skips a tick while `MERGE_HEAD` exists.
-- **Seen:** 3 times.
+- **Seen:** 4 times. (Variant: two agents in one worktree built the same module at once and one overwrote the other — run `git status` before the first edit and again before a multi-file write; unexpected changes mean someone else lives in this tree: stop and take your own worktree.)
 
 ### A commit made as root makes `.git` root-owned — the cron under the repo owner dies silently
 - **Symptom:** the snapshot cron silently doesn't commit for days; `dubious ownership` / `Permission denied` on `refs/logs`.
@@ -207,3 +207,58 @@
 - **Why:** the session transcript (`~/.claude/projects/<project>/<session>.jsonl`) keeps the last full `Write` of the file and every `Edit` after it.
 - **Right way:** take the last `Write` content, replay the later `Edit`s in order (`old_string→new_string`, honouring `replace_all`), compare with any surviving copy. Do it soon: Claude Code deletes transcripts after 30 days (`cleanupPeriodDays`).
 - **Seen:** once; 7 files rebuilt byte-for-byte.
+
+### `.gitignore` with `.venv/` does not catch a `.venv` symlink
+- **Symptom:** in a worktree you did `ln -s <project>/.venv .venv` to run the gates; `git status` shows `?? .venv`, and a release tool refuses with "uncommitted files".
+- **Why:** a pattern with a trailing `/` matches only a DIRECTORY; to git a symlink is a file.
+- **Right way:** write `.venv` without the slash (catches both), or don't put the link in the tree and run `<project>/.venv/bin/python` directly. Check: `git check-ignore -v .venv`.
+- **Seen:** once.
+
+### `git worktree remove` fails halfway: root-owned `__pycache__` inside a user's worktree
+- **Symptom:** `git worktree remove <wt>` → `error: failed to delete '…': Permission denied`. The worktree is already gone from the registry (`git worktree list` doesn't show it), the directory is half erased, and a chained `&& git branch -d …` never ran.
+- **Why:** the worktree belongs to a regular user, but the agent (root) ran Python in it and left root-owned `__pycache__/*.pyc` the user can't delete.
+- **Right way:** run Python in such worktrees with `PYTHONDONTWRITEBYTECODE=1`. If it already happened: move the leftover directory to the trash, then `git worktree prune` and `git branch -d <branch>`. Check before removing: `find <wt> -user root | head`.
+- **Seen:** once.
+
+### `git diff master..HEAD` is NOT "my commits": when master moved on, others' merges show up as your deletions
+- **Symptom:** a review of `master..HEAD` on a branch master had left behind reported "fix removed without replacement" in files the author never touched. Another agent had merged that fix into master AFTER the branch point.
+- **Why:** two dots in `git diff` is not a commit range (as in `git log`) but a comparison of two snapshots: `git diff A..B` = `git diff A B`. What is in the new master and not in the branch looks like a deletion in the branch.
+- **Right way:** to review or diff your own branch use the branch point: `git diff master...HEAD` (three dots) or `<range tool> $(git merge-base master HEAD)..HEAD`. Check: `git log --oneline HEAD..master` is not empty → master moved, two dots will lie.
+- **Seen:** once.
+
+### Local `git fetch`/`clone` between repos of different owners: `-c safe.directory=*` doesn't reach `upload-pack`
+- **Symptom:** `git -c safe.directory='*' --git-dir <mirror> fetch /path/to/other-owner-repo master` as root → "detected dubious ownership … Could not read from remote repository". Same with `clone`, and the other way round.
+- **Why:** the local transport starts `git upload-pack` as a SEPARATE process; `-c` from the command line doesn't reach it, and it checks the owner of the source repo itself.
+- **Right way:** `git fetch --upload-pack "/usr/bin/git -c safe.directory=* upload-pack" <path> …` (for clone `-u "…"`).
+- **Why a test missed it:** in a hermetic test one user creates all repos, so there is no owner check. Code that crosses owners must be tried live at least once (chown a copy to another user).
+- **Seen:** once.
+
+### A wrapper silently blocks `git worktree remove --force` — temporary copies pile up
+- **Symptom:** a tool created a temporary worktree and cleaned it with `git worktree remove --force` under `capture_output`; the guard's non-zero exit code was never read. The next `git fetch … :refs/heads/x` failed "refusing to fetch into branch … checked out at /var/tmp/…".
+- **Why:** a git guard wrapper treats `worktree remove --force` as destructive in a project repo.
+- **Right way:** delete your own untracked files in the copy (the `.venv` link etc.), then `git worktree remove <dir>` WITHOUT `--force`; check the return code and raise instead of swallowing it. Before reusing a branch name, look in `git worktree list --porcelain` for a leftover copy and remove it.
+- **Seen:** once.
+
+### `git stash pop` blindly takes SOMEONE ELSE'S stash
+- **Symptom:** after your own `stash` → `pop` the tree has 9 foreign files and a conflict — it was an old stash from long ago.
+- **Why:** `git stash` on a clean tree saves nothing ("No local changes to save") and creates no entry; the following `pop` takes the top entry of the stack, which is someone else's. A clean `pop` also deletes that entry.
+- **Right way:** to A/B against the previous commit skip stash: `git checkout HEAD~1 -- <files>` → test → `git checkout HEAD -- <files>`. If you need a stash: `git stash push -m "<label>" && git rev-parse stash@{0}` and pop only that SHA; `git stash list | head -1` before and after. If a conflicting pop already happened it keeps the entry: `git stash list`, then `git reset --merge` (undoes only the application; `reset --hard` in a shared tree destroys more).
+- **Seen:** once.
+
+### `git checkout -- <file>` as the undo of a temporary patch destroys everything uncommitted in the file
+- **Symptom:** to check that a test fails without a fix you patched → ran the test → `git checkout -- file`; four files of uncommitted fixes silently vanished and the tests stayed green because they were written against HEAD.
+- **Why:** `checkout --` restores from the index/HEAD, and pin checks happen exactly on UNcommitted work — the moment it is most destructive.
+- **Right way:** `cp file <scratch>/bak` → patch → test → `cp` back (on the error path too). Or commit the iteration's fixes BEFORE the pin check, so HEAD equals the tree. `git status` on the file before any revert. The same for mutation testing: cp, never checkout/stash.
+- **Seen:** once.
+
+### "Fixed: #N" in a commit closes PR/issue #N when merged into the default branch
+- **Symptom:** a commit on PR #101 saying "Fixed: #102 …" closed the unmerged #102 on merge; it had to be reopened.
+- **Why:** GitHub closing keywords (fix/fixes/fixed/close/closes/closed/resolve/resolves/resolved, with or without a colon) followed by `#N` in a commit on the default branch close N.
+- **Right way:** refer to neighbouring PRs as "PR 102" or "the fix from #102", never a keyword right before `#N`. Before merging a stack: `git log --format=%B <base>..HEAD | grep -inE '(fix|close|resolve)[a-z]*:? +#[0-9]+'`.
+- **Seen:** once.
+
+### "Add the new line at the END of a shared list" does not avoid a conflict — it guarantees one
+- **Symptom:** two branches each appended a line to the end of a shared `tests/gates.list`; the second fails with "CONFLICT (content)" although the lines differ. Twice in one evening, each time sending the branch back to the end of the merge queue.
+- **Why:** git merges hunks around shared context; both insertions sit after the same last line — to git one spot changed two ways. "At the end" is the worst place: everybody writes there.
+- **Right way:** for lists where order doesn't matter, `.gitattributes`: `<file> merge=union` (git takes the lines of both sides; if both added an IDENTICAL line it may be doubled — catch duplicates with a separate check). Without union, insert next to "your own" lines (by topic), not at the end.
+- **Seen:** twice.

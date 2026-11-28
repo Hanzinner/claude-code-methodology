@@ -25,16 +25,16 @@ a mechanism (a hook or a gate), not for a louder sentence.
 
 | File | Lessons | About |
 |---|---|---|
-| `shell.md` | 34 | bash, process killing, `set -e`, `sleep` vs events, permissions, cron |
-| `python.md` | 30 | text edits by script, encodings, subprocesses, migrations |
-| `git.md` | 27 | shared working trees, wrappers, hooks, what a commit really takes |
-| `web.md` | 33 | small stdlib sites, JS patches, layout checks, other people's sites |
-| `verification.md` | 28 | proof of execution, instruments that lie |
-| `hooks.md` | 20 | Claude Code hooks and gates |
+| `shell.md` | 43 | bash, process killing, `set -e`, `sleep` vs events, permissions, cron |
+| `python.md` | 42 | text edits by script, encodings, subprocesses, migrations |
+| `git.md` | 42 | shared working trees, wrappers, hooks, what a commit really takes |
+| `web.md` | 34 | small stdlib sites, JS patches, layout checks, other people's sites |
+| `verification.md` | 37 | proof of execution, instruments that lie |
+| `hooks.md` | 24 | Claude Code hooks and gates |
 | `concurrency.md` | 12 | shared files, locks, TTLs, connection pools |
-| `services.md` | 16 | systemd, cron, permissions of service users |
-| `vm.md` | 19 | a Linux VM on a Windows Hyper-V host |
-| `windows.md` | 18 | PowerShell and Windows over SSH |
-| `android.md` | 30 | automating Android apps over adb |
+| `services.md` | 20 | systemd, cron, permissions of service users |
+| `vm.md` | 21 | a Linux VM on a Windows Hyper-V host |
+| `windows.md` | 35 | PowerShell and Windows over SSH |
+| `android.md` | 32 | automating Android apps over adb |
 
 This is the private set as of November 2026 with private context removed (a few near-duplicates merged). Grow your own.

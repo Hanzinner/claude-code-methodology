@@ -103,3 +103,20 @@ systemd, cron, network, DNS, watchdogs, logs, backups.
 - **Why:** the directory was created by root; the user has no write access.
 - **Right way:** run such steps as root and `chown` the created entry afterward; check with `runuser -u <user> -- test -w <trash dir>`.
 - **Seen:** once.
+
+### rsync through `rrsync` (a forced ssh command): the destination must be a DIRECTORY with a trailing slash
+- **Symptom:** `rsync -t file host:app/.code-sha` (or `--mkpath … host:app/state/file`) through a key with `command="rrsync /srv/x"` fails with "delete_file: unlink(4) failed: Operation not permitted … could not make way for new regular file: 4", rc 23. Locally (no ssh) the same call works, so a hermetic test is blind to it.
+- **Why:** rrsync rewrites path arguments; a file path as a destination is handled differently than by a plain rsync server.
+- **Right way:** always target a directory: `rsync file host:app/state/` (name taken from the source), `--mkpath` only for directories. A missing source on the remote side through rrsync is **rc 12** "No such file or directory" (not 23 as locally) — check "no file" against both codes. Verify with a run through a real ssh+rrsync, not a test with a local directory.
+- **Seen:** once.
+
+### sshd in a container refuses a key login: "User X not allowed because account is locked"
+- **Symptom:** key login to a container user fails although the key is right; the sshd log says the account is locked.
+- **Why:** `useradd` without a password puts `!` in shadow = locked account; sshd with `UsePAM no` (the container default) refuses even a valid key.
+- **Right way:** `usermod -p '*' <user>` — no password, but the account is not locked.
+- **Seen:** once.
+
+### A container's launcher lives in code that arrives later — the container loops on restart with rc 2
+- **Symptom:** compose `command: sh deploy/run-on-code.sh`, but the code appears in the volume only after the first sync → "no such file", and `restart: unless-stopped` keeps looping.
+- **Right way:** launchers and workers are `COPY`-ed into the image (`/opt/…`) and WAIT for the code (a `.code-sha` marker); they are not part of it.
+- **Seen:** once.

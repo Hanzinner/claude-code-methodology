@@ -136,3 +136,9 @@ below are what it doesn't tell you. A new hook is wired in `settings.template.js
 - **Why:** the path pattern assumed one checkout location; git worktrees live elsewhere.
 - **Right way:** match `/claude-projects(?:-wt/[^/]+)?/(Project-[\w-]+)/` and cover it with a test. Writing a hook about "a project file"? Start from this pattern.
 - **Seen:** once.
+
+### Token totals from a Claude Code transcript: summing the lines overcounts several times over
+- **Symptom:** a per-run cost report showed "0.8 M cache-write tokens per run" instead of ~52 k — 8–15× too high.
+- **Why:** one model response is written to the `*.jsonl` as several lines, one per content block (each `tool_use`, e.g. a Read of an image), and EACH line carries the same `message.usage`. Summing `usage` over lines multiplies the tokens by the number of blocks.
+- **Right way:** count once per `message.id` (`seen = set()`). Two numbers from one transcript that differ several times over → check deduplication first.
+- **Seen:** once.

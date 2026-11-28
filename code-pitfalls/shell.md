@@ -246,3 +246,14 @@
 - **Why:** `comm` compares by the collation of its own locale; a list sorted in C looks unsorted under a UTF-8 locale and the merge breaks. The warning goes to stderr only, the exit code is 0.
 - **Right way:** one locale for all of them: `LC_ALL=C comm -23 <(LC_ALL=C sort a) <(LC_ALL=C sort b)`; or no `comm` at all: `grep -vxFf b a`. Check: a list compared with itself must give an empty difference.
 - **Seen:** once.
+
+### A command passed into WSL through PowerShell: the OUTER shell expands `$VAR`, so inside a loop the variable is empty
+- **Symptom:** a loop doing `rm -rf` on a path built from the loop variable, passed into WSL via `powershell -EncodedCommand "& wsl.exe -d Debian -u root -- bash -lc '...'"`, ran with an EMPTY variable and removed the parent directory — the whole home directory in WSL was destroyed. Earlier the same day the same mechanism turned `c-$c.mbox` into `c-.mbox`.
+- **Why:** `wsl.exe` without `--exec` hands the command string to the default shell, which expands `$…` BEFORE `bash -lc` sees it.
+- **Right way:** commands into WSL go only as a script FILE (`bash /mnt/h/.../job.sh`) or through stdin with a quoted heredoc marker, never inline with `$`. In any `rm -rf` with a variable use the `:?` form (`${VAR:?}`). Do a dry run first: `echo rm …`.
+- **Seen:** twice (once destructive).
+
+### rsync skips a changed file of the same size in the same second
+- **Symptom:** rsync's default quick-check treats a file as unchanged when size and mtime match to the second. A fixed-length file (a sha, a counter, a flag) or a `git archive` tree (every file gets the commit time) synced twice within a second leaves the OLD content at the destination, rc 0. A test on a fast machine fails "sometimes".
+- **Right way:** `-I` (`--ignore-times`) for small signal files, `-c` (`--checksum`) for a code tree. `rrsync` lets both flags through.
+- **Seen:** once.

@@ -211,3 +211,44 @@
 - **Why:** arguments are evaluated left to right: `open(p,'w')` truncates the file before `open(p).read()` reads it.
 - **Right way:** read into a variable first, then write; or write to another file and rename. After copying a file to another machine, compare sizes.
 - **Seen:** once.
+
+### `tarfile` silently accepts a TRUNCATED stream — some files, reported as success
+- **Symptom:** a copy by tar stream over ssh (`ssh host "tar -cf - …"` → `tarfile.open(fileobj=BytesIO(...))`) after a dropped connection gives `getmembers()` with no exception: the archive "ended" at the last whole header; the copy reports ok with fewer files, and old files stay in place looking new.
+- **Why:** a cut on a header boundary looks like the end of the archive to `tarfile`; a cut mid-data sometimes gives `ReadError`, sometimes just a shorter `read()`.
+- **Right way:** get the LIST of expected files separately (and pack the tar from it); after unpacking compare the path set with the list and each file's length with `m.size`; `tarfile.TarError` → "stream incomplete"; replace nothing until the whole set is verified. Test with a stream cut at `full[:offset_data]` and mid-header.
+- **Seen:** once.
+
+### Swapping `config.STATE` in a test does not move module constants like `X = config.STATE / …`
+- **Symptom:** the test is green for you and red in a clean clone (release runner, CI): `FileNotFoundError` on a file in `state/` that isn't there; on your machine the test quietly wrote into a live file.
+- **Why:** `LAST_PROMPT = config.STATE / "last_prompt.txt"` is evaluated at import; the test sets `config.STATE = tmp` AFTER the import, so the constant stays real. Where the directory exists (a working copy) it writes silently; in a fresh clone it doesn't exist and fails.
+- **Right way:** redirect the module's own constants in the test (`J.LAST_PROMPT = tmp / …`) and restore in `finally`; or set the state path by an environment variable BEFORE import; verify tests somewhere with no untracked data (a clean clone as another user).
+- **Seen:** once.
+
+### pytest: a test without the fixture reads global settings left by the previous test in the worker
+- **Symptom:** a test wrote into `settings.photos_dir` without taking the `env` fixture. Alone it is green; under `pytest -n 2` — `FileNotFoundError`: `photos_dir` pointed at the previous test's temp dir, already deleted. If it is the first test in the worker it writes into the real directory. The same cause (no `env`, `SessionLocal = None`) hit another test the same day.
+- **Why:** the fixture that sets `settings.*` is not `autouse`; a module that doesn't ask for it sees state that depends on test order in the worker.
+- **Right way:** a test that reads `settings.*` or the database requests the fixture explicitly, or has its own `autouse` with `monkeypatch.setattr(settings, ..., tmp_path/...)`. Reproduce: `pytest <any test with env> <suspect test>` in one process.
+- **Seen:** twice.
+
+### SQLite `COLLATE NOCASE` ignores case only for Latin — in Cyrillic, two names differing by case are distinct for UNIQUE
+- **Symptom:** `name TEXT UNIQUE COLLATE NOCASE` accepted a second account differing only by case in Cyrillic; the test for a duplicate in Cyrillic was red.
+- **Why:** built-in NOCASE knows case only for ASCII A–Z; Cyrillic and diacritics are compared as is.
+- **Right way:** case-insensitive uniqueness for non-ASCII belongs in code (`casefold()` before insert, in the same transaction) or a normalised column (`name_key = name.casefold()` UNIQUE). Emails can be `lower()`-ed before saving.
+- **Seen:** once.
+
+### A test "no exception was raised" instead of "the result is correct": `raises(fn) is None` passes on a successful WRONG return
+- **Symptom:** a test "after a password change the old password doesn't log in" was green on defective code: `verify_login` returned the account, and the test checked `raises(lambda: verify_login(...)) is None`.
+- **Why:** the `raises()` helper returns `None` when there is no exception — both for a correct `None` result and for a wrong account object.
+- **Right way:** assert the return value (`got = fn(); check(got is None)`); use `raises()` only where an exception is expected. Run a new defect test against the OLD code first: it must be red (here the red exposed the test's own flaw).
+- **Seen:** once.
+
+### A regex over `delete(db.X)` calls does not see `delete(m)` in a loop `for m in (db.A, db.B)`
+- **Symptom:** a test "every table the code deletes from must have DELETE privilege for the site role" searched `delete\(db\.(\w+)\)`; `erase_account` deleted through a loop over models, two tables fell out of the list, and on the real PostgreSQL "Delete my account" gave a 500 (found by an independent review).
+- **Right way:** scan with `ast`: bind the loop variable to ITS OWN `for` (otherwise `update(m)` in another loop with the same name gives false tables); an unknown variable goes to "unclassified" (a loud red), not into silence; test the scanner's own gaps separately. Plus a real call under the site role on PG.
+- **Seen:** once.
+
+### "Empty list" and "field missing" merged into one fallback → the system quietly does the old thing
+- **Symptom:** `briefs()` returned the default set both when the plan had no `briefs` field (old format) and when the field was deliberately empty (`{}`: everything paused). A paused item kept being served, and start-of-session actions ran against the wrong item.
+- **Why:** `if not x` treats "no data" (None / key missing) and "empty on purpose" (`[]` / `{}`) as one case.
+- **Right way:** two branches: `if x is None` / `"k" not in d` → fallback to the default; empty → respect it. Test both branches.
+- **Seen:** once.

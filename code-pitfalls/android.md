@@ -154,3 +154,15 @@ Automating Android apps over adb (physical phones and redroid containers; uiauto
 - **Symptom:** a robot phone is cabled to a PC; `dumpsys battery` says `USB powered: true`, `status: 2` (charging); mid-session the phone shuts down, and the collector sees "device offline" and counts it as crashes.
 - **Why:** a PC USB port gives ~0.5 A. Under load (screen, video, Wi-Fi adb) the phone draws more, so the battery drains even "on charge".
 - **Right way:** base the safeguard on the level alone (don't start below 20%, wind down gently below 20%, resume from 30%), not on the "charging" flag. A phone vanishing at a low level is its own cause, not a "crash".
+
+### UI dump: "the first matching node" picks the wrong element when another one appears before the right one
+- **Symptom:** a profile bio was taken as the first text under the Follow/Message buttons. The app draws a link as a separate node ABOVE the bio, and a pronoun line even higher, so the data got the link or the pronoun and the lines with the age were lost (the age check on the text never saw them).
+- **Why:** order in the dump is layout, not meaning; an element inserted in front shifts what "first" is.
+- **Right way:** find the node by structure, not by order (on an old phone the bio body was a `Button` with no resource-id holding all lines in one node; the link was a `TextView` with no id right next to it). Test on a dump where something else stands BEFORE the target; keep live dumps and turn them into synthetic fixtures (real structure, invented text).
+- **Seen:** once.
+
+### adb over Wi-Fi on Android 10 and older: only via a cable, and only until the first reboot
+- **Symptom:** "switch the phone to Wi-Fi" without a cable is impossible on an old phone: Android before 11 has no "Wireless debugging" (pairing by code). `adb tcpip 5555` can only be enabled over USB with data, and it resets on every reboot. An old address in the code does not mean Wi-Fi works: after the network moved to another subnet, port 5555 was open nowhere.
+- **Why:** `tcpip` mode is a runtime property of adbd, not a setting.
+- **Right way:** before saying "Wi-Fi was switched off", scan port 5555 on the subnet (`socket.connect((ip, 5555))`) and check on the PC whether the phone is present as a USB device (`Present=False` = no data cable: power-only, or the phone is off). Fix: data cable → `adb -s <serial> tcpip 5555` → `adb connect <IP>:5555`, the address set in the collector's environment. After a phone reboot — the cable again.
+- **Seen:** once.

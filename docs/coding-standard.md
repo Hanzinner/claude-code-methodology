@@ -1,6 +1,6 @@
 # Coding standard
 
-**Version: 3** (2026-11). An agent confirms it in its briefing with the line `Standard: v2 read <date>`; when the version grows, it reads the new entries under "Changelog" at the bottom and updates the line (`scripts/standard_version.py` shows who is behind).
+**Version: 4** (2026-11). An agent confirms it in its briefing with the line `Standard: v4 read <date>`; when the version grows, it reads the new entries under "Changelog" at the bottom and updates the line (`scripts/standard_version.py` shows who is behind).
 
 **Audience: anyone who writes code, a script, a hook, a site or a detection rule.** One file for yourself or a shared mechanism, no difference. These are rules about the code itself and about proving it works.
 
@@ -21,11 +21,11 @@ Next to each rule, who guards it: ⚙ mechanism (block or hint, see §5) · 📊
 
 1. **Look at how it is done and what already exists** ✋ before the first command: the tools list, the catalog, [code-pitfalls/](../code-pitfalls/README.md), a web search. **3 failures in a row: stop and search** ⚙ (`hooks/stuck-detector.py`). (§2.1, §2.2)
 2. **Operator requirements verbatim.** Unclear: one question, not an assumption ✋. (§2.5)
-3. **Project code lives in the project directory, shared mechanisms in one scripts directory, secrets never in the repo** (the repo is under an auto-commit cron) ✋. (§2.3)
+3. **Project code lives in the project directory, shared mechanisms in one scripts directory, secrets never in the repo** (the repo is under an auto-commit cron) ✋; **real names, emails, phone numbers, ids from the conversation never go into code, tests or commits** ✋. (§2.3)
 4. **An error is not swallowed** (no "empty" in place of a failure) ✋. **The irreversible step goes last, after a dry run** ✋. A shell chain that contains an irreversible step needs `set -euo pipefail` + `trap ERR` ✋. (§2.3b, §2.3c)
 5. **A test sits next to the change and can be rerun. A test never writes to live state** (`CCM_TEST=1`) ⚙. (§2.4)
 6. **"Done" only with a run in this turn** ⚙ (`hooks/proof-guard.py`: edited code and ran nothing after the last edit, the turn does not end; `PROOF_GUARD_BLOCK=0` turns it into a hint). A check states how much it checked; zero means the check is broken ✋. Critical changes (§0): **review by a different model**, `scripts/cross-review.sh` ✋. (§3, §0)
-7. **Deletion is `mv` to a trash directory, not `rm`** ✋. (§2.3b)
+7. **Deletion is `mv` to a trash directory, not `rm`** ✋. **Whoever creates something temporary removes it in the same run; on another machine, deletion only as one script file (not a command line), a path from a variable only as `${x:?}`** ✋. (§2.3b, §2.3d)
 8. **Afterwards:** you broke something, so write it into the mistakes journal ([docs/mistakes-journal.md](mistakes-journal.md)) ⚙ (format). **Same class of mistake a second time: automatic gate** ✋. New mechanism: entry in the catalog ⚙ + a watchdog check ✋. (§4)
 
 **Nobody guards the ✋ items. They hold only on you, and this is where a multi-agent setup breaks most often.** The "standard version read" line in an agent's brief is audited 📊 (for coding agents; paused projects are excluded).
@@ -67,6 +67,12 @@ Next to each rule, who guards it: ⚙ mechanism (block or hint, see §5) · 📊
 - Severity is a claim until checked: test the worst case first; a fix costlier than the bug means `accept`.
 - The loop is pre-authorized: a tiny stop-list, everything else it decides without asking.
 
+**A review loop must converge, not grow.**
+- **A fix that adds a new mechanism means stop and redesign.** Before a new coordination primitive (a lock, a ticker, a watermark, a snapshot) ask whether a simpler order of steps removes the race altogether. A loop converges by deleting or by fixing in place; an iteration that adds a primitive to satisfy a reviewer's finding stops, and the design is rederived with the operator ✋.
+- **Diff budget:** at the start of the loop take `git diff --shortstat <base>...HEAD`; growth up to ~20% is normal; over 25% every added block is justified on its own or removed (regression tests count separately). A finding "add a test / helper / abstraction" is reported, not done; the loop's report names the net growth in lines ✋.
+- **Redesign trigger:** a bug in your OWN fix two rounds in a row, or one file edited more than 6 times in a loop → stop patching. First: "what does the user lose if this code is deleted?" If dropping the requirement removes the whole class of defects, ask the operator (dropping a feature is theirs). The requirement stays → collect the old code's guarantees, delete the implementation, build LESS, pin every guarantee with a test, full review; one redesign per component ✋.
+- **The full quality loop:** tests → lint → types → two reviewers that only read (`/code-review` and a separate reviewer subagent) → every finding reproduced, fixed as a class, pinned by a test → repeat until no P0/P1 is left. When it is mandatory: [project-work.md §2.7](project-work.md).
+
 **Changing a model, prompt, thresholds, judge/classifier rules** is a separate mode: [project-work.md §2.1a](project-work.md).
 
 **2.2 Pitfalls.** Before you edit code, the hint hook (`hooks/code-pitfalls-hint.py`) shows the headings of the pitfalls for that technology. If one resembles your case, open the entry in full. Technologies: shell · python · web · services · windows · vm · git · hooks · android · concurrency · verification.
@@ -83,6 +89,8 @@ Next to each rule, who guards it: ⚙ mechanism (block or hint, see §5) · 📊
 - Sites: the web playbook. Standard library `http.server`, one HTML file. Service, reverse proxy, address: a message to the infra agent.
 - There are no secrets in the repo (it is under an auto-commit cron). They live in a config directory outside the repo.
 - A new dependency or framework needs a reason in the commit or ADR ([project-work.md §4.3](project-work.md)).
+- **Real people's data from the conversation never goes into an artifact.** Names, emails, keys, cookies, ids, phone numbers, company names from the operator's example do not land in code, tests, prompts, configs, docs, PRs or commits, not even "as an example". Replace them with invented ones (Jane Smith, alex@example.com, Acme Corp) BEFORE writing; before a commit grep the changed files for identifiers from the conversation ✋.
+- **Comments: 1–2 lines.** By default no comment; only when the "why" is not obvious. The history of a regression goes into the commit, not the code. A module docstring is a paragraph, a function's is a line; do not repeat a parameter's type and name ✋.
 
 **2.3b Reliable code: for everything we write** (classes from the mistakes journal, each with ≥3 cases).
 - **An error is not swallowed.** A reader/parser/instrument that fails makes noise (log, rc≠0); it does not return "empty" or a default. Forbidden: `catch{}` around a whole block, `2>/dev/null` on anything important, `| tail -1` as proof, `set -e` without `trap ERR`. "Could not read" is not "empty"; "unknown" is not "no". Cost: a BOM broke a JSON file, the reader saw "empty", a bot removed likes from the wrong account; 10+ cases of this class.
@@ -98,7 +106,18 @@ Next to each rule, who guards it: ⚙ mechanism (block or hint, see §5) · 📊
 - **Long jobs:** a warning "doing X, ~N min", in the background with progress checks.
 - **Deletion:** `mv` to the trash directory, not `rm`. Trash lives `CCM_TRASH_DAYS` (14) days, then `hooks/trash-guard.py --clean` removes it (only if cleanup was enabled at install); anything needed longer does not go in trash. Exception: temporary things the script itself created in this run (`mktemp -d` under `/var/tmp` or `~/.cache`, not `/tmp`, which is RAM-backed). It cleans them up itself with `trap … EXIT` and does not put them in trash. Reason: 1602 browser profiles = 32 GB in trash in one day.
 
+- **`rsync --delete` and any deploy with `--delete` is a destructive action** (the remote machine has no trash). Before each one: (1) pull the state from the remote machine; (2) see what runs there (`ssh … tmux ls`); (3) `--dry-run` and read the list of deletions, anything not yours → stop; (4) do not push "because the code changed" ✋.
+
 **2.3c A shell chain with something irreversible further on** (mv, rm, git, write to shared) runs only with `set -euo pipefail` + `trap ERR` that logs where it fell (§2.3b). A failed `cd` otherwise does not break the chain and the next command runs in the wrong place.
+
+**2.3d A shared machine: temporary files and deletion.** (Cost: one team filled a shared test machine's disk to 0 bytes with 49 GB of build directories, and a cleanup with an unguarded empty variable in the path, `/root/$w`, deleted all of `/root`.)
+- **Whoever creates something temporary removes it in the same run:** a script uses `trap … EXIT`; a worktree, a build directory, run logs are removed by the task that created them. Only a summary may stay ✋.
+- **One build directory per project, not per agent or per task.** Different build profiles are subdirectories of that one directory within the same limit; waiting in the build queue is normal, multiplying directories is not ✋.
+- **A disk limit per project on a shared machine; the project lead answers for it.** Over the limit, the lead explains it to the operator. The shared launcher (whatever runs builds and tests there) is the place that enforces it: it refuses over the limit and when the host's free space is low ✋.
+- **Look at free space where it is real:** `df` inside WSL or a guest shows the virtual disk's ceiling, not the host's free space.
+- **A command for another machine is a script file run through the shared launcher, not one line through several shells.** In `ssh → PowerShell → wsl.exe → bash -lc '…$w…'` the variable is expanded by the outer shell, i.e. empty. Do not keep your own wrappers for someone else's machine ✋.
+- **Deletion on a shared machine:** one owner, one script file, the list with sizes BEFORE deleting, `set -u`, a path from a variable only as `${x:?}`, refuse `/` and `$HOME`. A lead does not broadcast "everyone delete now"; it names one owner ✋.
+- **An odd result from a tool: fix the tool and write it down, do not work around it.** An empty substitution, a file with the wrong name, the wrong rc is a warning: 7 hours before that deletion the same wrapper produced a file `c-.mbox` instead of `c-<name>.mbox`, and it was worked around ✋.
 
 **2.4 Tests: where the change is.** (For project code and shared mechanisms. Infra scripts that can only be checked on the live system: positive + negative run in the cron environment + a watchdog check.) New code and the area around a refactor; do not backfill stable code. A test is a file next to the code and is rerun (`tests/`). If you broke someone else's test, you do not hand in. A hook/gate is accepted with the same command that is in `settings.json` (via `hooks/hook-safe.sh`) and by running your own typical commands through it.
 - **A test never writes to live state** (logs, state, inbox, HOME, live data directories). A test sets `CCM_TEST=1` (⚙ the inbox tool then does not reach the live side; `HANZ_TEST=1` is the older name, still honoured). Otherwise isolate with variables (`HOME=`, `*_STATE=`). Check whether a function the test calls writes to a file itself. Cost: a deploy test wrote into a live status file; test frames landed in the live CLIP directory.
@@ -135,6 +154,7 @@ Next to each rule, who guards it: ⚙ mechanism (block or hint, see §5) · 📊
 - **The same failure for more than a day: message the lead.** A marker/task that fails every 5 minutes for weeks without an alarm from its author is silence (a release marker failed for weeks).
 - **A finding about a secret goes straight to the domain owner** (the git agent), not through project leads. A secret's cost grows hourly. Cost: a message about a live private key in git lay in a project lead's inbox for three days.
 - **A detector does not repair by itself; it calls the domain owner** when the choice of repair depends on what exactly broke. A wrong auto-repair of history is irreversible.
+- **A watchdog has a time budget.** Stop-hook watchdogs that did not fit in their 5 s timeout were skipped silently 126 times in two days (fail-open): the rule counted as guarded and was not. A new watchdog is switched on only with its time measured on a real transcript; skips of each watchdog are counted daily ✋.
 - **Code of shared mechanisms lives in its own git repo** with an automatic snapshot every 10 minutes (owner: the git agent).
 
 ---
@@ -192,3 +212,4 @@ A rule nobody guards, agents do not follow (measured). A new item in this file i
 - **v1** (2026-11) — first public version: the core path of a change, handing in with a run proof, who guards what.
 - **v2** (2026-11-16) — project-work, core 2a: before the first code edit in a project take the task (`scripts/take_task.sh <project> <story>`); an edit without a task goes to a journal; at most 2 tasks in progress. What to do: take a task before editing; update your line to `Standard: v2`.
 - **v3** (2026-11-23) — project-work, core 3a: a story the operator judges by eye is marked 👁; order: show (the cheapest way) → "yes" → tests → PR; the executor shows it directly; a `preview` command in `release.toml`; a third build for pictures without a "yes" stops. What to do: mark open stories with a look 👁, fill `preview` in `release.toml` (`"none"` if nothing to look at); update "Standard: v3".
+- **v4** (2026-11-28) — §2.1: a review loop converges (a fix with a new mechanism = redesign, diff budget, redesign trigger, the full quality loop); §2.3: real people's data never in an artifact, comments 1–2 lines; §2.3b: `rsync --delete` is destructive; §2.3d (new): a shared machine, temporary files cleaned by their creator, one build directory, a disk limit per project, deletion by one owner with `${x:?}`, an odd tool result gets fixed; §2.9: a watchdog has a time budget. project-work: core 3b (independent tasks to helpers in parallel), 6a (the lead answers for the team's disk), §2.7 (when the quality loop is mandatory), §2.8 (data compatibility at release, a service after downtime). What to do: leads name one build directory and a limit; update "Standard: v4".

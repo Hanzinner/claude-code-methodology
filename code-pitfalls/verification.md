@@ -145,7 +145,7 @@
 - **Right way:** before navigating put a mark on the old page (`window.__e2e_old = true`) and wait for `!window.__e2e_old && document.readyState === 'complete'`; after a click that leads to another page wait for an element the new page's script draws (the header), not only `location.pathname`.
 - **Same symptom, second cause:** a "wait for server /health" loop of 100 × 0.1 s without `else: raise` — under VM load (load 24+) uvicorn started in 11 s, the loop ended quietly, the test went on and the first page was a connection error. Reproduced twice in a row. Wait with a margin (60 s) and, if not met, fail with the server log tail (`for … else: raise`). A wait that silently ran out = a test on a nonexistent system.
 - **Third cause of the same class:** after navigating, the scenario waited for `location.pathname === '/auth/google/fake'` and clicked at once — the page script (external file under CSP) hadn't attached `onclick` yet, the click went into the void. Gave "random" login FAILs that were twice blamed on "an edit in the middle of the run". Wait for a mark set by the new page's SCRIPT (`!!document.getElementById('go').onclick`, an element it draws), not for the address.
-- **Seen:** 3 causes, 2026-10.
+- **Seen:** 3 causes in the first project; repeated in a second project (a false "card moves back" suspicion cost ~40 minutes) — same fix, a mark on the old page.
 
 ### Test bench "ready" because something answered on the port — but it's someone else's server
 - **Symptom:** the instrument starts its own server and waits for `/health`; the port is already taken by another agent → the own server dies with Errno 98, while `/health` is answered by the foreign one — the instrument writes test data into a foreign database and gives wrong results to both.
@@ -186,4 +186,37 @@
 - **Symptom:** clippy fails on a "missing field" in code your change does not touch.
 - **Why:** the shared target dir held a workspace crate built from a worktree on a newer main; the worktree on the older base has older file mtimes, so cargo took the foreign artifact as fresh.
 - **Right way:** before building in a worktree that shares a target dir with another base, `git ls-files -z -- '*.rs' '*.toml' | xargs -0 touch` (rebuilds only the workspace crates, not dependencies; git status unchanged); or a separate target dir per base. Compile errors in files or crates your diff does not touch: suspect the build cache first, not the code.
+- **Seen:** once.
+
+### A gate command verified as root fails under the user the release runner uses
+- **Symptom:** the full gate command through the test wrapper — rc 0; after approval the very first branch is RED with `PermissionError` on a path under `/root`.
+- **Why:** the wrapper runs as root, the runner as an unprivileged user (`/root` is 710 for it). Python 3.13 `Path.exists()` / `glob` raise on EACCES instead of returning False.
+- **Right way:** before approving a new gate command, run it as the user who will run it (`runuser -u <runner> -- bash -c "<cmd>"`). In test code, look up resources under another HOME inside `try/except OSError`.
+- **Seen:** once.
+
+### A review by another model was started while the code was still being edited — the reviewer sees a stale diff
+- **Symptom:** the review returned "the material is stale": the riskiest part (the order of a schema migration) stayed unreviewed and the quota was spent on code that no longer exists.
+- **Why:** the review tool snapshots the diff when it starts; the review runs for minutes in the background while the author commits further edits.
+- **Right way:** start a review only after the LAST edit you want checked; if you find something new meanwhile, wait, fix, then run the next review on a fresh `master...HEAD` (or narrowly `HEAD~N..HEAD` for edits since the previous review). List in the request what the previous review already closed.
+- **Seen:** once.
+
+### An environment variable added to the gate command in the BRANCH's config does not apply — the runner takes the gate from the main branch's config
+- **Symptom:** you added `export X=… &&` to the `test = "…"` line in your branch's `release.toml`; your own run of that command is green, while the runner's gate on the same branch is red (without the variable a list the test needs is empty).
+- **Why:** the runner executes the gate command from the main branch's config, so changes to the command in the branch don't affect it.
+- **Right way:** whatever a test needs from the environment, the test sets itself (`os.environ.setdefault(...)` at the top of the file; subprocesses inherit). Check a branch with the main branch's command: `git show main:release.toml`, not the working copy's.
+- **Seen:** once.
+
+### Extract a gate command from a TOML file with a TOML parser, not `sed`
+- **Symptom:** `CMD=$(grep '^test' release.toml | sed 's/^test = "//; s/"$//')` worked until escaped quotes (`[ \"$(command -v x)\" = … ]`) appeared in the command. Then `bash -c "$CMD"` gets literal `\"`, the first check fails and the gate exits rc 1 with NO output at all — it looks like a real failure.
+- **Right way:** `CMD=$(python3 -c "import tomllib;print(tomllib.load(open('release.toml','rb'))['test'])")`. And chain gate → commit → ready with `&&`: here the commit and ready went through after rc 1 because they were separate commands.
+- **Seen:** once.
+
+### A test wrapper returns rc 4 "file or directory not found" with no tests run — and an output filter makes it look empty
+- **Symptom:** three times in one day: a new test file not yet `git add`-ed (only tracked files are mirrored to the runner), a glob (`test_e6_s44*.py`) that isn't expanded on the far side, and a wrong file name. Output filtered with grep for "passed|failed" looks empty — easy to read as "nothing failed".
+- **Right way:** `git add` a new file before running; use exact names (`ls | grep …` locally and paste); add `ERROR` and the wrapper's own prefix to the output filter and look at the exit code.
+- **Seen:** 3 times.
+
+### "The probe saw nothing" is not proof until the probe has seen a control event
+- **Symptom:** an input-event watcher "didn't see a finger" at the moment of a false pause → conclusion "the trigger is not on the screen". The event counter showed 0 even during the bot's own gestures — the probe was blind.
+- **Right way:** in the same run the probe must catch a control event (a known gesture or tap) and log an event counter every minute. Conclude from absence of signal only when the counter is non-zero.
 - **Seen:** once.

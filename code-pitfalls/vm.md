@@ -111,4 +111,10 @@ Setup these come from: a Linux VM on a Windows Hyper-V host, driven over SSH (pl
 - **Symptom:** `df -h /` in WSL reports ~900 GB free while the host drive holding `ext4.vhdx` has 10 GB left; a big write then fails or freezes the guest.
 - **Why:** a dynamic virtual disk reports its maximum size (1 TB for WSL by default); the real limit is the free space of the host drive the file lives on.
 - **Right way:** free space for a guest is measured on the host (`Get-PSDrive` / `Get-Volume` in PowerShell for the drive holding the `.vhdx`), before any large write.
+- **Seen:** twice, 2 agents (the second time a new build directory was created on the strength of "900 GB free", the host drive hit 100% and the guest died).
+
+### A temporary VM with a self-destruct timer: its own timer eats the results
+- **Symptom:** an overnight run (331 scenarios × 3 models) on a cloud VM; the agent's session died at night, the safety `shutdown -h` fired after 5 h, and the VM was destroyed together with its disk and all results. The LLM spend and ~5 hours went to waste.
+- **Why:** `instance-initiated-shutdown-behavior terminate` plus a `DeleteOnTermination` disk; the plan "I'll copy it when it's done" depended on a live agent session, while the timer fires whether or not anyone is watching.
+- **Right way:** sync results off the machine (S3/B2/`rsync` without `--delete`) in a loop from minute one, plus a final upload before any shutdown; put the sync loop, the final upload and the shutdown in the VM's own user-data/script so they finish without a session. Give the timer a large margin over the expected time. Applies to any machine with auto-deletion.
 - **Seen:** once.
